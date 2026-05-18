@@ -22,7 +22,7 @@ class OutputWindow(QMainWindow):
     - 누적 출력 (새 분석 결과가 계속 추가됨)
     - HTML 렌더링
     - 텍스트/표/차트 표시
-    - 저장/낳볼기
+    - 저장/납비
     - 지우기
     """
 

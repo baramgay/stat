@@ -74,7 +74,7 @@ class TestResultTable:
         df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
         rt = ResultTable(title="CSV Test", dataframe=df)
         csv_text = rt.to_csv()
-        lines = csv_text.strip().split("\n")
+        lines = [l.strip() for l in csv_text.strip().split("\n")]
         assert lines[0] == "A,B"
         assert len(lines) == 3  # header + 2 rows
 

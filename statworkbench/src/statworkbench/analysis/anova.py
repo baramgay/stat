@@ -179,6 +179,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 _run_tukey_hsd(clean_df, dep_var, factor_var, confidence_level, result)
             if "bonferroni" in post_hoc:
                 _run_bonferroni(clean_df, dep_var, factor_var, confidence_level, result)
+            if "scheffe" in post_hoc:
+                _run_scheffe(clean_df, dep_var, factor_var, confidence_level, result,
+                             anova_table, ms_within, df_within)
 
     except Exception as e:
         result.warnings.append(f"ANOVA could not be computed: {e}")
@@ -258,6 +261,66 @@ def _run_tukey_hsd(
         ))
     except Exception as e:
         result.warnings.append(f"Tukey HSD could not be computed: {e}")
+
+
+def _run_scheffe(
+    df: pd.DataFrame,
+    dep_var: str,
+    factor_var: str,
+    confidence_level: float,
+    result: AnalysisResult,
+    anova_table: "pd.DataFrame",
+    ms_within: float,
+    df_within: float,
+) -> None:
+    """Run Scheffe post-hoc test (conservative, controls familywise error rate)."""
+    try:
+        groups_list = sorted(df[factor_var].unique())
+        k = len(groups_list)
+        alpha = 1 - confidence_level
+        rows = []
+
+        for i in range(k):
+            for j in range(i + 1, k):
+                g1 = df[df[factor_var] == groups_list[i]][dep_var].dropna().values
+                g2 = df[df[factor_var] == groups_list[j]][dep_var].dropna().values
+                n1, n2 = len(g1), len(g2)
+                if n1 == 0 or n2 == 0:
+                    continue
+                mean_diff = float(np.mean(g1) - np.mean(g2))
+                se_diff = float(np.sqrt(ms_within * (1 / n1 + 1 / n2)))
+                # Scheffe F-statistic
+                f_scheffe = (mean_diff ** 2) / (ms_within * (1 / n1 + 1 / n2))
+                # Critical value: (k-1) * F_crit(alpha, k-1, df_within)
+                f_crit = (k - 1) * stats.f.ppf(1 - alpha, dfn=k - 1, dfd=df_within)
+                p_scheffe = 1 - stats.f.cdf(f_scheffe / (k - 1), dfn=k - 1, dfd=df_within)
+                significant = "Yes" if f_scheffe > f_crit else "No"
+                # 95% CI for mean difference
+                margin = np.sqrt(f_crit) * se_diff
+                ci_lo = mean_diff - margin
+                ci_hi = mean_diff + margin
+                rows.append({
+                    "Group1": groups_list[i],
+                    "Group2": groups_list[j],
+                    "Mean Difference": format_number(mean_diff, 3),
+                    "SE": format_number(se_diff, 3),
+                    "F (Scheffe)": format_number(f_scheffe, 3),
+                    "p-value": format_pvalue(p_scheffe),
+                    f"{int(confidence_level*100)}% CI": format_ci(ci_lo, ci_hi),
+                    "Significant": significant,
+                })
+
+        scheffe_df = pd.DataFrame(rows)
+        result.add_table(ResultTable(
+            title="Post-Hoc: Scheffe",
+            dataframe=scheffe_df,
+            footnotes=[
+                "Scheffe 검정은 보수적인 다중비교 방법으로 1종 오류를 엄격하게 통제합니다.",
+                f"유의 수준: alpha = {1 - confidence_level:.2f}",
+            ],
+        ))
+    except Exception as e:
+        result.warnings.append(f"Scheffe post-hoc 계산 실패: {e}")
 
 
 def _run_bonferroni(

@@ -14,6 +14,24 @@ from statworkbench.analysis.base import AnalysisPlugin
 # ---------------------------------------------------------------------------
 
 _VARIABLE_REQ_TEMPLATES: dict[str, list[dict]] = {
+    "logistic_regression": [
+        {"role": "dependent", "measure_types": ["nominal", "binary", "ordinal"], "min_count": 1, "max_count": 1, "required": True},
+        {"role": "predictors", "measure_types": ["scale", "nominal", "ordinal", "binary"], "min_count": 1, "required": True},
+    ],
+    "factor_analysis": [
+        {"role": "variables", "measure_types": ["scale", "ordinal"], "min_count": 2, "required": True},
+    ],
+    "cluster_analysis": [
+        {"role": "variables", "measure_types": ["scale", "ordinal"], "min_count": 1, "required": True},
+    ],
+    "survival_analysis": [
+        {"role": "duration", "measure_types": ["scale"], "min_count": 1, "max_count": 1, "required": True},
+        {"role": "event", "measure_types": ["binary", "nominal"], "min_count": 1, "max_count": 1, "required": True},
+    ],
+    "discriminant_analysis": [
+        {"role": "dependent", "measure_types": ["nominal", "ordinal", "binary"], "min_count": 1, "max_count": 1, "required": True},
+        {"role": "predictors", "measure_types": ["scale", "ordinal"], "min_count": 1, "required": True},
+    ],
     "frequencies": [
         {"role": "variables", "measure_types": ["nominal", "ordinal", "binary", "text"], "min_count": 1, "required": True},
     ],
@@ -88,12 +106,16 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "spearman_correlation", "name": "Bivariate (Spearman)", "category": "Correlate", "description": "Spearman rank correlation matrix.", "implemented": True},
     {"id": "partial_correlation", "name": "Partial", "category": "Correlate", "description": "Partial correlation.", "implemented": False},
     {"id": "linear_regression", "name": "Linear", "category": "Regression", "description": "Linear regression analysis.", "implemented": True},
-    {"id": "logistic_regression", "name": "Logistic", "category": "Regression", "description": "Logistic regression analysis.", "implemented": False},
+    {"id": "logistic_regression", "name": "Logistic", "category": "Regression", "description": "Binary and multinomial logistic regression with OR, CI, Hosmer-Lemeshow, ROC AUC.", "implemented": True},
+    {"id": "factor_analysis", "name": "Factor Analysis / PCA", "category": "Dimension Reduction", "description": "Exploratory Factor Analysis and PCA with Varimax rotation, KMO, Bartlett's test.", "implemented": True},
+    {"id": "cluster_analysis", "name": "Cluster Analysis", "category": "Classification", "description": "K-means and hierarchical clustering with silhouette coefficient and dendrogram data.", "implemented": True},
+    {"id": "survival_analysis", "name": "Survival Analysis", "category": "Survival", "description": "Kaplan-Meier estimator, log-rank test, and Cox proportional hazards regression.", "implemented": True},
+    {"id": "discriminant_analysis", "name": "Discriminant Analysis", "category": "Classification", "description": "Linear Discriminant Analysis with Wilks Lambda, classification matrix, structure matrix.", "implemented": True},
     {"id": "reliability", "name": "Reliability Analysis", "category": "Scale", "description": "Cronbach's alpha and reliability statistics.", "implemented": False},
     {"id": "roc_analysis", "name": "ROC Analysis", "category": "Diagnostic Tests", "description": "Receiver operating characteristic analysis.", "implemented": False},
     {"id": "sensitivity_specificity", "name": "Sensitivity/Specificity", "category": "Diagnostic Tests", "description": "Diagnostic accuracy measures.", "implemented": False},
-    {"id": "kaplan_meier", "name": "Kaplan-Meier", "category": "Survival", "description": "Survival analysis with Kaplan-Meier estimator.", "implemented": False},
-    {"id": "cox_regression", "name": "Cox Regression", "category": "Survival", "description": "Cox proportional hazards regression.", "implemented": False},
+    {"id": "kaplan_meier", "name": "Kaplan-Meier", "category": "Survival", "description": "Survival analysis with Kaplan-Meier estimator (use survival_analysis).", "implemented": False},
+    {"id": "cox_regression", "name": "Cox Regression", "category": "Survival", "description": "Cox proportional hazards regression (use survival_analysis).", "implemented": False},
     {"id": "cohens_kappa", "name": "Cohen's Kappa", "category": "Agreement", "description": "Measure of inter-rater agreement.", "implemented": False},
     {"id": "icc", "name": "ICC", "category": "Agreement", "description": "Intraclass correlation coefficient.", "implemented": False},
     {"id": "bland_altman", "name": "Bland-Altman", "category": "Agreement", "description": "Bland-Altman agreement analysis.", "implemented": False},
@@ -359,3 +381,97 @@ class AnalysisRegistry:
     def __len__(self) -> int:
         """Return the number of registered plugins."""
         return len(self._plugins)
+
+
+# ---------------------------------------------------------------------------
+# Module-based plugin adapters for new analyses
+# ---------------------------------------------------------------------------
+
+class _ModulePlugin:
+    """Adapter that wraps a module's run_analysis() as an AnalysisPlugin."""
+
+    def __init__(
+        self,
+        plugin_id: str,
+        name: str,
+        category: str,
+        description: str,
+        module_path: str,
+    ) -> None:
+        self.id = plugin_id
+        self.name = name
+        self.category = category
+        self.description = description
+        self.implemented = True
+        self.variable_requirements: list[dict] = _VARIABLE_REQ_TEMPLATES.get(plugin_id, [])
+        self._module_path = module_path
+        self._module = None
+
+    def _load(self) -> None:
+        if self._module is None:
+            import importlib
+            self._module = importlib.import_module(self._module_path)
+
+    def validate(self, dataset: "Dataset", spec: dict) -> list[str]:
+        """Basic validation — returns empty list if variables are present."""
+        errors: list[str] = []
+        variables = spec.get("variables", {})
+        if not variables:
+            errors.append("분석 변수가 지정되지 않았습니다.")
+        return errors
+
+    def run(self, dataset: "Dataset", spec: dict) -> "AnalysisResult":
+        """Delegate to the module's run_analysis()."""
+        self._load()
+        return self._module.run_analysis(dataset, spec)  # type: ignore[union-attr]
+
+
+def _register_new_plugins(registry: AnalysisRegistry) -> None:
+    """Register the five new analysis modules into *registry*.
+
+    This function replaces the _PlannedAnalysis stubs that were created during
+    ``__init__`` for these IDs.  Call it once after instantiating the registry.
+    """
+    new_plugins = [
+        _ModulePlugin(
+            plugin_id="logistic_regression",
+            name="Logistic Regression",
+            category="Regression",
+            description="이항/다항 로지스틱 회귀: OR, 95% CI, Wald, Hosmer-Lemeshow, ROC AUC",
+            module_path="statworkbench.analysis.logistic_regression",
+        ),
+        _ModulePlugin(
+            plugin_id="factor_analysis",
+            name="Factor Analysis / PCA",
+            category="Dimension Reduction",
+            description="탐색적 요인분석(EFA) 및 주성분분석(PCA): Varimax 회전, KMO, Bartlett",
+            module_path="statworkbench.analysis.factor_analysis",
+        ),
+        _ModulePlugin(
+            plugin_id="cluster_analysis",
+            name="Cluster Analysis",
+            category="Classification",
+            description="K-평균 및 계층적 군집분석: 실루엣 계수, 덴드로그램 데이터",
+            module_path="statworkbench.analysis.cluster_analysis",
+        ),
+        _ModulePlugin(
+            plugin_id="survival_analysis",
+            name="Survival Analysis",
+            category="Survival",
+            description="Kaplan-Meier, Log-rank 검정, Cox 비례위험 회귀",
+            module_path="statworkbench.analysis.survival_analysis",
+        ),
+        _ModulePlugin(
+            plugin_id="discriminant_analysis",
+            name="Discriminant Analysis",
+            category="Classification",
+            description="선형 판별분석: Wilks Lambda, 분류 행렬, 구조 행렬",
+            module_path="statworkbench.analysis.discriminant_analysis",
+        ),
+    ]
+
+    for plugin in new_plugins:
+        # Replace existing planned stub if present
+        if plugin.id in registry._plugins:
+            del registry._plugins[plugin.id]
+        registry._plugins[plugin.id] = plugin

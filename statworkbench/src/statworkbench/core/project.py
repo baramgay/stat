@@ -97,6 +97,12 @@ class Project:
         )
         return proj
 
+    def add_dataset(self, dataset: Dataset) -> None:
+        """데이터셋을 프로젝트에 추가합니다."""
+        self.datasets.append(dataset)
+        self.dataset = dataset
+        self.mark_dirty()
+
     def touch(self) -> None:
         """Update the modification timestamp."""
         self.modified_at = datetime.now()

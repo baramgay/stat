@@ -1,346 +1,488 @@
-"""Chart Builder — SPSS 스타일 차트 빌더.
+"""Chart Builder — SPSS 스타일 차트 빌더 (완성판).
 
-SPSS Chart Builder 기능:
-- 차트 유형 선택 (막대, 선, 산점도, 히스토그램, 상자 그림)
-- X/Y 축 변수 할당
-- 그룹화/패널 변수
-- 차트 미리보기 (matplotlib)
-- 차트 저장
+matplotlib FigureCanvas 임베딩을 활용한 실시간 미리보기.
+왼쪽: 차트 유형 선택 | 가운데: 변수·옵션 | 오른쪽: 실시간 미리보기
 """
+
+from __future__ import annotations
+
+import io
+import logging
+from typing import Optional, List
+
+import numpy as np
+import pandas as pd
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QListWidget, QListWidgetItem, QGroupBox,
     QDialog, QDialogButtonBox, QSplitter, QFileDialog,
-    QMessageBox, QTabWidget, QSpinBox, QCheckBox
+    QMessageBox, QSpinBox, QCheckBox, QLineEdit,
+    QFrame, QGridLayout, QScrollArea, QApplication,
+    QButtonGroup, QRadioButton, QSizePolicy,
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap, QImage
-from typing import Optional, List
+from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtGui import QPixmap, QImage, QFont
 
-import pandas as pd
-import numpy as np
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from statworkbench.core.dataset import Dataset
+from statworkbench.analysis.visualization import VisualizationEngine
+
+logger = logging.getLogger(__name__)
+
+# 한글 폰트 보장
+plt.rcParams["font.family"] = ["Malgun Gothic", "NanumGothic", "DejaVu Sans"]
+plt.rcParams["axes.unicode_minus"] = False
+
+
+# ── 차트 유형 정의 ──────────────────────────────────────────────────────────
+
+CHART_TYPES: List[tuple[str, str, str]] = [
+    ("histogram",   "히스토그램",     "분포 분석 — 정규 곡선 선택 가능"),
+    ("scatter",     "산점도",         "두 수치 변수의 관계"),
+    ("bar",         "막대 그래프",    "범주별 빈도 / 평균"),
+    ("line",        "선 그래프",      "추세·시계열"),
+    ("boxplot",     "상자 그림",      "사분위수·이상값"),
+    ("qq",          "Q-Q 플롯",       "정규성 검정"),
+    ("heatmap",     "상관관계 히트맵","변수 간 상관"),
+]
+
+
+class _PreviewCanvas(FigureCanvas):
+    """미리보기 전용 FigureCanvas."""
+
+    def __init__(self, parent=None):
+        self._fig = Figure(figsize=(6, 4), tight_layout=True)
+        super().__init__(self._fig)
+        self.setParent(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._show_placeholder()
+
+    def _show_placeholder(self) -> None:
+        self._fig.clear()
+        ax = self._fig.add_subplot(111)
+        ax.text(0.5, 0.5, "차트를 생성하려면\n왼쪽에서 변수를 선택하고\n'미리보기' 버튼을 클릭하세요",
+                ha="center", va="center", fontsize=12, color="#888888",
+                transform=ax.transAxes,
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="#f5f5f5", alpha=0.8))
+        ax.axis("off")
+        self.draw()
+
+    def display_figure(self, fig: Figure) -> None:
+        """외부 Figure의 내용을 캔버스에 표시."""
+        self._fig.clear()
+        # figure를 PNG 버퍼로 렌더링 후 캔버스에 이미지로 표시
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="white")
+        buf.seek(0)
+        from matplotlib.image import imread
+        img = imread(buf)
+        ax = self._fig.add_subplot(111)
+        ax.imshow(img)
+        ax.axis("off")
+        self._fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        self.draw()
+
+    def get_figure(self) -> Figure:
+        return self._fig
 
 
 class ChartBuilderDialog(QDialog):
-    """SPSS Chart Builder 다이얼로그."""
+    """SPSS Chart Builder 다이얼로그 (완성판).
 
-    chart_saved = Signal(str)  # 저장 경로
+    구성:
+    - 왼쪽:  차트 유형 선택 패널 (라디오 버튼)
+    - 가운데: 변수 선택 + 옵션 (X축, Y축, 그룹, 제목, 기타)
+    - 오른쪽: 실시간 미리보기 (FigureCanvas 임베딩)
+    - 하단:  확인(결과창 삽입), PNG 저장, 닫기
+    """
 
-    def __init__(self, dataset: Dataset, parent=None):
+    # 시그널: 차트 유형, figure, QPixmap
+    chart_inserted = Signal(str, object, QPixmap)
+    chart_saved = Signal(str)
+
+    def __init__(self, dataset: Dataset, parent=None) -> None:
         super().__init__(parent)
         self._dataset = dataset
+        self._engine = VisualizationEngine()
+        self._current_fig: Optional[Figure] = None
+
         self.setWindowTitle("차트 빌더")
-        self.setMinimumSize(900, 700)
+        self.setMinimumSize(1200, 800)
         self._setup_ui()
+        self._connect_signals()
 
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(16, 16, 16, 16)
+    # ── UI 구성 ─────────────────────────────────────────────────────────────
 
-        # 데이터셋 정보
-        info = QLabel(f"데이터셋: {self._dataset.name} | "
-                      f"케이스: {len(self._dataset.data)} | "
-                      f"변수: {len(self._dataset.data.columns)}")
-        info.setStyleSheet("color: #5d6d7e; font-size: 12px;")
-        layout.addWidget(info)
+    def _setup_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setSpacing(10)
+        root.setContentsMargins(14, 14, 14, 10)
 
-        # 스플리터
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        # 헤더
+        header = self._make_header()
+        root.addWidget(header)
 
-        # 왼쪽: 설정 패널
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        # 메인 3분할 스플리터
+        splitter = QSplitter(Qt.Horizontal)
 
-        # 차트 유형
-        type_group = QGroupBox("차트 유형")
-        type_layout = QVBoxLayout(type_group)
+        splitter.addWidget(self._make_left_panel())   # 차트 유형
+        splitter.addWidget(self._make_center_panel())  # 변수·옵션
+        splitter.addWidget(self._make_right_panel())   # 미리보기
 
-        self.chart_type = QComboBox()
-        self.chart_type.addItems([
-            "막대 차트 (Bar)",
-            "선 차트 (Line)",
-            "산점도 (Scatter)",
-            "히스토그램 (Histogram)",
-            "상자 그림 (Boxplot)",
-            "원형 차트 (Pie)",
-        ])
-        self.chart_type.currentIndexChanged.connect(self._on_chart_type_changed)
-        type_layout.addWidget(self.chart_type)
-        left_layout.addWidget(type_group)
+        splitter.setSizes([200, 320, 680])
+        root.addWidget(splitter, 1)
 
-        # 변수 할당
-        var_group = QGroupBox("변수 할당")
-        var_layout = QVBoxLayout(var_group)
+        # 하단 버튼
+        root.addWidget(self._make_bottom_buttons())
 
-        var_layout.addWidget(QLabel("X 축:"))
-        self.x_combo = QComboBox()
-        self.x_combo.addItem("(없음)")
+    def _make_header(self) -> QFrame:
+        header = QFrame()
+        header.setStyleSheet(
+            "QFrame { background-color: #eaf2fb; border-radius: 6px; }"
+        )
+        lay = QHBoxLayout(header)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lbl = QLabel(
+            f"<b>{self._dataset.name}</b> &nbsp;|&nbsp; "
+            f"케이스: <b>{len(self._dataset.data):,}</b> &nbsp;|&nbsp; "
+            f"변수: <b>{len(self._dataset.data.columns)}</b>"
+        )
+        lbl.setStyleSheet("color: #1a5276; font-size: 13px;")
+        lay.addWidget(lbl)
+        lay.addStretch()
+        return header
+
+    def _make_left_panel(self) -> QWidget:
+        """왼쪽 패널: 차트 유형 선택."""
+        widget = QWidget()
+        lay = QVBoxLayout(widget)
+        lay.setContentsMargins(0, 0, 4, 0)
+
+        grp = QGroupBox("차트 유형")
+        grp_lay = QVBoxLayout(grp)
+
+        self._chart_type_group = QButtonGroup(self)
+        for i, (key, label, desc) in enumerate(CHART_TYPES):
+            btn = QRadioButton(label)
+            btn.setProperty("chart_key", key)
+            btn.setToolTip(desc)
+            self._chart_type_group.addButton(btn, i)
+            grp_lay.addWidget(btn)
+            if i == 0:
+                btn.setChecked(True)
+
+        grp_lay.addStretch()
+        lay.addWidget(grp)
+        lay.addStretch()
+        return widget
+
+    def _make_center_panel(self) -> QWidget:
+        """가운데 패널: 변수 선택 + 옵션."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        widget = QWidget()
+        lay = QVBoxLayout(widget)
+        lay.setSpacing(10)
+
+        # 변수 목록
+        var_grp = QGroupBox("변수 목록 (더블클릭으로 X축 자동 할당)")
+        var_lay = QVBoxLayout(var_grp)
+        self._var_list = QListWidget()
+        self._var_list.setMaximumHeight(130)
         for col in self._dataset.data.columns:
-            self.x_combo.addItem(col)
-        var_layout.addWidget(self.x_combo)
+            dtype = self._dataset.data[col].dtype
+            icon = "[수]" if pd.api.types.is_numeric_dtype(dtype) else "[범]"
+            item = QListWidgetItem(f"{icon} {col}")
+            item.setData(Qt.UserRole, col)
+            self._var_list.addItem(item)
+        var_lay.addWidget(self._var_list)
+        lay.addWidget(var_grp)
 
-        var_layout.addWidget(QLabel("Y 축:"))
-        self.y_combo = QComboBox()
-        self.y_combo.addItem("(없음)")
-        for col in self._dataset.data.columns:
-            self.y_combo.addItem(col)
-        var_layout.addWidget(self.y_combo)
+        # 축 변수
+        axis_grp = QGroupBox("축 변수")
+        axis_lay = QGridLayout(axis_grp)
 
-        var_layout.addWidget(QLabel("그룹화:"))
-        self.group_combo = QComboBox()
-        self.group_combo.addItem("(없음)")
-        for col in self._dataset.data.columns:
-            self.group_combo.addItem(col)
-        var_layout.addWidget(self.group_combo)
+        axis_lay.addWidget(QLabel("X 축:"), 0, 0)
+        self._x_combo = QComboBox()
+        self._x_combo.addItem("(없음)")
+        self._x_combo.addItems(self._dataset.data.columns)
+        axis_lay.addWidget(self._x_combo, 0, 1)
 
-        left_layout.addWidget(var_group)
+        axis_lay.addWidget(QLabel("Y 축:"), 1, 0)
+        self._y_combo = QComboBox()
+        self._y_combo.addItem("(없음)")
+        self._y_combo.addItems(self._dataset.data.columns)
+        axis_lay.addWidget(self._y_combo, 1, 1)
+
+        axis_lay.addWidget(QLabel("그룹:"), 2, 0)
+        self._group_combo = QComboBox()
+        self._group_combo.addItem("(없음)")
+        self._group_combo.addItems(self._dataset.data.columns)
+        axis_lay.addWidget(self._group_combo, 2, 1)
+
+        lay.addWidget(axis_grp)
 
         # 옵션
-        opt_group = QGroupBox("옵션")
-        opt_layout = QVBoxLayout(opt_group)
+        opt_grp = QGroupBox("옵션")
+        opt_lay = QGridLayout(opt_grp)
 
-        self.chk_grid = QCheckBox("격자선 표시")
-        self.chk_grid.setChecked(True)
-        opt_layout.addWidget(self.chk_grid)
+        opt_lay.addWidget(QLabel("차트 제목:"), 0, 0)
+        self._title_edit = QLineEdit()
+        self._title_edit.setPlaceholderText("제목 (선택)")
+        opt_lay.addWidget(self._title_edit, 0, 1)
 
-        self.chk_legend = QCheckBox("범례 표시")
-        self.chk_legend.setChecked(True)
-        opt_layout.addWidget(self.chk_legend)
+        opt_lay.addWidget(QLabel("구간 수 (빈):"), 1, 0)
+        self._bins_spin = QSpinBox()
+        self._bins_spin.setRange(5, 100)
+        self._bins_spin.setValue(20)
+        opt_lay.addWidget(self._bins_spin, 1, 1)
 
-        self.chk_title = QCheckBox("제목 표시")
-        self.chk_title.setChecked(True)
-        opt_layout.addWidget(self.chk_title)
+        self._normal_curve_chk = QCheckBox("정규 분포 곡선 표시")
+        self._normal_curve_chk.setChecked(True)
+        opt_lay.addWidget(self._normal_curve_chk, 2, 0, 1, 2)
 
-        left_layout.addWidget(opt_group)
+        self._fit_line_chk = QCheckBox("회귀선 표시 (산점도)")
+        self._fit_line_chk.setChecked(True)
+        opt_lay.addWidget(self._fit_line_chk, 3, 0, 1, 2)
 
-        # 버튼
-        btn_layout = QHBoxLayout()
+        self._error_bars_chk = QCheckBox("오차 막대 표시 (막대 그래프)")
+        self._error_bars_chk.setChecked(True)
+        opt_lay.addWidget(self._error_bars_chk, 4, 0, 1, 2)
 
-        self.btn_preview = QPushButton("미리보기")
-        self.btn_preview.clicked.connect(self._generate_chart)
-        btn_layout.addWidget(self.btn_preview)
+        lay.addWidget(opt_grp)
 
-        self.btn_save = QPushButton("저장")
-        self.btn_save.clicked.connect(self._save_chart)
-        btn_layout.addWidget(self.btn_save)
-
-        left_layout.addLayout(btn_layout)
-        left_layout.addStretch()
-
-        splitter.addWidget(left_widget)
-
-        # 오른쪽: 미리보기
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-
-        right_layout.addWidget(QLabel("미리보기:"))
-
-        self.preview_label = QLabel()
-        self.preview_label.setAlignment(Qt.AlignCenter)
-        self.preview_label.setStyleSheet(
-            "background-color: #f8f9fa; border: 1px solid #dee2e6;"
+        # 미리보기 버튼
+        self._preview_btn = QPushButton("미리보기 생성")
+        self._preview_btn.setStyleSheet(
+            "QPushButton { background-color: #2980b9; color: white; "
+            "font-weight: bold; padding: 10px; font-size: 13px; border-radius: 4px; }"
+            "QPushButton:hover { background-color: #1f618d; }"
         )
-        self.preview_label.setMinimumSize(500, 400)
-        right_layout.addWidget(self.preview_label)
+        lay.addWidget(self._preview_btn)
+        lay.addStretch()
 
-        splitter.addWidget(right_widget)
-        splitter.setSizes([300, 600])
+        scroll.setWidget(widget)
+        return scroll
 
-        layout.addWidget(splitter)
+    def _make_right_panel(self) -> QWidget:
+        """오른쪽 패널: FigureCanvas 임베딩 미리보기."""
+        widget = QWidget()
+        lay = QVBoxLayout(widget)
+        lay.setContentsMargins(4, 0, 0, 0)
 
-        # 닫기 버튼
-        btn_box = QDialogButtonBox(QDialogButtonBox.Close)
-        btn_box.rejected.connect(self.reject)
-        layout.addWidget(btn_box)
+        lbl = QLabel("차트 미리보기")
+        lbl.setStyleSheet("font-weight: bold; font-size: 13px; color: #2c3e50;")
+        lay.addWidget(lbl)
 
-    def _on_chart_type_changed(self):
-        """차트 유형 변경 시."""
-        chart_type = self.chart_type.currentText()
+        self._canvas = _PreviewCanvas(parent=widget)
+        lay.addWidget(self._canvas, 1)
+        return widget
 
-        # 차트 유형에 따라 기본 변수 설정
-        if "히스토그램" in chart_type:
-            # 히스토그램은 Y축 불필요
-            self.y_combo.setEnabled(False)
-        else:
-            self.y_combo.setEnabled(True)
+    def _make_bottom_buttons(self) -> QWidget:
+        """하단 버튼 영역."""
+        widget = QWidget()
+        lay = QHBoxLayout(widget)
+        lay.setContentsMargins(0, 4, 0, 0)
 
-    def _generate_chart(self):
-        """차트 생성."""
+        self._insert_btn = QPushButton("결과창에 삽입")
+        self._insert_btn.setEnabled(False)
+        self._insert_btn.setStyleSheet(
+            "QPushButton { background-color: #27ae60; color: white; "
+            "font-weight: bold; padding: 8px 20px; border-radius: 4px; }"
+            "QPushButton:hover { background-color: #1e8449; }"
+            "QPushButton:disabled { background-color: #bdc3c7; }"
+        )
+
+        self._save_png_btn = QPushButton("PNG 저장")
+        self._save_png_btn.setEnabled(False)
+        self._save_png_btn.setStyleSheet(
+            "QPushButton { background-color: #8e44ad; color: white; "
+            "font-weight: bold; padding: 8px 20px; border-radius: 4px; }"
+            "QPushButton:hover { background-color: #6c3483; }"
+            "QPushButton:disabled { background-color: #bdc3c7; }"
+        )
+
+        close_btn = QPushButton("닫기")
+        close_btn.setStyleSheet(
+            "QPushButton { padding: 8px 20px; border-radius: 4px; }"
+        )
+        close_btn.clicked.connect(self.reject)
+
+        lay.addWidget(self._insert_btn)
+        lay.addWidget(self._save_png_btn)
+        lay.addStretch()
+        lay.addWidget(close_btn)
+        return widget
+
+    # ── 시그널 연결 ──────────────────────────────────────────────────────────
+
+    def _connect_signals(self) -> None:
+        self._preview_btn.clicked.connect(self._generate_preview)
+        self._insert_btn.clicked.connect(self._insert_to_output)
+        self._save_png_btn.clicked.connect(self._save_png)
+        self._var_list.itemDoubleClicked.connect(self._on_var_double_clicked)
+        self._chart_type_group.buttonToggled.connect(self._on_chart_type_changed)
+        # 차트 유형 초기 반영
+        self._on_chart_type_changed()
+
+    def _on_var_double_clicked(self, item: QListWidgetItem) -> None:
+        """변수 목록 더블클릭 → X축에 자동 할당."""
+        var = item.data(Qt.UserRole)
+        idx = self._x_combo.findText(var)
+        if idx >= 0:
+            self._x_combo.setCurrentIndex(idx)
+
+    def _on_chart_type_changed(self, *_) -> None:
+        """차트 유형 변경 시 옵션 UI 상태 조정."""
+        key = self._current_chart_key()
+        self._y_combo.setEnabled(key in ("scatter", "line", "boxplot", "bar"))
+        self._group_combo.setEnabled(key in ("scatter", "line", "boxplot", "bar"))
+        self._bins_spin.setEnabled(key == "histogram")
+        self._normal_curve_chk.setEnabled(key in ("histogram", "qq"))
+        self._fit_line_chk.setEnabled(key == "scatter")
+        self._error_bars_chk.setEnabled(key == "bar")
+
+    def _current_chart_key(self) -> str:
+        btn = self._chart_type_group.checkedButton()
+        return btn.property("chart_key") if btn else "histogram"
+
+    # ── 미리보기 생성 ────────────────────────────────────────────────────────
+
+    def _generate_preview(self) -> None:
+        """선택된 변수·옵션으로 차트를 생성하고 캔버스에 표시."""
+        key = self._current_chart_key()
+        x_var = self._x_combo.currentText()
+        y_var = self._y_combo.currentText()
+        group = self._group_combo.currentText()
+        title = self._title_edit.text().strip()
+        df = self._dataset.data
+
+        x = None if x_var == "(없음)" else x_var
+        y = None if y_var == "(없음)" else y_var
+        grp = None if group == "(없음)" else group
+
         try:
-            import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot as plt
-            from matplotlib.backends.backend_agg import FigureCanvasAgg
-
-            chart_type = self.chart_type.currentText()
-            x_var = self.x_combo.currentText()
-            y_var = self.y_combo.currentText()
-            group_var = self.group_combo.currentText()
-
-            df = self._dataset.data
-
-            # 그림 생성
-            fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-
-            if "막대" in chart_type:
-                self._create_bar_chart(ax, df, x_var, y_var, group_var)
-            elif "선" in chart_type:
-                self._create_line_chart(ax, df, x_var, y_var, group_var)
-            elif "산점도" in chart_type:
-                self._create_scatter_chart(ax, df, x_var, y_var, group_var)
-            elif "히스토그램" in chart_type:
-                self._create_histogram(ax, df, x_var, group_var)
-            elif "상자" in chart_type:
-                self._create_boxplot(ax, df, x_var, y_var, group_var)
-            elif "원형" in chart_type:
-                self._create_pie_chart(ax, df, x_var, y_var)
-
-            # 옵션 적용
-            if self.chk_grid.isChecked():
-                ax.grid(True, alpha=0.3)
-            if self.chk_legend.isChecked():
-                ax.legend()
-            if self.chk_title.isChecked():
-                ax.set_title(f"{chart_type}")
-
-            plt.tight_layout()
-
-            # QPixmap으로 변환
-            canvas = FigureCanvasAgg(fig)
-            canvas.draw()
-            buf = canvas.buffer_rgba()
-            l, b, w, h = fig.bbox.bounds
-            img = QImage(buf, int(w), int(h), QImage.Format_ARGB32)
-            pixmap = QPixmap.fromImage(img)
-
-            self.preview_label.setPixmap(pixmap)
-            plt.close(fig)
-
+            fig = self._build_figure(key, df, x, y, grp, title)
         except Exception as exc:
+            logger.exception("차트 생성 오류")
             QMessageBox.critical(self, "오류", f"차트 생성 실패:\n{exc}")
-
-    def _create_bar_chart(self, ax, df, x_var, y_var, group_var):
-        """막대 차트 생성."""
-        if x_var == "(없음)" or y_var == "(없음)":
-            ax.text(0.5, 0.5, "X축과 Y축 변수를 선택하세요", 
-                   ha='center', va='center', transform=ax.transAxes)
             return
 
-        if group_var != "(없음)":
-            for name, group in df.groupby(group_var):
-                ax.bar(group[x_var], group[y_var], label=str(name), alpha=0.7)
+        self._current_fig = fig
+        self._canvas.display_figure(fig)
+        self._insert_btn.setEnabled(True)
+        self._save_png_btn.setEnabled(True)
+
+    def _build_figure(
+        self,
+        key: str,
+        df: pd.DataFrame,
+        x: Optional[str],
+        y: Optional[str],
+        grp: Optional[str],
+        title: str,
+    ) -> Figure:
+        """차트 유형에 따라 VisualizationEngine 메서드를 호출."""
+        eng = self._engine
+
+        if key == "histogram":
+            if not x:
+                raise ValueError("히스토그램은 X 변수를 선택하세요.")
+            fig = eng.plot_histogram(df, x,
+                                     bins=self._bins_spin.value(),
+                                     normal_curve=self._normal_curve_chk.isChecked())
+            if title:
+                fig.axes[0].set_title(title, fontsize=14, fontweight="bold")
+
+        elif key == "scatter":
+            if not x or not y:
+                raise ValueError("산점도는 X, Y 변수를 모두 선택하세요.")
+            fig = eng.plot_scatter(df, x, y, color_var=grp,
+                                   fit_line=self._fit_line_chk.isChecked())
+            if title:
+                fig.axes[0].set_title(title, fontsize=14, fontweight="bold")
+
+        elif key == "bar":
+            if not x:
+                raise ValueError("막대 그래프는 X 변수를 선택하세요.")
+            fig = eng.plot_bar(df, x, y_var=y,
+                               error_bars=self._error_bars_chk.isChecked())
+            if title:
+                fig.axes[0].set_title(title, fontsize=14, fontweight="bold")
+
+        elif key == "line":
+            if not x or not y:
+                raise ValueError("선 그래프는 X, Y 변수를 모두 선택하세요.")
+            fig = eng.plot_line(df, x, y, by_group=grp)
+            if title:
+                fig.axes[0].set_title(title, fontsize=14, fontweight="bold")
+
+        elif key == "boxplot":
+            if not x:
+                raise ValueError("상자 그림은 X 변수를 선택하세요.")
+            fig = eng.plot_boxplot(df, x, y_var=y, by_group=(y is not None))
+            if title:
+                fig.axes[0].set_title(title, fontsize=14, fontweight="bold")
+
+        elif key == "qq":
+            if not x:
+                raise ValueError("Q-Q 플롯은 X 변수를 선택하세요.")
+            fig = eng.plot_qq(df, x)
+            if title:
+                fig.suptitle(title, fontsize=15, fontweight="bold")
+
+        elif key == "heatmap":
+            numeric_cols = list(df.select_dtypes(include=[np.number]).columns)
+            if len(numeric_cols) < 2:
+                raise ValueError("히트맵에는 숫자형 변수가 2개 이상 필요합니다.")
+            fig = eng.plot_correlation_heatmap(df, numeric_cols)
+            if title:
+                fig.axes[0].set_title(title, fontsize=14, fontweight="bold")
+
         else:
-            ax.bar(df[x_var], df[y_var])
-        ax.set_xlabel(x_var)
-        ax.set_ylabel(y_var)
+            raise ValueError(f"알 수 없는 차트 유형: {key}")
 
-    def _create_line_chart(self, ax, df, x_var, y_var, group_var):
-        """선 차트 생성."""
-        if x_var == "(없음)" or y_var == "(없음)":
-            ax.text(0.5, 0.5, "X축과 Y축 변수를 선택하세요",
-                   ha='center', va='center', transform=ax.transAxes)
+        return fig
+
+    # ── 결과창 삽입 ──────────────────────────────────────────────────────────
+
+    def _insert_to_output(self) -> None:
+        """현재 Figure를 QPixmap으로 변환 후 chart_inserted 시그널 발생."""
+        if self._current_fig is None:
             return
+        try:
+            pixmap = self._engine.fig_to_pixmap(self._current_fig)
+            key = self._current_chart_key()
+            chart_name = next(
+                (label for k, label, _ in CHART_TYPES if k == key), key
+            )
+            self.chart_inserted.emit(chart_name, self._current_fig, pixmap)
+            QMessageBox.information(self, "삽입 완료", "차트가 결과창에 삽입되었습니다.")
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"삽입 실패:\n{exc}")
 
-        if group_var != "(없음)":
-            for name, group in df.groupby(group_var):
-                ax.plot(group[x_var], group[y_var], marker='o', label=str(name))
-        else:
-            ax.plot(df[x_var], df[y_var], marker='o')
-        ax.set_xlabel(x_var)
-        ax.set_ylabel(y_var)
+    # ── PNG 저장 ─────────────────────────────────────────────────────────────
 
-    def _create_scatter_chart(self, ax, df, x_var, y_var, group_var):
-        """산점도 생성."""
-        if x_var == "(없음)" or y_var == "(없음)":
-            ax.text(0.5, 0.5, "X축과 Y축 변수를 선택하세요",
-                   ha='center', va='center', transform=ax.transAxes)
+    def _save_png(self) -> None:
+        """현재 Figure를 PNG 파일로 저장."""
+        if self._current_fig is None:
             return
-
-        if group_var != "(없음)":
-            for name, group in df.groupby(group_var):
-                ax.scatter(group[x_var], group[y_var], label=str(name), alpha=0.6)
-        else:
-            ax.scatter(df[x_var], df[y_var], alpha=0.6)
-        ax.set_xlabel(x_var)
-        ax.set_ylabel(y_var)
-
-    def _create_histogram(self, ax, df, x_var, group_var):
-        """히스토그램 생성."""
-        if x_var == "(없음)":
-            ax.text(0.5, 0.5, "X축 변수를 선택하세요",
-                   ha='center', va='center', transform=ax.transAxes)
-            return
-
-        if group_var != "(없음)":
-            for name, group in df.groupby(group_var):
-                ax.hist(group[x_var], alpha=0.5, label=str(name), bins=20)
-        else:
-            ax.hist(df[x_var], bins=20, edgecolor='black')
-        ax.set_xlabel(x_var)
-        ax.set_ylabel("빈도")
-
-    def _create_boxplot(self, ax, df, x_var, y_var, group_var):
-        """상자 그림 생성."""
-        if y_var == "(없음)":
-            ax.text(0.5, 0.5, "Y축 변수를 선택하세요",
-                   ha='center', va='center', transform=ax.transAxes)
-            return
-
-        if x_var != "(없음)" and x_var in df.columns:
-            df.boxplot(column=y_var, by=x_var, ax=ax)
-            ax.set_title(f"{y_var} by {x_var}")
-        else:
-            ax.boxplot(df[y_var].dropna())
-            ax.set_ylabel(y_var)
-
-    def _create_pie_chart(self, ax, df, x_var, y_var):
-        """원형 차트 생성."""
-        if x_var == "(없음)":
-            ax.text(0.5, 0.5, "X축 변수를 선택하세요",
-                   ha='center', va='center', transform=ax.transAxes)
-            return
-
-        counts = df[x_var].value_counts()
-        ax.pie(counts.values, labels=counts.index, autopct='%1.1f%%')
-        ax.set_title(f"{x_var} 분포")
-
-    def _save_chart(self):
-        """차트 저장."""
         path, _ = QFileDialog.getSaveFileName(
-            self, "차트 저장", "", "PNG (*.png);;JPEG (*.jpg);;PDF (*.pdf);;SVG (*.svg)"
+            self, "차트 저장", "",
+            "PNG 이미지 (*.png);;SVG 이미지 (*.svg);;PDF 문서 (*.pdf)"
         )
-        if path:
-            pixmap = self.preview_label.pixmap()
-            if pixmap:
-                pixmap.save(path)
-                self.chart_saved.emit(path)
-                QMessageBox.information(self, "저장 완료", f"차트가 저장되었습니다:\n{path}")
-            else:
-                QMessageBox.warning(self, "경고", "먼저 미리보기를 생성하세요.")
-
-
-class ChartBuilderWidget(QWidget):
-    """메인 윈도우에 통합될 차트 빌더 위젯."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._dataset: Optional[Dataset] = None
-        self._setup_ui()
-
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        self.label = QLabel("차트 빌더 — 데이터를 불러오세요")
-        layout.addWidget(self.label)
-
-    def set_dataset(self, dataset: Dataset):
-        """데이터셋 설정."""
-        self._dataset = dataset
-        self.label.setText(f"차트 빌더 — {dataset.name}")
+        if not path:
+            return
+        try:
+            self._engine.save_figure(self._current_fig, path)
+            QMessageBox.information(self, "저장 완료", f"차트가 저장되었습니다:\n{path}")
+            self.chart_saved.emit(path)
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")

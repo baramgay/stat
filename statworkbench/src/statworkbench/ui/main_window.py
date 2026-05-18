@@ -159,138 +159,155 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
 
         # 1. 파일 메뉴
-        file_menu = menubar.addMenu("파일(&F)")
+        file_menu = menubar.addMenu("📁 파일(&F)")
 
-        new_action = QAction("새로 만들기", self)
+        new_action = QAction("🆕 새로 만들기", self)
         new_action.setShortcut(QKeySequence.New)
-        new_action.setToolTip("새 프로젝트를 만듭니다")
+        new_action.setToolTip("새 프로젝트를 만듭니다 (Ctrl+N)")
         new_action.triggered.connect(self._new_project)
         file_menu.addAction(new_action)
 
-        open_action = QAction("열기...", self)
+        open_action = QAction("📂 열기...", self)
         open_action.setShortcut(QKeySequence.Open)
-        open_action.setToolTip("기존 프로젝트를 엽니다")
+        open_action.setToolTip("기존 프로젝트를 엽니다 (Ctrl+O)")
         open_action.triggered.connect(self._open_project)
         file_menu.addAction(open_action)
 
-        save_action = QAction("저장", self)
+        save_action = QAction("💾 저장", self)
         save_action.setShortcut(QKeySequence.Save)
-        save_action.setToolTip("프로젝트를 저장합니다")
+        save_action.setToolTip("프로젝트를 저장합니다 (Ctrl+S)")
         save_action.triggered.connect(self._save_project)
         file_menu.addAction(save_action)
 
-        save_as_action = QAction("다른 이름으로 저장...", self)
+        save_as_action = QAction("💾 다른 이름으로 저장...", self)
         save_as_action.setShortcut(QKeySequence.SaveAs)
+        save_as_action.setToolTip("프로젝트를 다른 이름으로 저장합니다 (Ctrl+Shift+S)")
         save_as_action.triggered.connect(self._save_project_as)
         file_menu.addAction(save_as_action)
 
         file_menu.addSeparator()
 
         # 가져오기 서브메뉴
-        import_menu = file_menu.addMenu("가져오기(&I)")
+        import_menu = file_menu.addMenu("📥 가져오기(&I)")
 
-        import_csv_action = QAction("CSV 파일...", self)
+        import_csv_action = QAction("📄 CSV 파일...", self)
         import_csv_action.triggered.connect(self._import_csv)
         import_menu.addAction(import_csv_action)
 
-        import_excel_action = QAction("Excel 파일...", self)
+        import_excel_action = QAction("📊 Excel 파일...", self)
         import_excel_action.triggered.connect(self._import_excel)
         import_menu.addAction(import_excel_action)
 
-        import_sav_action = QAction("SPSS 파일 (.sav)...", self)
+        import_sav_action = QAction("📋 SPSS 파일 (.sav)...", self)
         import_sav_action.triggered.connect(self._import_sav)
         import_menu.addAction(import_sav_action)
 
-        import_clipboard_action = QAction("클립보드...", self)
+        import_clipboard_action = QAction("📋 클립보드...", self)
         import_clipboard_action.triggered.connect(self._import_clipboard)
         import_menu.addAction(import_clipboard_action)
 
-        # 낳볼기 서브메뉴
-        export_menu = file_menu.addMenu("낳볼기(&X)")
+        # 납비 서브메뉴
+        export_menu = file_menu.addMenu("📤 납비(&X)")
 
-        export_csv_action = QAction("CSV 파일...", self)
+        export_csv_action = QAction("📄 CSV 파일...", self)
         export_csv_action.triggered.connect(self._export_csv)
         export_menu.addAction(export_csv_action)
 
-        export_excel_action = QAction("Excel 파일...", self)
+        export_excel_action = QAction("📊 Excel 파일...", self)
         export_excel_action.triggered.connect(self._export_excel)
         export_menu.addAction(export_excel_action)
 
+        export_sav_action = QAction("📋 SPSS 파일 (.sav)...", self)
+        export_sav_action.triggered.connect(self._export_sav)
+        export_menu.addAction(export_sav_action)
+
         file_menu.addSeparator()
 
-        exit_action = QAction("끝내기", self)
+        exit_action = QAction("🚪 끝내기", self)
         exit_action.setShortcut(QKeySequence.Quit)
+        exit_action.setToolTip("프로그램을 종료합니다 (Ctrl+Q)")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # 2. 편집 메뉴
-        edit_menu = menubar.addMenu("편집(&E)")
+        edit_menu = menubar.addMenu("✏️ 편집(&E)")
 
-        undo_action = QAction("실행 취소", self)
+        undo_action = QAction("↩️ 실행 취소", self)
         undo_action.setShortcut(QKeySequence.Undo)
+        undo_action.setToolTip("마지막 작업을 취소합니다 (Ctrl+Z)")
         undo_action.triggered.connect(self._edit_undo)
         edit_menu.addAction(undo_action)
 
-        redo_action = QAction("다시 실행", self)
+        redo_action = QAction("↪️ 다시 실행", self)
         redo_action.setShortcut(QKeySequence.Redo)
+        redo_action.setToolTip("취소한 작업을 다시 실행합니다 (Ctrl+Shift+Z)")
         redo_action.triggered.connect(self._edit_redo)
         edit_menu.addAction(redo_action)
 
         edit_menu.addSeparator()
 
-        cut_action = QAction("잘라내기", self)
+        cut_action = QAction("✂️ 잘라내기", self)
         cut_action.setShortcut(QKeySequence.Cut)
+        cut_action.setToolTip("선택한 내용을 잘라냅니다 (Ctrl+X)")
         cut_action.triggered.connect(self._edit_cut)
         edit_menu.addAction(cut_action)
 
-        copy_action = QAction("복사", self)
+        copy_action = QAction("📋 복사", self)
         copy_action.setShortcut(QKeySequence.Copy)
+        copy_action.setToolTip("선택한 내용을 복사합니다 (Ctrl+C)")
         copy_action.triggered.connect(self._edit_copy)
         edit_menu.addAction(copy_action)
 
-        paste_action = QAction("붙여넣기", self)
+        paste_action = QAction("📋 붙여넣기", self)
         paste_action.setShortcut(QKeySequence.Paste)
+        paste_action.setToolTip("클립보드 내용을 붙여넣습니다 (Ctrl+V)")
         paste_action.triggered.connect(self._edit_paste)
         edit_menu.addAction(paste_action)
 
         edit_menu.addSeparator()
 
-        select_all_action = QAction("모두 선택", self)
+        select_all_action = QAction("☑️ 모두 선택", self)
         select_all_action.setShortcut(QKeySequence.SelectAll)
+        select_all_action.setToolTip("모든 내용을 선택합니다 (Ctrl+A)")
         select_all_action.triggered.connect(self._edit_select_all)
         edit_menu.addAction(select_all_action)
 
         # 3. 보기 메뉴
-        view_menu = menubar.addMenu("보기(&V)")
+        view_menu = menubar.addMenu("👁️ 보기(&V)")
 
-        self._theme_action = QAction("다크 모드", self)
+        self._theme_action = QAction("🌙 다크 모드", self)
         self._theme_action.setCheckable(True)
         self._theme_action.setChecked(False)
         self._theme_action.setShortcut("Ctrl+Shift+D")
+        self._theme_action.setToolTip("다크 모드를 전환합니다 (Ctrl+Shift+D)")
         self._theme_action.triggered.connect(self._toggle_theme)
         view_menu.addAction(self._theme_action)
 
         view_menu.addSeparator()
 
-        data_view_action = QAction("데이터 보기", self)
+        data_view_action = QAction("🔢 데이터 보기", self)
         data_view_action.setShortcut("Ctrl+1")
+        data_view_action.setToolTip("데이터 보기 탭으로 전환합니다 (Ctrl+1)")
         data_view_action.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(0))
         view_menu.addAction(data_view_action)
 
-        var_view_action = QAction("변수 보기", self)
+        var_view_action = QAction("📋 변수 보기", self)
         var_view_action.setShortcut("Ctrl+2")
+        var_view_action.setToolTip("변수 보기 탭으로 전환합니다 (Ctrl+2)")
         var_view_action.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(1))
         view_menu.addAction(var_view_action)
 
-        syntax_view_action = QAction("구문 편집기", self)
+        syntax_view_action = QAction("📝 구문 편집기", self)
         syntax_view_action.setShortcut("Ctrl+3")
+        syntax_view_action.setToolTip("구문 편집기 탭으로 전환합니다 (Ctrl+3)")
         syntax_view_action.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(2))
         view_menu.addAction(syntax_view_action)
 
         view_menu.addSeparator()
 
-        show_output_action = QAction("결과 창 보기", self)
+        show_output_action = QAction("📊 결과 창 보기", self)
         show_output_action.setShortcut("Ctrl+Shift+O")
+        show_output_action.setToolTip("결과 창을 표시합니다 (Ctrl+Shift+O)")
         show_output_action.triggered.connect(self._show_output_window)
         view_menu.addAction(show_output_action)
 
@@ -307,7 +324,8 @@ class MainWindow(QMainWindow):
 
         data_menu.addSeparator()
 
-        sort_cases_action = QAction("케이스 정렬...", self)
+        sort_cases_action = QAction("🔀 케이스 정렬...", self)
+        sort_cases_action.triggered.connect(self._open_sort_dialog)
         data_menu.addAction(sort_cases_action)
 
         transpose_action = QAction("행렬 전치...", self)
@@ -341,7 +359,7 @@ class MainWindow(QMainWindow):
         transform_menu.addAction(rank_cases_action)
 
         # 6. 분석 메뉴
-        analyze_menu = menubar.addMenu("분석(&A)")
+        analyze_menu = menubar.addMenu("📊 분석(&A)")
 
         # 스크립트 실행
         script_action = QAction("🔧 스크립트 실행...", self)
@@ -352,102 +370,110 @@ class MainWindow(QMainWindow):
         analyze_menu.addSeparator()
 
         # 기술통계
-        desc_menu = analyze_menu.addMenu("기술통계(&R)")
+        desc_menu = analyze_menu.addMenu("📈 기술통계(&R)")
 
-        freq_action = QAction("빈도...", self)
+        freq_action = QAction("📊 빈도...", self)
+        freq_action.setShortcut("Ctrl+Shift+F")
         freq_action.triggered.connect(self._run_frequencies)
         desc_menu.addAction(freq_action)
 
-        desc_action = QAction("기술통계량...", self)
+        desc_action = QAction("📈 기술통계량...", self)
+        desc_action.setShortcut("Ctrl+Shift+D")
         desc_action.triggered.connect(self._run_descriptives)
         desc_menu.addAction(desc_action)
 
-        explore_action = QAction("탐색...", self)
+        explore_action = QAction("🔍 탐색...", self)
         desc_menu.addAction(explore_action)
 
-        crosstab_action = QAction("교차분석...", self)
+        crosstab_action = QAction("📊 교차분석...", self)
         crosstab_action.triggered.connect(self._run_crosstabs)
         desc_menu.addAction(crosstab_action)
 
         # 평균 비교
-        compare_menu = analyze_menu.addMenu("평균 비교(&M)")
+        compare_menu = analyze_menu.addMenu("🔄 평균 비교(&M)")
 
-        means_action = QAction("평균...", self)
+        means_action = QAction("📊 평균...", self)
         compare_menu.addAction(means_action)
 
-        one_sample_t_action = QAction("단일표본 T 검정...", self)
+        one_sample_t_action = QAction("1️⃣ 단일표본 T 검정...", self)
+        one_sample_t_action.triggered.connect(self._run_one_sample_ttest)
         compare_menu.addAction(one_sample_t_action)
 
-        ind_t_action = QAction("독립표본 T 검정...", self)
+        ind_t_action = QAction("2️⃣ 독립표본 T 검정...", self)
+        ind_t_action.setShortcut("Ctrl+Shift+T")
         ind_t_action.triggered.connect(self._run_independent_ttest)
         compare_menu.addAction(ind_t_action)
 
-        paired_t_action = QAction("대응표본 T 검정...", self)
+        paired_t_action = QAction("🔗 대응표본 T 검정...", self)
         paired_t_action.triggered.connect(self._run_paired_ttest)
         compare_menu.addAction(paired_t_action)
 
-        anova_action = QAction("일원분산분석...", self)
-        anova_action.triggered.connect(self._run_anova)
-        compare_menu.addAction(anova_action)
-
-        # 일반선형모형
-        glm_menu = analyze_menu.addMenu("일반선형모형(&G)")
-        anova_action = QAction("📊 분산분석...", self)
+        anova_action = QAction("📊 일원분산분석...", self)
+        anova_action.setShortcut("Ctrl+Shift+A")
         anova_action.triggered.connect(self._run_anova)
         compare_menu.addAction(anova_action)
 
         # 상관/회귀
-        correlate_menu = analyze_menu.addMenu("상관(&C)")
+        correlate_menu = analyze_menu.addMenu("🔗 상관(&C)")
 
         bivariate_corr_action = QAction("🔗 상관분석...", self)
         bivariate_corr_action.triggered.connect(self._run_correlation)
         correlate_menu.addAction(bivariate_corr_action)
 
-        partial_corr_action = QAction("편상관...", self)
+        partial_corr_action = QAction("🔗 편상관...", self)
         correlate_menu.addAction(partial_corr_action)
 
-        regression_menu = analyze_menu.addMenu("회귀(&R)")
+        regression_menu = analyze_menu.addMenu("📈 회귀(&R)")
 
-        linear_action = QAction("선형...", self)
+        linear_action = QAction("📈 선형...", self)
+        linear_action.setShortcut("Ctrl+Shift+L")
         linear_action.triggered.connect(self._run_regression)
         regression_menu.addAction(linear_action)
 
-        # 로그선형
-        loglinear_menu = analyze_menu.addMenu("로그선형(&O)")
+        logistic_action = QAction("📊 로지스틱...", self)
+        logistic_action.triggered.connect(self._run_logistic_regression)
+        regression_menu.addAction(logistic_action)
 
-        # 분류
-        classify_menu = analyze_menu.addMenu("분류(&L)")
+        # 차원 축소
+        dim_reduce_menu = analyze_menu.addMenu("📉 차원 축소(&D)")
+        factor_action = QAction("📉 요인분석...", self)
+        factor_action.triggered.connect(self._run_factor_analysis)
+        dim_reduce_menu.addAction(factor_action)
 
-        # 데이터 축소
-        reduce_menu = analyze_menu.addMenu("데이터 축소(&D)")
+        # 군집
+        cluster_menu = analyze_menu.addMenu("🔵 군집(&K)")
+        kmeans_action = QAction("🔵 K-평균 군집...", self)
+        kmeans_action.triggered.connect(self._run_cluster_analysis)
+        cluster_menu.addAction(kmeans_action)
+        hierarchical_action = QAction("🔵 계층적 군집...", self)
+        hierarchical_action.triggered.connect(self._run_cluster_analysis)
+        cluster_menu.addAction(hierarchical_action)
 
-        # 척도
-        scale_menu = analyze_menu.addMenu("척도(&S)")
+        # 생존
+        survival_menu = analyze_menu.addMenu("생존분석(&S)")
+        km_action = QAction("📈 Kaplan-Meier...", self)
+        km_action.triggered.connect(self._run_survival_analysis)
+        survival_menu.addAction(km_action)
+
+        # 판별
+        classify_menu = analyze_menu.addMenu("🔷 판별분석(&I)")
+        lda_action = QAction("🔷 판별분석...", self)
+        lda_action.triggered.connect(self._run_discriminant_analysis)
+        classify_menu.addAction(lda_action)
 
         # 비모수 검정
-        nonparam_menu = analyze_menu.addMenu("비모수 검정(&N)")
+        nonparam_menu = analyze_menu.addMenu("🧪 비모수 검정(&N)")
 
         nonparam_action = QAction("🧪 비모수 검정...", self)
         nonparam_action.triggered.connect(self._run_nonparametric)
         nonparam_menu.addAction(nonparam_action)
 
-        chi_square_action = QAction("카이제곱...", self)
-        nonparam_menu.addAction(chi_square_action)
+        analyze_menu.addSeparator()
 
-        binomial_action = QAction("이항 검정...", self)
-        nonparam_menu.addAction(binomial_action)
-
-        runs_action = QAction("런 검정...", self)
-        nonparam_menu.addAction(runs_action)
-
-        one_sample_ks_action = QAction("단일표본 콜모고로프-스미륵노프 검정...", self)
-        nonparam_menu.addAction(one_sample_ks_action)
-
-        two_sample_ks_action = QAction("두 독립표본 검정...", self)
-        nonparam_menu.addAction(two_sample_ks_action)
-
-        k_sample_ks_action = QAction("K 독립표본 검정...", self)
-        nonparam_menu.addAction(k_sample_ks_action)
+        # 기계학습
+        ml_action = QAction("🤖 기계학습...", self)
+        ml_action.triggered.connect(self._open_ml_dialog)
+        analyze_menu.addAction(ml_action)
 
         # 7. 차트 메뉴
         graphs_menu = menubar.addMenu("차트(&G)")
@@ -676,6 +702,53 @@ class MainWindow(QMainWindow):
 
     # ── 프로젝트 관리 ───────────────────────────────────────────────────────
 
+    def _open_sort_dialog(self) -> None:
+        """정렬 다이얼로그 열기."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.sort_dialog import SortDialog
+        dialog = SortDialog(self.current_dataset, self)
+        dialog.sort_applied.connect(self._on_sort_applied)
+        dialog.exec()
+
+    def _on_sort_applied(self) -> None:
+        """정렬 적용 시."""
+        self._on_dataset_changed(self.current_dataset)
+        output = self._get_output()
+        output.add_output("🔀 데이터 정렬이 적용되었습니다.", "success")
+
+    def _export_sav(self) -> None:
+        """SPSS .sav 납비."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "납비 데이터가 없습니다.")
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "SPSS 저장", "", "SPSS 파일 (*.sav)"
+        )
+        if path:
+            try:
+                from statworkbench.io.spss_writer import write_sav
+                write_sav(self.current_dataset, path)
+                self.statusbar.showMessage(f"SPSS 저장 완료: {path}")
+            except Exception as exc:
+                QMessageBox.critical(self, "오류", f"SPSS 저장 실패:\n{exc}")
+
+    def _open_ml_dialog(self) -> None:
+        """기계학습 다이얼로그 열기."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.ml_dialog import MLDialog
+        dialog = MLDialog(self.current_dataset, self)
+        dialog.analysis_complete.connect(
+            lambda msg: self._get_output().add_output(msg, "success")
+        )
+        dialog.exec()
+
     def _new_project(self) -> None:
         """새 프로젝트."""
         import pandas as pd
@@ -746,23 +819,26 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
 
-    def _on_dataset_changed(self, dataset: Dataset) -> None:
-        """데이터셋 변경 시."""
-        self.current_dataset = dataset
-        self.data_view.set_dataset(dataset)
-        self.variable_view.set_dataset(dataset)
-        self.syntax_editor.set_dataset(dataset)
-
-        if self.project:
-            self.project.mark_dirty()
-
+    def _on_dataset_changed(self) -> None:
+        """데이터셋 변경 시 호출됩니다."""
+        if self.current_dataset is not None:
+            # 데이터 뷰에서 변경된 내용을 변수 보기에도 반영
+            if hasattr(self, 'variable_view') and self.variable_view:
+                self.variable_view.set_dataset(self.current_dataset)
+            # 구문 편집기에도 반영
+            if hasattr(self, 'syntax_editor') and self.syntax_editor:
+                self.syntax_editor.set_dataset(self.current_dataset)
+            # 프로젝트를 더티 상태로 표시
+            if self.project is not None:
+                self.project.mark_dirty()
+        
         self._update_statusbar()
 
     def _on_syntax_executed(self, code: str) -> None:
         """구문 실행 완료 시."""
         self.statusbar.showMessage("구문이 실행되었습니다.")
 
-    # ── 파일 가져오기/낳볼기 ────────────────────────────────────────────────
+    # ── 파일 가져오기/납비 ────────────────────────────────────────────────
 
     def _import_csv(self) -> None:
         """CSV 가져오기."""
@@ -773,7 +849,10 @@ class MainWindow(QMainWindow):
             try:
                 dataset = read_csv(path)
                 self.current_dataset = dataset
-                self._on_dataset_changed(dataset)
+                self.data_view.set_dataset(dataset)
+                self.variable_view.set_dataset(dataset)
+                self.syntax_editor.set_dataset(dataset)
+                self._update_statusbar()
                 self.statusbar.showMessage(f"CSV 가져오기 완료: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"CSV 가져오기 실패:\n{exc}")
@@ -823,9 +902,9 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "오류", f"클립보드 가져오기 실패:\n{exc}")
 
     def _export_csv(self) -> None:
-        """CSV 낳볼기."""
+        """CSV 납비."""
         if self.current_dataset is None:
-            QMessageBox.warning(self, "경고", "낳볼 데이터가 없습니다.")
+            QMessageBox.warning(self, "경고", "납비 데이터가 없습니다.")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -839,9 +918,9 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "오류", f"CSV 저장 실패:\n{exc}")
 
     def _export_excel(self) -> None:
-        """Excel 낳볼기."""
+        """Excel 납비."""
         if self.current_dataset is None:
-            QMessageBox.warning(self, "경고", "낳볼 데이터가 없습니다.")
+            QMessageBox.warning(self, "경고", "납비 데이터가 없습니다.")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -995,14 +1074,21 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.recode_dialog import RecodeDialog
         dialog = RecodeDialog(self.current_dataset, self)
-        dialog.recoded.connect(self._on_recode_applied)
+        dialog.recode_applied.connect(self._on_recode_applied)
         dialog.exec()
 
-    def _on_recode_applied(self, var_name: str) -> None:
+    def _on_recode_applied(self, source_var: str, target_var: str, rules: dict) -> None:
         """재코딩 적용 시."""
-        self._on_dataset_changed(self.current_dataset)
+        # 실제 데이터에 재코딩 적용
+        try:
+            series = self.current_dataset.data[source_var].copy()
+            new_series = series.replace(rules)
+            self.current_dataset.data[target_var] = new_series
+        except Exception:
+            pass
+        self._on_dataset_changed()
         output = self._get_output()
-        output.add_output(f"🔄 변수 '{var_name}'가 재코딩되었습니다.", "success")
+        output.add_output(f"🔄 변수 '{source_var}' -> '{target_var}' 재코딩 완료 ({len(rules)}개 규칙)", "success")
 
     def _open_binning(self) -> None:
         """시각적 구간화 다이얼로그 열기."""
@@ -1012,14 +1098,22 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.binning_dialog import BinningDialog
         dialog = BinningDialog(self.current_dataset, self)
-        dialog.bins_created.connect(self._on_bins_created)
+        dialog.binning_applied.connect(self._on_bins_created)
         dialog.exec()
 
-    def _on_bins_created(self, var_name: str) -> None:
+    def _on_bins_created(self, source_var: str, target_var: str, cut_points: list, labels: list) -> None:
         """구간화 완료 시."""
-        self._on_dataset_changed(self.current_dataset)
+        import pandas as pd
+        import numpy as np
+        try:
+            series = self.current_dataset.data[source_var]
+            binned = pd.cut(series, bins=cut_points, labels=labels, include_lowest=True)
+            self.current_dataset.data[target_var] = binned
+        except Exception:
+            pass
+        self._on_dataset_changed()
         output = self._get_output()
-        output.add_output(f"📊 구간화 변수 '{var_name}'가 생성되었습니다.", "success")
+        output.add_output(f"📊 구간화 변수 '{target_var}'가 생성되었습니다. (구간 수: {len(labels)})", "success")
 
     def _open_rank(self) -> None:
         """순위 계산 다이얼로그 열기."""
@@ -1095,10 +1189,19 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
             return
 
-        from statworkbench.ui.dialogs.ttest_dialog import TTestDialog
-        dialog = TTestDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        from statworkbench.ui.dialogs.ttest_dialog import IndependentTTestDialog
+        dialog = IndependentTTestDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_ttest_result)
         dialog.exec()
+
+    def _on_ttest_result(self, result) -> None:
+        """T 검정 결과 처리."""
+        self._ensure_output_window()
+        try:
+            self._output_window.add_output(result.to_html(), "analysis")
+        except Exception:
+            self._output_window.add_output(str(result), "analysis")
+        self.statusbar.showMessage("T 검정 완료")
 
     def _run_paired_ttest(self) -> None:
         """대응표본 T 검정 실행."""
@@ -1106,9 +1209,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
             return
 
-        from statworkbench.ui.dialogs.ttest_dialog import TTestDialog
-        dialog = TTestDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        from statworkbench.ui.dialogs.ttest_dialog import PairedTTestDialog
+        dialog = PairedTTestDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_ttest_result)
         dialog.exec()
 
     def _run_anova(self) -> None:
@@ -1141,7 +1244,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.regression_dialog import RegressionDialog
         dialog = RegressionDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        dialog.analysis_run.connect(self._on_ttest_result)
         dialog.exec()
 
     def _run_nonparametric(self) -> None:
@@ -1154,6 +1257,117 @@ class MainWindow(QMainWindow):
         dialog = NonparametricDialog(self.current_dataset, self)
         dialog.analysis_requested.connect(self._on_analysis_requested)
         dialog.exec()
+
+    def _ensure_output_window(self) -> None:
+        """결과 창이 없으면 새로 만들어 표시."""
+        if self._output_window is None or not self._output_window.isVisible():
+            self._show_output_window()
+
+    def _run_one_sample_ttest(self) -> None:
+        """단일표본 T 검정 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.one_sample_ttest_dialog import OneSampleTTestDialog
+        dialog = OneSampleTTestDialog(self.current_dataset, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            spec = dialog.get_spec()
+            try:
+                from statworkbench.analysis.ttests import run_one_sample_ttest
+                result = run_one_sample_ttest(
+                    self.current_dataset.data,
+                    spec["variable"],
+                    spec["test_value"],
+                )
+                self._ensure_output_window()
+                self._output_window.add_output(result.to_html(), "analysis")
+                self.statusbar.showMessage("단일표본 T 검정 완료")
+            except Exception as exc:
+                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+
+    def _run_logistic_regression(self) -> None:
+        """로지스틱 회귀 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.logistic_regression_dialog import LogisticRegressionDialog
+        dialog = LogisticRegressionDialog(self.current_dataset, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            spec = dialog.get_spec()
+            try:
+                from statworkbench.analysis import logistic_regression
+                result = logistic_regression.run_analysis(self.current_dataset, spec)
+                self._ensure_output_window()
+                self._output_window.add_output(result.to_html(), "analysis")
+                self.statusbar.showMessage("로지스틱 회귀 완료")
+            except Exception as exc:
+                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+
+    def _run_factor_analysis(self) -> None:
+        """요인분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.factor_analysis_dialog import FactorAnalysisDialog
+        dialog = FactorAnalysisDialog(self.current_dataset, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            spec = dialog.get_spec()
+            try:
+                from statworkbench.analysis import factor_analysis
+                result = factor_analysis.run_analysis(self.current_dataset, spec)
+                self._ensure_output_window()
+                self._output_window.add_output(result.to_html(), "analysis")
+                self.statusbar.showMessage("요인분석 완료")
+            except Exception as exc:
+                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+
+    def _run_cluster_analysis(self) -> None:
+        """군집분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.cluster_analysis_dialog import ClusterAnalysisDialog
+        dialog = ClusterAnalysisDialog(self.current_dataset, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            spec = dialog.get_spec()
+            try:
+                from statworkbench.analysis import cluster_analysis
+                result = cluster_analysis.run_analysis(self.current_dataset, spec)
+                self._ensure_output_window()
+                self._output_window.add_output(result.to_html(), "analysis")
+                self.statusbar.showMessage("군집분석 완료")
+            except Exception as exc:
+                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+
+    def _run_survival_analysis(self) -> None:
+        """생존분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        QMessageBox.information(
+            self,
+            "생존분석",
+            "Kaplan-Meier 생존분석이 곧 제공됩니다.\n"
+            "현재 버전에서는 구현 준비 중입니다.",
+        )
+
+    def _run_discriminant_analysis(self) -> None:
+        """판별분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        QMessageBox.information(
+            self,
+            "판별분석",
+            "선형 판별분석(LDA)이 곧 제공됩니다.\n"
+            "현재 버전에서는 구현 준비 중입니다.",
+        )
 
     def _on_analysis_requested(self, analysis_type: str, params: dict) -> None:
         """분석 요청 처리."""

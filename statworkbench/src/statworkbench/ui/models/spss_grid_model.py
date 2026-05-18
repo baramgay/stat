@@ -1,152 +1,312 @@
-"""SPSS 스타일 격자 데이터 모델.
+"""SPSS-style grid data model.
 
-기본적으로 1000행 x 100열의 가상 격자를 제공합니다.
-실제 데이터는 낭비 없이 효율적으로 저장됩니다.
-- 빈 셀: 메모리에 저장하지 않음
-- 값이 있는 셀만 DataFrame에 저장
-- 헤더(변수명) 편집 가능
+Virtual grid: cells exist conceptually but only store data when actually entered.
+- Empty cells: no memory used
+- Value cells: stored in DataFrame
+- Header (variable name) editable
+- Dynamic variable creation on first data entry
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, Dict
+from typing import Any, Optional
 
 import pandas as pd
+import numpy as np
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtGui import QColor, QBrush, QFont
+
+from statworkbench.core.variable import VariableMeta
+from statworkbench.core.typing import MeasureType, StorageType
 
 logger = logging.getLogger(__name__)
 
 
 def generate_var_name(index: int) -> str:
-    """SPSS 스타일 변수명 생성 (VAR00001, VAR00002, ...)."""
+    """Generate SPSS-style variable name (VAR00001, VAR00002, ...)."""
     return f"VAR{index:05d}"
 
 
+def infer_storage_type(value: Any) -> StorageType:
+    """Infer storage type from a value."""
+    if isinstance(value, bool):
+        return StorageType.INTEGER
+    if isinstance(value, int):
+        return StorageType.INTEGER
+    if isinstance(value, float):
+        return StorageType.FLOAT
+    if isinstance(value, str):
+        try:
+            float(value)
+            if '.' in value:
+                return StorageType.FLOAT
+            return StorageType.INTEGER
+        except (ValueError, TypeError):
+            return StorageType.STRING
+    return StorageType.STRING
+
+
+def infer_measure_type(series: pd.Series) -> MeasureType:
+    """Infer measure type from a pandas Series."""
+    non_null = series.dropna()
+    if len(non_null) == 0:
+        return MeasureType.NOMINAL
+
+    unique_count = non_null.nunique()
+
+    is_numeric = True
+    for val in non_null:
+        try:
+            float(val)
+        except (ValueError, TypeError):
+            is_numeric = False
+            break
+
+    if is_numeric:
+        if unique_count == 1:
+            return MeasureType.SCALE
+        if unique_count <= 2:
+            return MeasureType.BINARY
+        elif unique_count <= 10:
+            return MeasureType.ORDINAL
+        return MeasureType.SCALE
+
+    if unique_count == 1:
+        return MeasureType.NOMINAL
+    if unique_count <= 2:
+        return MeasureType.BINARY
+    return MeasureType.NOMINAL
+
+
+# SPSS 스타일 색상 상수
+_COLOR_MISSING_BG = QColor("#FFF3CD")      # 결측값 배경 (연한 노란색)
+_COLOR_ODD_ROW = QColor("#FFFFFF")          # 홀수 행 배경
+_COLOR_EVEN_ROW = QColor("#F8F9FA")         # 짝수 행 배경
+_COLOR_HEADER_H = QColor("#D4E6F1")         # 수평 헤더 배경
+_COLOR_HEADER_V = QColor("#E8EAF6")         # 수직 헤더 배경
+
+# 척도 아이콘 (열 헤더에 표시)
+_MEASURE_ICON = {
+    "scale": "▪",
+    "ordinal": "♦",
+    "nominal": "●",
+    "binary": "◉",
+}
+
+
+def _get_measure_icon(measure) -> str:
+    """MeasureType에 맞는 아이콘 반환."""
+    if measure is None:
+        return "●"
+    key = measure.value.lower() if hasattr(measure, "value") else str(measure).lower()
+    return _MEASURE_ICON.get(key, "●")
+
+
 class SPSSGridModel(QAbstractTableModel):
-    """SPSS Data View 스타일 격자 모델.
-    
-    특징:
-    - 기본 1000행 x 100열 가상 격자
-    - 값이 있는 셀만 실제로 저장
-    - 헤더(변수명) 직접 편집 가능
-    - 동적 행/열 확장
+    """SPSS Data View style grid model.
+
+    Key behaviors (matching SPSS):
+    - Empty grid at start (no variables)
+    - Variables created automatically when user enters data
+    - Variable names: VAR00001, VAR00002, ...
+    - Arrow/Enter/Tab navigation moves to adjacent cells
+    - Enter on last row creates new row
+    - Missing numeric values shown as "."
+    - show_value_labels toggle support
     """
-    
+
     data_changed = Signal()
-    variable_added = Signal(str)
+    variable_added = Signal(str)   # var_name
     variable_renamed = Signal(str, str)  # old_name, new_name
-    
-    # 기본 격자 크기
+
+    # Default virtual grid size
     DEFAULT_ROWS = 1000
     DEFAULT_COLS = 100
-    
+
     def __init__(
         self,
         dataframe: Optional[pd.DataFrame] = None,
+        variables: Optional[dict[str, VariableMeta]] = None,
         parent: Optional[Any] = None,
     ) -> None:
         super().__init__(parent)
-        
-        # 실제 데이터 저장소
+
         if dataframe is not None and not dataframe.empty:
             self._dataframe = dataframe.copy()
             self._var_counter = len(dataframe.columns) + 1
         else:
-            # 빈 DataFrame으로 시작 (열 없음)
             self._dataframe = pd.DataFrame()
             self._var_counter = 1
-        
-        # 실제 데이터가 있는 마지막 행/열 인덱스 (0-based)
+
+        self._variables: dict[str, VariableMeta] = variables or {}
+
+        # 값 라벨 표시 모드 (SPSS "View > Value Labels")
+        self.show_value_labels: bool = False
+
         self._last_data_row = -1
-        self._last_data_col = -1
-        self._update_last_data_indices()
-    
-    def _update_last_data_indices(self) -> None:
-        """실제 데이터가 있는 마지막 인덱스를 업데이트합니다."""
+        self._update_last_data_row()
+
+    def _update_last_data_row(self) -> None:
+        """Update the last row index that contains data."""
         if self._dataframe.empty:
             self._last_data_row = -1
-            self._last_data_col = -1
             return
-        
-        # 마지막으로 값이 있는 행 찾기
-        last_row = -1
+
         for row in range(len(self._dataframe) - 1, -1, -1):
             if not self._dataframe.iloc[row].isna().all():
-                last_row = row
-                break
-        self._last_data_row = last_row
-        
-        # 마지막으로 값이 있는 열 찾기
-        last_col = -1
-        for col in range(len(self._dataframe.columns) - 1, -1, -1):
-            if not self._dataframe.iloc[:, col].isna().all():
-                last_col = col
-                break
-        self._last_data_col = last_col
-    
-    # ── QAbstractTableModel overrides ──────────────────────────────────────
-    
+                self._last_data_row = row
+                return
+        self._last_data_row = -1
+
+    # ── 내부 헬퍼 ────────────────────────────────────────────────────────────
+
+    def _is_numeric_col(self, col: int) -> bool:
+        """숫자형 열인지 확인."""
+        if col >= len(self._dataframe.columns):
+            return False
+        col_name = self._dataframe.columns[col]
+        var = self._variables.get(col_name)
+        if var is not None:
+            return var.storage_type in (StorageType.FLOAT, StorageType.INTEGER)
+        # 메타 없으면 데이터로 판단
+        series = self._dataframe.iloc[:, col].dropna()
+        if series.empty:
+            return False
+        return pd.api.types.is_numeric_dtype(series)
+
+    def _get_decimals(self, col: int) -> int:
+        """열의 소수점 자릿수 반환 (기본 2)."""
+        if col >= len(self._dataframe.columns):
+            return 2
+        col_name = self._dataframe.columns[col]
+        var = self._variables.get(col_name)
+        if var is not None and hasattr(var, "decimals") and var.decimals is not None:
+            return var.decimals
+        return 2
+
+    def _format_display(self, value: Any, col: int) -> str:
+        """DisplayRole 포맷 적용."""
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            # 결측값: 숫자형 → ".", 문자형 → ""
+            return "." if self._is_numeric_col(col) else ""
+
+        try:
+            if pd.isna(value):
+                return "." if self._is_numeric_col(col) else ""
+        except (TypeError, ValueError):
+            pass
+
+        if isinstance(value, float):
+            decimals = self._get_decimals(col)
+            return f"{value:.{decimals}f}"
+        if isinstance(value, int):
+            # 정수형이면 소수점 없이
+            return str(value)
+        return str(value)
+
+    def _get_value_label(self, value: Any, col: int) -> Optional[str]:
+        """값 라벨 모드에서 표시할 텍스트 반환 (없으면 None)."""
+        if col >= len(self._dataframe.columns):
+            return None
+        col_name = self._dataframe.columns[col]
+        var = self._variables.get(col_name)
+        if var is None or not hasattr(var, "value_labels") or not var.value_labels:
+            return None
+        key = str(value)
+        return var.value_labels.get(key) or var.value_labels.get(value)
+
+    # ── QAbstractTableModel overrides ────────────────────────────────────────
+
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         if parent.isValid():
             return 0
-        # 실제 데이터가 있으면 그것 + 여유, 없으면 기본 크기
         if self._last_data_row >= 0:
             return max(self.DEFAULT_ROWS, self._last_data_row + 10)
         return self.DEFAULT_ROWS
-    
+
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         if parent.isValid():
             return 0
-        # 실제 열이 있으면 그것 + 여유, 없으면 기본 크기
         n_cols = len(self._dataframe.columns)
         if n_cols > 0:
             return max(self.DEFAULT_COLS, n_cols + 10)
         return self.DEFAULT_COLS
-    
+
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
             return None
-        
+
         row, col = index.row(), index.column()
-        
-        # 실제 데이터 범위 밖이면 빈 셀
-        if row >= len(self._dataframe) or col >= len(self._dataframe.columns):
+
+        # 실제 데이터 범위 밖 → 빈 셀
+        outside = row >= len(self._dataframe) or col >= len(self._dataframe.columns)
+
+        if outside:
             if role == Qt.ItemDataRole.DisplayRole:
-                return ""
+                return "." if self._is_numeric_col(col) else ""
             if role == Qt.ItemDataRole.EditRole:
                 return ""
             if role == Qt.ItemDataRole.TextAlignmentRole:
+                if self._is_numeric_col(col):
+                    return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            # 빈 셀 배경: 결측 처리
+            if role == Qt.ItemDataRole.BackgroundRole:
+                if self._is_numeric_col(col):
+                    return QBrush(_COLOR_MISSING_BG)
+                return None
             return None
-        
+
         value = self._dataframe.iloc[row, col]
-        
-        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+        is_missing = (value is None or value is pd.NA
+                      or (isinstance(value, float) and np.isnan(value)))
+        try:
             if pd.isna(value):
+                is_missing = True
+        except (TypeError, ValueError):
+            pass
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            if is_missing:
+                return "." if self._is_numeric_col(col) else ""
+            # 값 라벨 모드
+            if self.show_value_labels:
+                label = self._get_value_label(value, col)
+                if label is not None:
+                    return label
+            return self._format_display(value, col)
+
+        if role == Qt.ItemDataRole.EditRole:
+            if is_missing:
                 return ""
-            # Format floats nicely
             if isinstance(value, float):
-                if value != value:  # NaN check
-                    return ""
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return f"{value:.4f}".rstrip("0").rstrip(".")
                 return str(value)
             return str(value)
-        
+
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            if isinstance(value, (int, float)) and not pd.isna(value):
+            if self._is_numeric_col(col):
                 return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        
+
+        if role == Qt.ItemDataRole.BackgroundRole:
+            if is_missing and self._is_numeric_col(col):
+                return QBrush(_COLOR_MISSING_BG)
+            # 홀/짝 행 교차색
+            if row % 2 == 0:
+                return QBrush(_COLOR_ODD_ROW)
+            return QBrush(_COLOR_EVEN_ROW)
+
         if role == Qt.ItemDataRole.ToolTipRole:
             if col < len(self._dataframe.columns):
                 col_name = self._dataframe.columns[col]
-                return f"{col_name}: 행 {row + 1}"
+                var = self._variables.get(col_name)
+                label = var.label if var and var.label else col_name
+                return f"{label} (행 {row + 1}): {value}"
             return None
-        
+
         return None
-    
+
     def headerData(
         self,
         section: int,
@@ -156,19 +316,33 @@ class SPSSGridModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole:
             if orientation == Qt.Orientation.Horizontal:
                 if section < len(self._dataframe.columns):
-                    return str(self._dataframe.columns[section])
-                # 빈 열 헤더
-                return f"VAR{section + 1:05d}"
+                    col_name = str(self._dataframe.columns[section])
+                    var = self._variables.get(col_name)
+                    if var is not None and hasattr(var, "measure"):
+                        icon = _get_measure_icon(var.measure)
+                        return f"{icon} {col_name}"
+                    return col_name
+                return ""
             if orientation == Qt.Orientation.Vertical:
-                return str(section + 1)  # 1-based row numbers
-        
+                return str(section + 1)
+
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if orientation == Qt.Orientation.Horizontal:
                 return Qt.AlignmentFlag.AlignCenter
             return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        
+
+        if role == Qt.ItemDataRole.BackgroundRole:
+            if orientation == Qt.Orientation.Horizontal:
+                return QBrush(_COLOR_HEADER_H)
+            return QBrush(_COLOR_HEADER_V)
+
+        if role == Qt.ItemDataRole.FontRole:
+            font = QFont()
+            font.setBold(True)
+            return font
+
         return None
-    
+
     def setData(
         self,
         index: QModelIndex,
@@ -177,55 +351,114 @@ class SPSSGridModel(QAbstractTableModel):
     ) -> bool:
         if not index.isValid() or role != Qt.ItemDataRole.EditRole:
             return False
-        
+
         row, col = index.row(), index.column()
-        
-        # 데이터 확장이 필요한지 확인
-        needs_reset = False
-        
-        # 열이 부족하면 확장
+
         if col >= len(self._dataframe.columns):
-            self._extend_columns(col + 1)
-            needs_reset = True
-        
-        # 행이 부족하면 확장
+            self._create_variable_at_col(col)
+
         if row >= len(self._dataframe):
             self._extend_rows(row + 1)
-            needs_reset = True
-        
-        if needs_reset:
-            # 확장 후에도 계속 진행 (뷰가 자동으로 다시 호출)
-            pass
-        
+
         col_name = self._dataframe.columns[col]
         old_value = self._dataframe.iloc[row, col]
-        
+
         try:
             if value == "" or value is None:
                 new_value = pd.NA
-            elif isinstance(old_value, (int, float)) and not pd.isna(old_value):
-                if isinstance(old_value, int):
-                    new_value = int(value)
-                else:
-                    new_value = float(value)
             else:
-                # Try numeric first, then string
-                try:
-                    new_value = float(value)
-                    if new_value == int(new_value):
-                        new_value = int(new_value)
-                except (ValueError, TypeError):
-                    new_value = str(value)
-            
+                new_value = self._parse_value(value, old_value)
+
             self._dataframe.iloc[row, col] = new_value
-            self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+            self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole])
             self.data_changed.emit()
-            self._update_last_data_indices()
+            self._update_last_data_row()
+            self._update_variable_metadata(col_name)
+
             return True
         except (ValueError, TypeError) as exc:
             logger.warning("Failed to set data at (%d, %d): %s", row, col, exc)
             return False
-    
+
+    def _parse_value(self, value: Any, old_value: Any) -> Any:
+        """Parse input value, trying to maintain consistent typing."""
+        str_value = str(value).strip()
+
+        # SPSS 결측 기호 "." → NA
+        if str_value == ".":
+            return pd.NA
+
+        try:
+            return int(str_value)
+        except ValueError:
+            pass
+
+        try:
+            return float(str_value)
+        except ValueError:
+            pass
+
+        return str_value
+
+    def _create_variable_at_col(self, col: int) -> None:
+        """Create a new variable at the specified column index."""
+        self.beginResetModel()
+
+        while len(self._dataframe.columns) <= col:
+            var_name = generate_var_name(self._var_counter)
+            while var_name in self._dataframe.columns:
+                self._var_counter += 1
+                var_name = generate_var_name(self._var_counter)
+            self._var_counter += 1
+
+            if len(self._dataframe) == 0:
+                self._dataframe = pd.DataFrame({var_name: [pd.NA]})
+            else:
+                self._dataframe[var_name] = pd.NA
+
+            var_meta = VariableMeta(
+                name=var_name,
+                label=var_name,
+                storage_type=StorageType.STRING,
+                measure=MeasureType.NOMINAL,
+            )
+            self._variables[var_name] = var_meta
+            self.variable_added.emit(var_name)
+            logger.info("Created variable: %s", var_name)
+
+        self.endResetModel()
+
+    def _update_variable_metadata(self, var_name: str) -> None:
+        """Update variable metadata based on actual data."""
+        if var_name not in self._variables:
+            return
+
+        series = self._dataframe[var_name]
+        non_null = series.dropna()
+
+        if len(non_null) == 0:
+            return
+
+        var_meta = self._variables[var_name]
+
+        first_value = non_null.iloc[0]
+        var_meta.storage_type = infer_storage_type(first_value)
+        var_meta.measure = infer_measure_type(series)
+
+        if var_meta.storage_type == StorageType.FLOAT:
+            max_decimals = 0
+            for val in non_null:
+                try:
+                    str_val = str(val)
+                    if '.' in str_val:
+                        decimals = len(str_val.split('.')[1])
+                        max_decimals = max(max_decimals, decimals)
+                except Exception:
+                    pass
+            var_meta.decimals = min(max_decimals, 4) if max_decimals > 0 else 2
+
+        var_meta.touch()
+
     def setHeaderData(
         self,
         section: int,
@@ -233,32 +466,36 @@ class SPSSGridModel(QAbstractTableModel):
         value: Any,
         role: int = Qt.ItemDataRole.EditRole,
     ) -> bool:
-        """헤더(변수명) 편집."""
         if orientation != Qt.Orientation.Horizontal or role != Qt.ItemDataRole.EditRole:
             return False
-        
+
         new_name = str(value).strip()
         if not new_name:
             return False
-        
-        # 열이 없으면 생성
+
         if section >= len(self._dataframe.columns):
-            self._extend_columns(section + 1)
-        
+            self._create_variable_at_col(section)
+
         old_name = self._dataframe.columns[section]
         if old_name == new_name:
             return True
-        
-        # 중복 검사
+
         if new_name in self._dataframe.columns:
             logger.warning("Variable name '%s' already exists", new_name)
             return False
-        
+
         self._dataframe.rename(columns={old_name: new_name}, inplace=True)
+
+        if old_name in self._variables:
+            var_meta = self._variables.pop(old_name)
+            var_meta.name = new_name
+            var_meta.label = new_name
+            self._variables[new_name] = var_meta
+
         self.headerDataChanged.emit(orientation, section, section)
         self.variable_renamed.emit(old_name, new_name)
         return True
-    
+
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
@@ -267,138 +504,129 @@ class SPSSGridModel(QAbstractTableModel):
             | Qt.ItemFlag.ItemIsSelectable
             | Qt.ItemFlag.ItemIsEditable
         )
-    
-    def headerFlags(self, section: int, orientation: Qt.Orientation) -> Qt.ItemFlag:
-        """헤더 플래그."""
-        if orientation == Qt.Orientation.Horizontal:
-            return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsEditable | Qt.ItemFlag.ItemIsSelectable
-        return Qt.ItemFlag.ItemIsEnabled
-    
-    # ── 낭비 확장 ──────────────────────────────────────────────────────────
-    
+
+    # ── Row/Column extension ─────────────────────────────────────────────────
+
     def _extend_rows(self, target_rows: int) -> None:
-        """행을 target_rows까지 확장합니다."""
+        """Extend rows to target_rows."""
         current_rows = len(self._dataframe)
         if target_rows <= current_rows:
             return
-        
+
         n_new = target_rows - current_rows
         self.beginInsertRows(QModelIndex(), current_rows, target_rows - 1)
-        
-        # 새 행 추가
+
         new_data = {}
         for col in self._dataframe.columns:
             new_data[col] = [pd.NA] * n_new
         new_df = pd.DataFrame(new_data)
         self._dataframe = pd.concat([self._dataframe, new_df], ignore_index=True)
-        
+
         self.endInsertRows()
-    
-    def _extend_columns(self, target_cols: int) -> None:
-        """열을 target_cols까지 확장합니다."""
-        current_cols = len(self._dataframe.columns)
-        if target_cols <= current_cols:
-            return
-        
-        self.beginResetModel()
-        
-        n_new = target_cols - current_cols
-        for i in range(n_new):
-            var_name = generate_var_name(self._var_counter)
-            while var_name in self._dataframe.columns:
-                self._var_counter += 1
-                var_name = generate_var_name(self._var_counter)
-            self._var_counter += 1
-            
-            if len(self._dataframe) == 0:
-                self._dataframe = pd.DataFrame({var_name: [pd.NA]})
-            else:
-                self._dataframe[var_name] = pd.NA
-            
-            self.variable_added.emit(var_name)
-        
-        self.endResetModel()
-    
-    # ── Public helpers ─────────────────────────────────────────────────────
-    
-    def set_dataframe(self, dataframe: pd.DataFrame) -> None:
-        """DataFrame을 교체합니다."""
+
+    # ── Public helpers ───────────────────────────────────────────────────────
+
+    def set_dataframe(self, dataframe: pd.DataFrame, variables: Optional[dict[str, VariableMeta]] = None) -> None:
+        """Replace DataFrame and optionally variables."""
         self.beginResetModel()
         self._dataframe = dataframe.copy()
         self._var_counter = len(dataframe.columns) + 1
-        self._update_last_data_indices()
+        if variables is not None:
+            self._variables = variables.copy()
+        self._update_last_data_row()
         self.endResetModel()
         self.data_changed.emit()
-    
+
     def get_dataframe(self) -> pd.DataFrame:
-        """현재 DataFrame을 반환합니다 (빈 행/열 제거)."""
-        # 실제 데이터가 있는 범위만 반환
+        """Return DataFrame with all columns and data-containing rows."""
         if self._dataframe.empty:
             return self._dataframe.copy()
-        
-        # 마지막 데이터 행/열까지 자르기
-        last_row = self._last_data_row
-        last_col = self._last_data_col
-        
-        if last_row < 0 or last_col < 0:
-            return pd.DataFrame()
-        
-        result = self._dataframe.iloc[:last_row + 1, :last_col + 1].copy()
-        return result
-    
+
+        if self._last_data_row >= 0:
+            return self._dataframe.iloc[:self._last_data_row + 1].copy()
+
+        if len(self._dataframe.columns) > 0:
+            return self._dataframe.iloc[:0].copy()
+
+        return pd.DataFrame()
+
     def get_full_dataframe(self) -> pd.DataFrame:
-        """전체 DataFrame을 반환합니다."""
+        """Return full DataFrame."""
         return self._dataframe.copy()
-    
-    def add_row(self, values: Optional[Dict[str, Any]] = None) -> None:
-        """새 행을 추가합니다."""
+
+    def get_variables(self) -> dict[str, VariableMeta]:
+        """Return variable metadata dictionary."""
+        return self._variables.copy()
+
+    def toggle_value_labels(self) -> bool:
+        """값 라벨 표시 토글. 변경 후 현재 상태 반환."""
+        self.show_value_labels = not self.show_value_labels
+        # 전체 뷰 갱신
+        top_left = self.index(0, 0)
+        bottom_right = self.index(self.rowCount() - 1, self.columnCount() - 1)
+        self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole])
+        return self.show_value_labels
+
+    def add_row(self, values: Optional[dict[str, Any]] = None) -> None:
+        """Add a new row."""
         current_rows = len(self._dataframe)
         self.beginInsertRows(QModelIndex(), current_rows, current_rows)
-        
+
         new_row = values if values is not None else {}
         for col in self._dataframe.columns:
             if col not in new_row:
                 new_row[col] = pd.NA
-        
+
         new_df = pd.DataFrame([new_row])
         self._dataframe = pd.concat([self._dataframe, new_df], ignore_index=True)
-        
+
         self.endInsertRows()
         self.data_changed.emit()
-        self._update_last_data_indices()
-    
+        self._update_last_data_row()
+
+        if values is None and self._last_data_row < current_rows:
+            self._last_data_row = current_rows
+
     def remove_row(self, row: int) -> bool:
-        """행을 삭제합니다."""
+        """Remove a row."""
         if 0 <= row < len(self._dataframe):
             self.beginRemoveRows(QModelIndex(), row, row)
             self._dataframe = self._dataframe.drop(self._dataframe.index[row]).reset_index(drop=True)
             self.endRemoveRows()
             self.data_changed.emit()
-            self._update_last_data_indices()
+            self._update_last_data_row()
             return True
         return False
-    
+
     def add_column(self, name: str, values: Optional[list[Any]] = None) -> None:
-        """새 열을 추가합니다."""
+        """Add a new column."""
         self.beginResetModel()
-        
+
         if values is not None:
             self._dataframe[name] = values
         else:
             self._dataframe[name] = pd.NA
-        
+
+        if name not in self._variables:
+            self._variables[name] = VariableMeta(
+                name=name,
+                label=name,
+                storage_type=StorageType.STRING,
+                measure=MeasureType.NOMINAL,
+            )
+
         self.endResetModel()
         self.data_changed.emit()
-        self._update_last_data_indices()
-    
+
     def remove_column(self, col: int) -> bool:
-        """열을 삭제합니다."""
+        """Remove a column."""
         if 0 <= col < len(self._dataframe.columns):
             self.beginResetModel()
             col_name = self._dataframe.columns[col]
             self._dataframe = self._dataframe.drop(columns=[col_name])
+            if col_name in self._variables:
+                del self._variables[col_name]
             self.endResetModel()
             self.data_changed.emit()
-            self._update_last_data_indices()
             return True
         return False

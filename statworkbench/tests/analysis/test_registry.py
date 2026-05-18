@@ -352,7 +352,8 @@ class TestPlannedAnalysis:
         ids = [p.id for p in planned]
         # Some known planned analyses from built-in list
         assert "explore" in ids
-        assert "logistic_regression" in ids
+        # logistic_regression is now implemented, not planned
+        assert "logistic_regression" not in ids
 
     def test_planned_not_in_list_implemented(
         self, registry: AnalysisRegistry

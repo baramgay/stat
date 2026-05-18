@@ -11,7 +11,10 @@ from PySide6.QtWidgets import (
     QHeaderView,
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QImage
 from typing import Optional, List
+import base64
+import io
 
 import pandas as pd
 
@@ -128,6 +131,44 @@ class OutputView(QWidget):
         html.append("</table>")
         return "\n".join(html)
 
+    def add_chart(self, title: str, pixmap: QPixmap) -> None:
+        """결과창에 차트 이미지를 삽입합니다.
+
+        Parameters
+        ----------
+        title:  차트 제목 (트리 및 출력 헤더로 표시)
+        pixmap: 표시할 QPixmap 이미지
+        """
+        if pixmap is None or pixmap.isNull():
+            return
+
+        # QPixmap → PNG bytes → base64 → HTML img 태그로 삽입
+        buf = io.BytesIO()
+        image = pixmap.toImage()
+        png_bytes = _qimage_to_png_bytes(image)
+        b64 = base64.b64encode(png_bytes).decode("utf-8")
+        img_tag = f'<img src="data:image/png;base64,{b64}" style="max-width:100%;"/>'
+
+        # 트리에 항목 추가
+        idx = len(self._results)
+        item = QTreeWidgetItem(self.tree)
+        item.setText(0, f"{idx + 1}. [차트] {title}")
+        item.setData(0, Qt.UserRole, f"__chart_{idx}")
+
+        # 결과창에 HTML로 추가
+        html_parts = [get_output_html_styles(), "<body>"]
+        html_parts.append(f"<h2>{title}</h2>")
+        html_parts.append(f"<div style='margin:12px 0;'>{img_tag}</div>")
+        html_parts.append("</body></html>")
+
+        # 기존 내용에 추가 (append)
+        cursor = self.detail.textCursor()
+        cursor.movePosition(cursor.End)
+        self.detail.setTextCursor(cursor)
+        self.detail.append("".join(html_parts))
+
+        self.tree.expandAll()
+
     def clear(self) -> None:
         """Clear all results."""
         self._results.clear()
@@ -146,3 +187,16 @@ class OutputView(QWidget):
                 parts.append(f"<pre>{result.syntax}</pre>")
         parts.append("</body></html>")
         return "\n".join(parts)
+
+
+# ── 모듈 수준 헬퍼 ───────────────────────────────────────────────────────────
+
+def _qimage_to_png_bytes(image: QImage) -> bytes:
+    """QImage를 PNG bytes로 변환."""
+    from PySide6.QtCore import QBuffer, QIODevice
+
+    buffer = QBuffer()
+    buffer.open(QIODevice.WriteOnly)
+    image.save(buffer, "PNG")
+    buffer.close()
+    return bytes(buffer.data())
