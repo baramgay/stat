@@ -1,0 +1,42 @@
+# 빌드 산출물 (대용량 — GitHub 제외)
+statworkbench/build/
+statworkbench/dist/
+statworkbench/*.spec
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# 가상환경
+venv/
+.venv/
+env/
+.env/
+
+# 패키지 설치 정보
+*.egg-info/
+*.egg
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 테스트 캐시
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 임시 파일
+*.tmp
+*.bak
+*.log
