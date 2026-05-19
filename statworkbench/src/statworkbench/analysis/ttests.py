@@ -191,6 +191,9 @@ def _independent_ttest(
     t_eq, p_eq = stats.ttest_ind(g1_data, g2_data, equal_var=True)
     df_eq = n1 + n2 - 2
     mean_diff = mean1 - mean2
+    if df_eq <= 0:
+        result.warnings.append("Each group must have at least 2 cases for independent t-test.")
+        return result
     pooled_sd = np.sqrt(((n1 - 1) * sd1**2 + (n2 - 1) * sd2**2) / df_eq)
     se_diff_eq = pooled_sd * np.sqrt(1 / n1 + 1 / n2)
     t_crit_eq = stats.t.ppf(1 - alpha / 2, df_eq)
