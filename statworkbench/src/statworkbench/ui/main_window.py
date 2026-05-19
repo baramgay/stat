@@ -822,16 +822,21 @@ class MainWindow(QMainWindow):
     def _on_dataset_changed(self) -> None:
         """데이터셋 변경 시 호출됩니다."""
         if self.current_dataset is not None:
-            # 데이터 뷰에서 변경된 내용을 변수 보기에도 반영
+            # Variable View ↔ Data View 양방향 동기화
             if hasattr(self, 'variable_view') and self.variable_view:
                 self.variable_view.set_dataset(self.current_dataset)
+            # Data View 메타데이터 반영 (decimals, measure 등 변경 즉시 적용)
+            if hasattr(self, 'data_view') and self.data_view:
+                model = self.data_view.model() if hasattr(self.data_view, 'model') else None
+                if model is not None and hasattr(model, 'layoutChanged'):
+                    model.layoutChanged.emit()
             # 구문 편집기에도 반영
             if hasattr(self, 'syntax_editor') and self.syntax_editor:
                 self.syntax_editor.set_dataset(self.current_dataset)
             # 프로젝트를 더티 상태로 표시
             if self.project is not None:
                 self.project.mark_dirty()
-        
+
         self._update_statusbar()
 
     def _on_syntax_executed(self, code: str) -> None:
@@ -1158,7 +1163,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.frequencies_dialog import FrequenciesDialog
         dialog = FrequenciesDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _run_descriptives(self) -> None:
@@ -1169,7 +1174,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.descriptives_dialog import DescriptivesDialog
         dialog = DescriptivesDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _run_crosstabs(self) -> None:
@@ -1180,7 +1185,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.crosstab_dialog import CrosstabDialog
         dialog = CrosstabDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        dialog.analysis_completed.connect(self._on_crosstab_completed)
         dialog.exec()
 
     def _run_independent_ttest(self) -> None:
@@ -1196,12 +1201,41 @@ class MainWindow(QMainWindow):
 
     def _on_ttest_result(self, result) -> None:
         """T 검정 결과 처리."""
+        self._on_analysis_result(result)
+        self.statusbar.showMessage("T 검정 완료")
+
+    def _on_analysis_result(self, result) -> None:
+        """AnalysisResult 시그널 공통 처리."""
         self._ensure_output_window()
         try:
             self._output_window.add_output(result.to_html(), "analysis")
         except Exception:
             self._output_window.add_output(str(result), "analysis")
-        self.statusbar.showMessage("T 검정 완료")
+        self.statusbar.showMessage("분석 완료")
+
+    def _on_legacy_analysis_completed(self, spec: dict) -> None:
+        """분석 완료(dict) 시그널 처리 — 다이얼로그 내부에서 이미 계산된 결과 표시."""
+        self._ensure_output_window()
+        analysis_type = spec.get("type", "분석")
+        result_text = spec.get("result", "")
+        if result_text:
+            self._output_window.add_output(f"<pre>{result_text}</pre>", "analysis")
+        else:
+            import json
+            displayable = {k: v for k, v in spec.items() if k not in ("correlation_matrix",)}
+            self._output_window.add_output(f"<pre>{json.dumps(displayable, ensure_ascii=False, indent=2)}</pre>", "analysis")
+        self.statusbar.showMessage(f"분석 완료: {analysis_type}")
+
+    def _on_crosstab_completed(self, spec: dict) -> None:
+        """교차분석 다이얼로그 완료 — spec을 받아 crosstab.run_analysis로 실행."""
+        self._ensure_output_window()
+        try:
+            from statworkbench.analysis.crosstab import run_analysis
+            result = run_analysis(self.current_dataset, spec)
+            self._output_window.add_output(result.to_html(), "analysis")
+            self.statusbar.showMessage("교차분석 완료")
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"교차분석 실행 실패:\n{exc}")
 
     def _run_paired_ttest(self) -> None:
         """대응표본 T 검정 실행."""
@@ -1222,7 +1256,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.anova_dialog import ANOVADialog
         dialog = ANOVADialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        dialog.analysis_completed.connect(self._on_legacy_analysis_completed)
         dialog.exec()
 
     def _run_correlation(self) -> None:
@@ -1233,7 +1267,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.correlation_dialog import CorrelationDialog
         dialog = CorrelationDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        dialog.analysis_completed.connect(self._on_legacy_analysis_completed)
         dialog.exec()
 
     def _run_regression(self) -> None:
@@ -1255,7 +1289,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.nonparametric_dialog import NonparametricDialog
         dialog = NonparametricDialog(self.current_dataset, self)
-        dialog.analysis_requested.connect(self._on_analysis_requested)
+        dialog.analysis_completed.connect(self._on_legacy_analysis_completed)
         dialog.exec()
 
     def _ensure_output_window(self) -> None:

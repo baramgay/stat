@@ -463,6 +463,9 @@ class VariableView(QWidget):
             QAbstractItemView.EditTrigger.EditKeyPressed
         )
 
+        # Values(5), Missing(6) 셀은 더블클릭 시 전용 다이얼로그로 처리
+        self.table.doubleClicked.connect(self._on_cell_double_clicked)
+
         layout.addWidget(self.table)
 
         # 안내 문구
@@ -557,10 +560,44 @@ class VariableView(QWidget):
         index = self.table.currentIndex()
         if not index.isValid():
             return
-        
+
         row = index.row()
         if row >= len(self._model._variables) - 1:
             return
-        
+
         self._model.move_variable(row, row + 1)
         self.table.selectRow(row + 1)
+
+    def _on_cell_double_clicked(self, index: QModelIndex) -> None:
+        """Values(5) 또는 Missing(6) 셀 더블클릭 시 전용 다이얼로그를 엽니다."""
+        col = index.column()
+        if col == 5:
+            self._show_values_dialog(index.row())
+        elif col == 6:
+            self._show_missing_dialog(index.row())
+
+    def _show_values_dialog(self, row: int) -> None:
+        """값 라벨 편집 다이얼로그를 엽니다."""
+        if self._model is None or row >= len(self._model._variables):
+            return
+        from statworkbench.ui.dialogs.variable_editor import ValueLabelsDialog
+        var = self._model._variables[row]
+        dlg = ValueLabelsDialog(dict(var.value_labels), self)
+        if dlg.exec() == dlg.DialogCode.Accepted:
+            var.value_labels = dlg.get_value_labels()
+            idx = self._model.index(row, 5)
+            self._model.dataChanged.emit(idx, idx)
+            self._model.data_changed.emit()
+
+    def _show_missing_dialog(self, row: int) -> None:
+        """결측값 규칙 편집 다이얼로그를 엽니다."""
+        if self._model is None or row >= len(self._model._variables):
+            return
+        from statworkbench.ui.dialogs.variable_editor import MissingValuesDialog
+        var = self._model._variables[row]
+        dlg = MissingValuesDialog(list(var.missing_values), self)
+        if dlg.exec() == dlg.DialogCode.Accepted:
+            var.missing_values = dlg.get_missing_values()
+            idx = self._model.index(row, 6)
+            self._model.dataChanged.emit(idx, idx)
+            self._model.data_changed.emit()

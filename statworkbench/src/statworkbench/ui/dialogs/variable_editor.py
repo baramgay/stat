@@ -144,7 +144,13 @@ class ValueLabelsDialog(QDialog):
 
 
 class MissingValuesDialog(QDialog):
-    """결측값 규칙 편집 서브 다이얼로그."""
+    """SPSS 스타일 결측값 규칙 편집 다이얼로그.
+
+    세 가지 모드:
+    - 결측값 없음
+    - 이산 결측값 (최대 3개)
+    - 범위 결측값 + 선택적 이산값 1개
+    """
 
     def __init__(
         self,
@@ -152,29 +158,76 @@ class MissingValuesDialog(QDialog):
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Missing Values / 결측값 규칙 편집")
-        self.setMinimumSize(350, 300)
+        self.setWindowTitle("결측값 (Missing Values)")
+        self.setMinimumSize(380, 300)
         self._result: list[Any] = list(missing_values)
         self._setup_ui()
         self._load_data()
 
     def _setup_ui(self) -> None:
+        from PySide6.QtWidgets import QRadioButton, QButtonGroup, QFrame
         layout = QVBoxLayout(self)
+        layout.setSpacing(10)
 
-        # Table
-        self.table = QTableWidget(0, 1)
-        self.table.setHorizontalHeaderLabels(["Missing Value"])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.table)
+        self._mode_group = QButtonGroup(self)
 
-        # Buttons
-        btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton(STR_ADD)
-        self.remove_btn = QPushButton(STR_REMOVE)
-        btn_layout.addWidget(self.add_btn)
-        btn_layout.addWidget(self.remove_btn)
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
+        # --- 모드 1: 결측값 없음 ---
+        self.radio_none = QRadioButton("결측값 없음 (No missing values)")
+        self._mode_group.addButton(self.radio_none, 0)
+        layout.addWidget(self.radio_none)
+
+        # --- 모드 2: 이산 결측값 ---
+        self.radio_discrete = QRadioButton("이산 결측값 (Discrete missing values) — 최대 3개:")
+        self._mode_group.addButton(self.radio_discrete, 1)
+        layout.addWidget(self.radio_discrete)
+
+        discrete_frame = QWidget()
+        discrete_layout = QHBoxLayout(discrete_frame)
+        discrete_layout.setContentsMargins(20, 0, 0, 0)
+        self.discrete_edits: list[QLineEdit] = []
+        for i in range(3):
+            e = QLineEdit()
+            e.setPlaceholderText(f"값 {i + 1}")
+            e.setFixedWidth(90)
+            self.discrete_edits.append(e)
+            discrete_layout.addWidget(e)
+        discrete_layout.addStretch()
+        layout.addWidget(discrete_frame)
+
+        # --- 구분선 ---
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line)
+
+        # --- 모드 3: 범위 결측값 ---
+        self.radio_range = QRadioButton("범위 결측값 (Range missing values):")
+        self._mode_group.addButton(self.radio_range, 2)
+        layout.addWidget(self.radio_range)
+
+        range_frame = QWidget()
+        range_layout = QHBoxLayout(range_frame)
+        range_layout.setContentsMargins(20, 0, 0, 0)
+        range_layout.addWidget(QLabel("최솟값:"))
+        self.range_low_edit = QLineEdit()
+        self.range_low_edit.setFixedWidth(80)
+        range_layout.addWidget(self.range_low_edit)
+        range_layout.addWidget(QLabel("최댓값:"))
+        self.range_high_edit = QLineEdit()
+        self.range_high_edit.setFixedWidth(80)
+        range_layout.addWidget(self.range_high_edit)
+        range_layout.addWidget(QLabel("+이산:"))
+        self.range_extra_edit = QLineEdit()
+        self.range_extra_edit.setPlaceholderText("선택 사항")
+        self.range_extra_edit.setFixedWidth(80)
+        range_layout.addWidget(self.range_extra_edit)
+        range_layout.addStretch()
+        layout.addWidget(range_frame)
+
+        # 모드 변경에 따른 위젯 활성화
+        self._mode_group.idToggled.connect(self._on_mode_changed)
+
+        layout.addStretch()
 
         dialog_btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -183,43 +236,71 @@ class MissingValuesDialog(QDialog):
         dialog_btns.rejected.connect(self.reject)
         layout.addWidget(dialog_btns)
 
-        self.add_btn.clicked.connect(self._add_row)
-        self.remove_btn.clicked.connect(self._remove_selected)
+    def _on_mode_changed(self, btn_id: int, checked: bool) -> None:
+        if not checked:
+            return
+        discrete_enabled = (btn_id == 1)
+        range_enabled = (btn_id == 2)
+        for e in self.discrete_edits:
+            e.setEnabled(discrete_enabled)
+        self.range_low_edit.setEnabled(range_enabled)
+        self.range_high_edit.setEnabled(range_enabled)
+        self.range_extra_edit.setEnabled(range_enabled)
+
+    def _parse_num(self, text: str) -> Any:
+        text = text.strip()
+        if not text:
+            return None
+        try:
+            return int(text)
+        except ValueError:
+            try:
+                return float(text)
+            except ValueError:
+                return text
 
     def _load_data(self) -> None:
-        for val in self._result:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(str(val)))
+        vals = self._result
+        if not vals:
+            self.radio_none.setChecked(True)
+            return
 
-    def _add_row(self) -> None:
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-        self.table.setItem(row, 0, QTableWidgetItem(""))
-        self.table.setCurrentCell(row, 0)
-        self.table.editItem(self.table.item(row, 0))
+        # Check if first entry is a range [lo, hi]
+        if vals and isinstance(vals[0], (list, tuple)) and len(vals[0]) == 2:
+            self.radio_range.setChecked(True)
+            lo, hi = vals[0]
+            self.range_low_edit.setText(str(lo))
+            self.range_high_edit.setText(str(hi))
+            if len(vals) > 1:
+                self.range_extra_edit.setText(str(vals[1]))
+        else:
+            self.radio_discrete.setChecked(True)
+            for i, v in enumerate(vals[:3]):
+                self.discrete_edits[i].setText(str(v))
 
-    def _remove_selected(self) -> None:
-        rows = sorted({idx.row() for idx in self.table.selectedIndexes()}, reverse=True)
-        for row in rows:
-            self.table.removeRow(row)
+        self._on_mode_changed(self._mode_group.checkedId(), True)
 
     def _on_ok(self) -> None:
-        self._result = []
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, 0)
-            if item:
-                text = item.text().strip()
-                if text:
-                    # Try numeric conversion
-                    try:
-                        val = int(text)
-                    except ValueError:
-                        try:
-                            val = float(text)
-                        except ValueError:
-                            val = text
-                    self._result.append(val)
+        mode = self._mode_group.checkedId()
+        if mode == 0:
+            self._result = []
+        elif mode == 1:
+            result = []
+            for e in self.discrete_edits:
+                v = self._parse_num(e.text())
+                if v is not None:
+                    result.append(v)
+            self._result = result
+        else:
+            lo = self._parse_num(self.range_low_edit.text())
+            hi = self._parse_num(self.range_high_edit.text())
+            if lo is not None and hi is not None:
+                self._result = [[lo, hi]]
+                extra = self._parse_num(self.range_extra_edit.text())
+                if extra is not None:
+                    self._result.append(extra)
+            else:
+                self._result = []
         self.accept()
 
     def get_missing_values(self) -> list[Any]:

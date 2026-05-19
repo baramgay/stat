@@ -12,7 +12,7 @@ from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
 from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci
+from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci, get_display_decimals
 from statworkbench.analysis.assumptions import (
     prepare_analysis_frame, get_case_processing_summary, levene_test
 )
@@ -69,6 +69,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     # Group-level descriptives
     groups_list = sorted(df[factor_var].dropna().unique())
+    d = get_display_decimals(dataset, dep_var)
     group_rows = []
     group_data = []
     for grp in groups_list:
@@ -81,9 +82,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         group_rows.append({
             "Group": grp,
             "N": n,
-            "Mean": format_number(mean, 3),
-            "SD": format_number(sd, 3),
-            "SE": format_number(se, 3),
+            "Mean": format_number(mean, d),
+            "SD": format_number(sd, d + 1),
+            "SE": format_number(se, d + 1),
         })
         group_data.append(arr)
 
