@@ -124,17 +124,30 @@ def _independent_ttest(
     sd1 = float(np.std(g1_data, ddof=1))
     sd2 = float(np.std(g2_data, ddof=1))
 
+    def _label(var: str) -> str:
+        meta = dataset.variables.get(var) if dataset.variables else None
+        return meta.label if (meta and meta.label) else var
+
+    def _val_label(var: str, val) -> str:
+        meta = dataset.variables.get(var) if dataset.variables else None
+        if meta and meta.value_labels:
+            key = int(val) if isinstance(val, float) and val == int(val) else val
+            lbl = meta.value_labels.get(key) or meta.value_labels.get(str(key))
+            if lbl:
+                return lbl
+        return str(val)
+
     # Group statistics table
     group_stats = pd.DataFrame([
         {
-            "Group": g1_val,
+            "Group": _val_label(group_var, g1_val),
             "N": n1,
             "Mean": format_number(mean1, 3),
             "SD": format_number(sd1, 3),
             "SE": format_number(sd1 / np.sqrt(n1), 3) if n1 > 0 else "",
         },
         {
-            "Group": g2_val,
+            "Group": _val_label(group_var, g2_val),
             "N": n2,
             "Mean": format_number(mean2, 3),
             "SD": format_number(sd2, 3),
@@ -199,7 +212,8 @@ def _independent_ttest(
     t_uneq, p_uneq = stats.ttest_ind(g1_data, g2_data, equal_var=False)
     se1_sq = sd1**2 / n1
     se2_sq = sd2**2 / n2
-    df_uneq = (se1_sq + se2_sq)**2 / (se1_sq**2 / (n1 - 1) + se2_sq**2 / (n2 - 1))
+    _welch_denom = se1_sq**2 / (n1 - 1) + se2_sq**2 / (n2 - 1)
+    df_uneq = (se1_sq + se2_sq)**2 / _welch_denom if _welch_denom > 0 else float(n1 + n2 - 2)
     se_diff_uneq = np.sqrt(se1_sq + se2_sq)
     t_crit_uneq = stats.t.ppf(1 - alpha / 2, df_uneq)
     ci_low_uneq = mean_diff - t_crit_uneq * se_diff_uneq
@@ -342,5 +356,69 @@ def _paired_ttest(
         title="Paired Samples t-Test",
         dataframe=test_df,
     ))
+
+    return result
+
+
+def run_one_sample_ttest(
+    data: pd.DataFrame,
+    variable: str,
+    test_value: float = 0.0,
+    confidence_level: float = 0.95,
+) -> AnalysisResult:
+    """Run one-sample t-test.
+
+    Args:
+        data: DataFrame containing the variable.
+        variable: Name of the variable to test.
+        test_value: Hypothesized population mean (H0: mu = test_value).
+        confidence_level: Confidence level for CI.
+
+    Returns:
+        AnalysisResult with one-sample t-test results.
+    """
+    result = AnalysisResult(
+        id="one_sample_ttest",
+        title=f"One-Sample t-Test: {variable}",
+        spec={"variable": variable, "test_value": test_value},
+    )
+
+    col = data[variable].dropna()
+    n = len(col)
+
+    if n < 2:
+        result.warnings.append("Insufficient valid observations (need at least 2).")
+        return result
+
+    arr = col.values.astype(float)
+    mean = float(np.mean(arr))
+    sd = float(np.std(arr, ddof=1))
+    se = sd / np.sqrt(n)
+    t_stat, p_value = stats.ttest_1samp(arr, test_value)
+    df_val = n - 1
+    alpha = 1 - confidence_level
+    t_crit = stats.t.ppf(1 - alpha / 2, df_val)
+    ci_low = mean - t_crit * se
+    ci_high = mean + t_crit * se
+    mean_diff = mean - test_value
+
+    stats_df = pd.DataFrame([{
+        "Variable": variable,
+        "N": n,
+        "Mean": format_number(mean, 3),
+        "SD": format_number(sd, 3),
+        "SE Mean": format_number(se, 3),
+    }])
+    result.add_table(ResultTable(title="One-Sample Statistics", dataframe=stats_df))
+
+    test_df = pd.DataFrame([{
+        "Test Value": test_value,
+        "t": format_number(t_stat, 3),
+        "df": df_val,
+        "p-value": format_pvalue(p_value),
+        "Mean Difference": format_number(mean_diff, 3),
+        f"{int(confidence_level*100)}% CI": format_ci(ci_low, ci_high, level=confidence_level),
+    }])
+    result.add_table(ResultTable(title="One-Sample t-Test", dataframe=test_df))
 
     return result

@@ -7,6 +7,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal
 
 from statworkbench.core.dataset import Dataset
+from statworkbench.ui.dialogs._dialog_helpers import (
+    scale_vars, numeric_vars, display_label, measure_icon
+)
 
 
 class OneSampleTTestDialog(QDialog):
@@ -29,15 +32,17 @@ class OneSampleTTestDialog(QDialog):
         layout.setSpacing(10)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # 검정 변수
-        var_group = QGroupBox("검정 변수 (Test Variable)")
+        # 검정 변수 — 척도형(Scale) 우선, 없으면 수치형 전체
+        var_group = QGroupBox("검정 변수 (Test Variable) — 척도형")
         var_layout = QVBoxLayout(var_group)
 
         self.var_combo = QComboBox()
-        import pandas as pd
-        for var in self._dataset.data.columns:
-            if pd.api.types.is_numeric_dtype(self._dataset.data[var]):
-                self.var_combo.addItem(var)
+        _vars = scale_vars(self._dataset) or numeric_vars(self._dataset)
+        for var in _vars:
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            text = f"{icon} {label}" if icon else label
+            self.var_combo.addItem(text, userData=var)
         var_layout.addWidget(self.var_combo)
         layout.addWidget(var_group)
 
@@ -76,15 +81,16 @@ class OneSampleTTestDialog(QDialog):
 
     def get_spec(self) -> dict:
         """분석 스펙 반환."""
+        var = self.var_combo.currentData() or self.var_combo.currentText()
         return {
             "analysis_id": "one_sample_ttest",
-            "variable": self.var_combo.currentText(),
+            "variable": var,
             "test_value": self.test_value_spin.value(),
             "confidence_level": self.ci_spin.value() / 100.0,
         }
 
     def _on_ok(self):
-        var = self.var_combo.currentText()
+        var = self.var_combo.currentData() or self.var_combo.currentText()
         if not var:
             QMessageBox.warning(self, "경고", "검정 변수를 선택하세요.")
             return

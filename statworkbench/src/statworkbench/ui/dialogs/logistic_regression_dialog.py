@@ -9,6 +9,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 from statworkbench.core.dataset import Dataset
+from statworkbench.ui.dialogs._dialog_helpers import (
+    categorical_vars, all_vars, numeric_vars, display_label, measure_icon
+)
 
 
 class LogisticRegressionDialog(QDialog):
@@ -37,8 +40,12 @@ class LogisticRegressionDialog(QDialog):
         dep_layout = QVBoxLayout(dep_group)
 
         self.dep_combo = QComboBox()
-        for var in self._dataset.data.columns:
-            self.dep_combo.addItem(var)
+        _dep_vars = categorical_vars(self._dataset) or all_vars(self._dataset)
+        for var in _dep_vars:
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            text = f"{icon} {label}" if icon else label
+            self.dep_combo.addItem(text, userData=var)
         self.dep_combo.currentIndexChanged.connect(self._on_dep_changed)
         dep_layout.addWidget(self.dep_combo)
 
@@ -58,8 +65,13 @@ class LogisticRegressionDialog(QDialog):
 
         self.available_list = QListWidget()
         self.available_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-        for var in self._dataset.data.columns:
-            self.available_list.addItem(QListWidgetItem(var))
+        _ind_vars = numeric_vars(self._dataset)
+        for var in _ind_vars:
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            item = QListWidgetItem(f"{icon} {label}" if icon else label)
+            item.setData(0x0100, var)
+            self.available_list.addItem(item)
         list_layout.addWidget(self.available_list)
 
         move_layout = QVBoxLayout()
@@ -135,7 +147,7 @@ class LogisticRegressionDialog(QDialog):
 
     def _on_dep_changed(self):
         """종속 변수 변경 시 이항/다항 자동 감지."""
-        dep_var = self.dep_combo.currentText()
+        dep_var = self.dep_combo.currentData() or self.dep_combo.currentText()
         if dep_var and dep_var in self._dataset.data.columns:
             n_unique = self._dataset.data[dep_var].nunique()
             if n_unique == 2:
@@ -147,10 +159,12 @@ class LogisticRegressionDialog(QDialog):
 
     def _add_vars(self):
         """선택된 변수를 독립변수 목록에 추가."""
+        already = {self.ind_list.item(i).data(0x0100) for i in range(self.ind_list.count())}
         for item in self.available_list.selectedItems():
-            already = [self.ind_list.item(i).text() for i in range(self.ind_list.count())]
-            if item.text() not in already:
-                self.ind_list.addItem(QListWidgetItem(item.text()))
+            if item.data(0x0100) not in already:
+                new = QListWidgetItem(item.text())
+                new.setData(0x0100, item.data(0x0100))
+                self.ind_list.addItem(new)
 
     def _remove_vars(self):
         """선택된 변수를 독립변수 목록에서 제거."""
@@ -159,9 +173,12 @@ class LogisticRegressionDialog(QDialog):
 
     def get_spec(self) -> dict:
         """분석 스펙 반환."""
-        dep_var = self.dep_combo.currentText()
-        ind_vars = [self.ind_list.item(i).text() for i in range(self.ind_list.count())]
-        dep_unique = self._dataset.data[dep_var].nunique() if dep_var else 0
+        dep_var = self.dep_combo.currentData() or self.dep_combo.currentText()
+        ind_vars = [
+            self.ind_list.item(i).data(0x0100) or self.ind_list.item(i).text()
+            for i in range(self.ind_list.count())
+        ]
+        dep_unique = self._dataset.data[dep_var].nunique() if dep_var and dep_var in self._dataset.data.columns else 0
 
         return {
             "analysis_id": "logistic_regression",
@@ -177,12 +194,15 @@ class LogisticRegressionDialog(QDialog):
         }
 
     def _on_ok(self):
-        dep_var = self.dep_combo.currentText()
+        dep_var = self.dep_combo.currentData() or self.dep_combo.currentText()
         if not dep_var:
             QMessageBox.warning(self, "경고", "종속 변수를 선택하세요.")
             return
 
-        ind_vars = [self.ind_list.item(i).text() for i in range(self.ind_list.count())]
+        ind_vars = [
+            self.ind_list.item(i).data(0x0100) or self.ind_list.item(i).text()
+            for i in range(self.ind_list.count())
+        ]
         if not ind_vars:
             QMessageBox.warning(self, "경고", "독립 변수를 하나 이상 선택하세요.")
             return

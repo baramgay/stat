@@ -1,284 +1,200 @@
-"""Correlation Dialog — 상관분석 다이얼로그.
-
-Pearson, Spearman, Kendall 상관계수를 계산합니다.
-"""
+"""Correlation Dialog — SPSS 스타일 상관분석 다이얼로그."""
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QRadioButton, QButtonGroup, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QTextEdit,
-    QListWidget, QAbstractItemView
+    QGroupBox, QRadioButton, QButtonGroup,
+    QMessageBox, QListWidget, QAbstractItemView, QListWidgetItem,
+    QDialogButtonBox
 )
-from PySide6.QtCore import Signal, Qt
-from typing import Optional, List
-
-import pandas as pd
-import numpy as np
-from scipy import stats
+from PySide6.QtCore import Signal
 
 from statworkbench.core.dataset import Dataset
+from statworkbench.analysis.result import AnalysisResult
+from statworkbench.ui.dialogs._dialog_helpers import (
+    scale_vars, numeric_vars, ordinal_or_higher_vars,
+    display_label, var_from_display, measure_icon
+)
 
 
 class CorrelationDialog(QDialog):
-    """상관분석 다이얼로그."""
-    
-    analysis_completed = Signal(dict)
-    
-    def __init__(self, dataset: Dataset, parent=None) -> None:
+    """SPSS Bivariate Correlations 다이얼로그.
+
+    Pearson: 척도(Scale) 변수 — analysis/correlation.py 모듈 사용
+    Spearman/Kendall: 순서형 이상 변수
+    """
+
+    analysis_run = Signal(AnalysisResult)
+
+    def __init__(self, dataset: Dataset, parent=None):
         super().__init__(parent)
-        self.dataset = dataset
-        
-        self.setWindowTitle("🔗 상관분석")
-        self.setMinimumSize(600, 500)
+        self._dataset = dataset
+        self.setWindowTitle("이변량 상관분석")
+        self.setMinimumSize(580, 520)
         self._setup_ui()
-    
-    def _setup_ui(self) -> None:
+
+    def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        
+        layout.setSpacing(10)
+        layout.setContentsMargins(16, 16, 16, 16)
+
         # 상관계수 유형
-        type_group = QGroupBox("📈 상관계수 유형")
+        type_group = QGroupBox("상관계수 유형")
         type_layout = QHBoxLayout(type_group)
-        
-        self.type_group = QButtonGroup(self)
-        
-        self.pearson_radio = QRadioButton("Pearson (적률)")
+
+        self._method_grp = QButtonGroup(self)
+
+        self.pearson_radio = QRadioButton("Pearson (척도형)")
         self.pearson_radio.setChecked(True)
-        self.type_group.addButton(self.pearson_radio)
+        self._method_grp.addButton(self.pearson_radio, 0)
         type_layout.addWidget(self.pearson_radio)
-        
-        self.spearman_radio = QRadioButton("Spearman (순위)")
-        self.type_group.addButton(self.spearman_radio)
+
+        self.spearman_radio = QRadioButton("Spearman (순서형)")
+        self._method_grp.addButton(self.spearman_radio, 1)
         type_layout.addWidget(self.spearman_radio)
-        
-        self.kendall_radio = QRadioButton("Kendall's tau")
-        self.type_group.addButton(self.kendall_radio)
+
+        self.kendall_radio = QRadioButton("Kendall's tau-b")
+        self._method_grp.addButton(self.kendall_radio, 2)
         type_layout.addWidget(self.kendall_radio)
-        
+
         type_layout.addStretch()
         layout.addWidget(type_group)
-        
-        # 변수 선택
-        vars_group = QGroupBox("🔢 변수 선택 (숫자형)")
+
+        # 변수 선택 (이중 리스트)
+        vars_group = QGroupBox("변수 선택")
         vars_layout = QHBoxLayout(vars_group)
-        
-        # 사용 가능한 변수
+
         avail_layout = QVBoxLayout()
-        avail_layout.addWidget(QLabel("사용 가능한 변수:"))
+        avail_layout.addWidget(QLabel("사용 가능:"))
         self.avail_list = QListWidget()
-        numeric_cols = list(self.dataset.data.select_dtypes(include=[np.number]).columns)
-        self.avail_list.addItems(numeric_cols)
         self.avail_list.setSelectionMode(QAbstractItemView.MultiSelection)
         avail_layout.addWidget(self.avail_list)
-        
-        # 버튼
+
         btn_layout = QVBoxLayout()
         btn_layout.addStretch()
         self.btn_add = QPushButton("▶")
-        self.btn_add.clicked.connect(self._add_variables)
+        self.btn_add.clicked.connect(self._add_vars)
         btn_layout.addWidget(self.btn_add)
-        
         self.btn_remove = QPushButton("◀")
-        self.btn_remove.clicked.connect(self._remove_variables)
+        self.btn_remove.clicked.connect(self._remove_vars)
         btn_layout.addWidget(self.btn_remove)
-        
         self.btn_add_all = QPushButton("▶▶")
-        self.btn_add_all.clicked.connect(self._add_all_variables)
+        self.btn_add_all.clicked.connect(self._add_all)
         btn_layout.addWidget(self.btn_add_all)
-        
         self.btn_remove_all = QPushButton("◀◀")
-        self.btn_remove_all.clicked.connect(self._remove_all_variables)
+        self.btn_remove_all.clicked.connect(self._remove_all)
         btn_layout.addWidget(self.btn_remove_all)
         btn_layout.addStretch()
-        
-        # 선택된 변수
+
         selected_layout = QVBoxLayout()
-        selected_layout.addWidget(QLabel("선택된 변수:"))
+        selected_layout.addWidget(QLabel("선택됨:"))
         self.selected_list = QListWidget()
         self.selected_list.setSelectionMode(QAbstractItemView.MultiSelection)
         selected_layout.addWidget(self.selected_list)
-        
+
         vars_layout.addLayout(avail_layout, 2)
         vars_layout.addLayout(btn_layout)
         vars_layout.addLayout(selected_layout, 2)
-        
         layout.addWidget(vars_group)
-        
-        # 옵션
-        options_group = QGroupBox("⚙️ 옵션")
-        options_layout = QHBoxLayout(options_group)
-        
-        self.sig_check = QRadioButton("유의성 표시 (* p<0.05, ** p<0.01)")
-        self.sig_check.setChecked(True)
-        options_layout.addWidget(self.sig_check)
-        
-        self.full_check = QRadioButton("모든 값 표시")
-        self.full_check.setChecked(False)
-        options_layout.addWidget(self.full_check)
-        
-        options_layout.addStretch()
-        layout.addWidget(options_group)
-        
-        # 결과
-        result_group = QGroupBox("📊 결과")
-        result_layout = QVBoxLayout(result_group)
-        
-        self.result_table = QTableWidget()
-        self.result_table.setColumnCount(1)
-        self.result_table.setHorizontalHeaderLabels(["변수"])
-        self.result_table.horizontalHeader().setStretchLastSection(True)
-        result_layout.addWidget(self.result_table)
-        
-        self.result_text = QTextEdit()
-        self.result_text.setReadOnly(True)
-        self.result_text.setMaximumHeight(100)
-        self.result_text.setStyleSheet(
-            "background-color: #1a1a2e; color: #e8e8f0; "
-            "font-family: Consolas; font-size: 11px;"
-        )
-        result_layout.addWidget(self.result_text)
-        
-        layout.addWidget(result_group)
-        
-        # 실행 버튼
-        action_layout = QHBoxLayout()
-        
-        self.btn_run = QPushButton("▶ 분석 실행")
-        self.btn_run.setStyleSheet(
-            "QPushButton { background-color: #1f77b4; color: white; "
-            "font-weight: bold; padding: 8px 20px; }"
-        )
-        self.btn_run.clicked.connect(self._run_analysis)
-        action_layout.addWidget(self.btn_run)
-        
-        self.btn_close = QPushButton("❌ 닫기")
-        self.btn_close.clicked.connect(self.reject)
-        action_layout.addWidget(self.btn_close)
-        
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
-    
-    def _add_variables(self) -> None:
-        """선택한 변수 추가."""
+
+        # 유의성 표시 옵션
+        opt_group = QGroupBox("옵션")
+        opt_layout = QVBoxLayout(opt_group)
+        self.flag_sig = QRadioButton("유의한 상관에 별표 표시 (* p<.05, ** p<.01)")
+        self.flag_sig.setChecked(True)
+        opt_layout.addWidget(self.flag_sig)
+        self.no_flag = QRadioButton("별표 없이 상관계수만 표시")
+        opt_layout.addWidget(self.no_flag)
+        layout.addWidget(opt_group)
+
+        # 버튼
+        btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btn_box.accepted.connect(self._run)
+        btn_box.rejected.connect(self.reject)
+        layout.addWidget(btn_box)
+
+        # 초기 변수 목록 채우기
+        self._method_grp.buttonClicked.connect(self._refresh_avail)
+        self._refresh_avail()
+
+    # ── 변수 목록 ──────────────────────────────────────────────────────────
+
+    def _get_candidate_vars(self) -> list[str]:
+        if self.pearson_radio.isChecked():
+            return scale_vars(self._dataset) or numeric_vars(self._dataset)
+        else:
+            return ordinal_or_higher_vars(self._dataset) or numeric_vars(self._dataset)
+
+    def _refresh_avail(self, *_):
+        """상관계수 유형 변경 시 사용 가능 변수 목록 갱신."""
+        already_selected = self._selected_var_names()
+        self.avail_list.clear()
+        for var in self._get_candidate_vars():
+            if var in already_selected:
+                continue
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            text = f"{icon} {label}" if icon else label
+            item = QListWidgetItem(text)
+            item.setData(0x0100, var)
+            self.avail_list.addItem(item)
+
+    def _selected_var_names(self) -> list[str]:
+        return [
+            self.selected_list.item(i).data(0x0100)
+            for i in range(self.selected_list.count())
+        ]
+
+    def _add_vars(self):
         for item in self.avail_list.selectedItems():
-            self.selected_list.addItem(item.text())
+            new_item = QListWidgetItem(item.text())
+            new_item.setData(0x0100, item.data(0x0100))
+            self.selected_list.addItem(new_item)
             self.avail_list.takeItem(self.avail_list.row(item))
-    
-    def _remove_variables(self) -> None:
-        """선택한 변수 제거."""
+
+    def _remove_vars(self):
         for item in self.selected_list.selectedItems():
-            self.avail_list.addItem(item.text())
+            new_item = QListWidgetItem(item.text())
+            new_item.setData(0x0100, item.data(0x0100))
+            self.avail_list.addItem(new_item)
             self.selected_list.takeItem(self.selected_list.row(item))
-    
-    def _add_all_variables(self) -> None:
-        """모든 변수 추가."""
-        while self.avail_list.count() > 0:
+
+    def _add_all(self):
+        while self.avail_list.count():
             item = self.avail_list.takeItem(0)
-            self.selected_list.addItem(item.text())
-    
-    def _remove_all_variables(self) -> None:
-        """모든 변수 제거."""
-        while self.selected_list.count() > 0:
+            self.selected_list.addItem(item)
+
+    def _remove_all(self):
+        while self.selected_list.count():
             item = self.selected_list.takeItem(0)
-            self.avail_list.addItem(item.text())
-    
-    def _run_analysis(self) -> None:
-        """상관분석 실행."""
-        variables = []
-        for i in range(self.selected_list.count()):
-            variables.append(self.selected_list.item(i).text())
-        
+            self.avail_list.addItem(item)
+
+    # ── 분석 실행 ──────────────────────────────────────────────────────────
+
+    def _run(self):
+        variables = self._selected_var_names()
         if len(variables) < 2:
-            QMessageBox.warning(self, "경고", "2개 이상의 변수를 선택하세요")
+            QMessageBox.warning(self, "경고", "변수를 2개 이상 선택하세요.")
             return
-        
-        # 상관계수 유형
+
         if self.pearson_radio.isChecked():
             method = "pearson"
         elif self.spearman_radio.isChecked():
             method = "spearman"
         else:
             method = "kendall"
-        
-        df = self.dataset.data[variables].dropna()
-        
+
         try:
-            # 상관행렬 계산
-            corr_matrix = df.corr(method=method)
-            
-            # p-value 계산
-            pvalue_matrix = pd.DataFrame(np.ones((len(variables), len(variables))),
-                                        index=variables, columns=variables)
-            
-            for i, var1 in enumerate(variables):
-                for j, var2 in enumerate(variables):
-                    if i != j:
-                        if method == "pearson":
-                            _, pval = stats.pearsonr(df[var1], df[var2])
-                        elif method == "spearman":
-                            _, pval = stats.spearmanr(df[var1], df[var2])
-                        else:
-                            _, pval = stats.kendalltau(df[var1], df[var2])
-                        pvalue_matrix.loc[var1, var2] = pval
-            
-            # 결과 테이블 업데이트
-            n_vars = len(variables)
-            self.result_table.setColumnCount(n_vars + 1)
-            self.result_table.setHorizontalHeaderLabels(["변수"] + variables)
-            self.result_table.setRowCount(n_vars)
-            
-            for i, var in enumerate(variables):
-                self.result_table.setItem(i, 0, QTableWidgetItem(var))
-                for j, var2 in enumerate(variables):
-                    if i == j:
-                        item = QTableWidgetItem("1.000")
-                        item.setBackground(Qt.lightGray)
-                    else:
-                        corr = corr_matrix.loc[var, var2]
-                        pval = pvalue_matrix.loc[var, var2]
-                        
-                        if self.sig_check.isChecked():
-                            sig = ""
-                            if pval < 0.01:
-                                sig = "**"
-                            elif pval < 0.05:
-                                sig = "*"
-                            text = f"{corr:.3f}{sig}"
-                        else:
-                            text = f"{corr:.3f} (p={pval:.3f})"
-                        
-                        item = QTableWidgetItem(text)
-                        
-                        # 색상 강조
-                        if abs(corr) > 0.7:
-                            item.setBackground(Qt.red)
-                            item.setForeground(Qt.white)
-                        elif abs(corr) > 0.5:
-                            item.setBackground(Qt.yellow)
-                    
-                    self.result_table.setItem(i, j + 1, item)
-            
-            self.result_table.resizeColumnsToContents()
-            
-            # 결과 텍스트
-            result_lines = []
-            result_lines.append("=" * 60)
-            result_lines.append(f"상관분석 ({method.capitalize()})")
-            result_lines.append("=" * 60)
-            result_lines.append(f"변수 수: {n_vars}")
-            result_lines.append(f"유효 케이스: {len(df)}")
-            result_lines.append("")
-            result_lines.append("* p < 0.05, ** p < 0.01")
-            
-            self.result_text.setText("\n".join(result_lines))
-            
-            # 시그널 발생
-            self.analysis_completed.emit({
-                "type": "correlation",
-                "method": method,
-                "variables": variables,
-                "correlation_matrix": corr_matrix.to_dict(),
-            })
-            
+            from statworkbench.analysis.correlation import run_analysis
+            spec = {
+                "variables": {"target": variables},
+                "options": {
+                    "method": method,
+                    "flag_significant": self.flag_sig.isChecked(),
+                    "pairwise": True,
+                },
+            }
+            result = run_analysis(self._dataset, spec)
+            self.analysis_run.emit(result)
+            self.accept()
         except Exception as exc:
-            self.result_text.setText(f"[오류]\n{exc}")
+            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")

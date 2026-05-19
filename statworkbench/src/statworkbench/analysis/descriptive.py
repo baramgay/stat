@@ -118,6 +118,10 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     )
     result.add_table(cps)
 
+    def _var_label(var: str) -> str:
+        meta = dataset.variables.get(var) if dataset.variables else None
+        return meta.label if (meta and meta.label) else var
+
     if group_var is not None and group_var in df.columns:
         # Grouped descriptives
         groups = df[group_var].dropna().unique()
@@ -134,7 +138,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                     )
                     rows.append({
                         "Group": grp,
-                        "Variable": var,
+                        "Variable": _var_label(var),
                         "N": desc["N"],
                         "Missing": desc["Missing"],
                         "Mean": format_number(desc["Mean"], 3),
@@ -160,7 +164,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                     desc["CI_Lower"], desc["CI_Upper"], level=confidence_level
                 )
                 rows.append({
-                    "Variable": var,
+                    "Variable": _var_label(var),
                     "N": desc["N"],
                     "Missing": desc["Missing"],
                     "Mean": format_number(desc["Mean"], 3),

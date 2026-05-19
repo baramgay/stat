@@ -8,9 +8,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-import pandas as pd
-
 from statworkbench.core.dataset import Dataset
+from statworkbench.ui.dialogs._dialog_helpers import (
+    scale_vars, numeric_vars, categorical_vars, all_vars,
+    display_label, measure_icon
+)
 
 
 class DiscriminantAnalysisDialog(QDialog):
@@ -44,8 +46,12 @@ class DiscriminantAnalysisDialog(QDialog):
         dep_form = QFormLayout(dep_group)
         self.dep_combo = QComboBox()
         self.dep_combo.addItem("-- 선택하세요 --", None)
-        for col in self._dataset.data.columns:
-            self.dep_combo.addItem(col, col)
+        _cat = categorical_vars(self._dataset) or all_vars(self._dataset)
+        for col in _cat:
+            icon = measure_icon(self._dataset, col)
+            label = display_label(self._dataset, col)
+            text = f"{icon} {label}" if icon else label
+            self.dep_combo.addItem(text, col)
         dep_form.addRow("집단 변수:", self.dep_combo)
         layout.addWidget(dep_group)
 
@@ -57,12 +63,13 @@ class DiscriminantAnalysisDialog(QDialog):
         left_vbox.addWidget(QLabel("사용 가능한 변수:"))
         self.available_list = QListWidget()
         self.available_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-        numeric_vars = [
-            col for col in self._dataset.data.columns
-            if pd.api.types.is_numeric_dtype(self._dataset.data[col])
-        ]
-        for v in numeric_vars:
-            self.available_list.addItem(QListWidgetItem(v))
+        _pred_vars = scale_vars(self._dataset) or numeric_vars(self._dataset)
+        for v in _pred_vars:
+            icon = measure_icon(self._dataset, v)
+            label = display_label(self._dataset, v)
+            item = QListWidgetItem(f"{icon} {label}" if icon else label)
+            item.setData(0x0100, v)
+            self.available_list.addItem(item)
         left_vbox.addWidget(self.available_list)
         pred_layout.addLayout(left_vbox)
 
@@ -156,22 +163,27 @@ class DiscriminantAnalysisDialog(QDialog):
     # 변수 이동 버튼 슬롯
     # ------------------------------------------------------------------
 
+    def _clone_item(self, source: QListWidgetItem) -> QListWidgetItem:
+        new = QListWidgetItem(source.text())
+        new.setData(0x0100, source.data(0x0100))
+        return new
+
     def _add_vars(self):
-        already = {self.selected_list.item(i).text() for i in range(self.selected_list.count())}
+        already = {self.selected_list.item(i).data(0x0100) for i in range(self.selected_list.count())}
         for item in self.available_list.selectedItems():
-            if item.text() not in already:
-                self.selected_list.addItem(QListWidgetItem(item.text()))
+            if item.data(0x0100) not in already:
+                self.selected_list.addItem(self._clone_item(item))
 
     def _remove_vars(self):
         for item in self.selected_list.selectedItems():
             self.selected_list.takeItem(self.selected_list.row(item))
 
     def _add_all_vars(self):
-        already = {self.selected_list.item(i).text() for i in range(self.selected_list.count())}
+        already = {self.selected_list.item(i).data(0x0100) for i in range(self.selected_list.count())}
         for i in range(self.available_list.count()):
-            text = self.available_list.item(i).text()
-            if text not in already:
-                self.selected_list.addItem(QListWidgetItem(text))
+            src = self.available_list.item(i)
+            if src.data(0x0100) not in already:
+                self.selected_list.addItem(self._clone_item(src))
 
     def _remove_all_vars(self):
         self.selected_list.clear()
@@ -185,7 +197,10 @@ class DiscriminantAnalysisDialog(QDialog):
         if not dep:
             QMessageBox.warning(self, "경고", "집단 변수를 선택하세요.")
             return
-        predictors = [self.selected_list.item(i).text() for i in range(self.selected_list.count())]
+        predictors = [
+            self.selected_list.item(i).data(0x0100) or self.selected_list.item(i).text()
+            for i in range(self.selected_list.count())
+        ]
         if len(predictors) < 1:
             QMessageBox.warning(self, "경고", "독립 변수를 1개 이상 선택하세요.")
             return
@@ -197,7 +212,10 @@ class DiscriminantAnalysisDialog(QDialog):
     def get_spec(self) -> dict:
         """분석 스펙 반환."""
         dep = self.dep_combo.currentData()
-        predictors = [self.selected_list.item(i).text() for i in range(self.selected_list.count())]
+        predictors = [
+            self.selected_list.item(i).data(0x0100) or self.selected_list.item(i).text()
+            for i in range(self.selected_list.count())
+        ]
         method = "enter" if self.radio_enter.isChecked() else "stepwise"
         prior = "proportional" if self.radio_proportional.isChecked() else "equal"
 

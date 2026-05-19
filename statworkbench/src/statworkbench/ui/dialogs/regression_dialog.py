@@ -9,6 +9,9 @@ from PySide6.QtCore import Qt, Signal
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.ui.dialogs._dialog_helpers import (
+    scale_vars, numeric_vars, display_label, measure_icon
+)
 
 
 class RegressionDialog(QDialog):
@@ -28,29 +31,34 @@ class RegressionDialog(QDialog):
         layout.setSpacing(10)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # 종속 변수
-        dep_group = QGroupBox("종속 변수 (Dependent)")
+        _vars = scale_vars(self._dataset) or numeric_vars(self._dataset)
+
+        # 종속 변수 — 척도형 우선
+        dep_group = QGroupBox("종속 변수 (Dependent) — 척도형")
         dep_layout = QVBoxLayout(dep_group)
 
         self.dep_combo = QComboBox()
-        import pandas as pd
-        for var in self._dataset.data.columns:
-            if pd.api.types.is_numeric_dtype(self._dataset.data[var]):
-                self.dep_combo.addItem(var)
+        for var in _vars:
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            text = f"{icon} {label}" if icon else label
+            self.dep_combo.addItem(text, userData=var)
         dep_layout.addWidget(self.dep_combo)
         layout.addWidget(dep_group)
 
-        # 독립 변수
-        ind_group = QGroupBox("독립 변수 (Independent)")
+        # 독립 변수 — 척도형 우선
+        ind_group = QGroupBox("독립 변수 (Independent) — 척도형")
         ind_layout = QVBoxLayout(ind_group)
 
         self.ind_list = QListWidget()
         self.ind_list.setSelectionMode(QListWidget.ExtendedSelection)
-
-        for var in self._dataset.data.columns:
-            if pd.api.types.is_numeric_dtype(self._dataset.data[var]):
-                item = QListWidgetItem(var)
-                self.ind_list.addItem(item)
+        for var in _vars:
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            text = f"{icon} {label}" if icon else label
+            item = QListWidgetItem(text)
+            item.setData(0x0100, var)
+            self.ind_list.addItem(item)
 
         ind_layout.addWidget(self.ind_list)
         layout.addWidget(ind_group)
@@ -73,8 +81,8 @@ class RegressionDialog(QDialog):
         layout.addWidget(btn_box)
 
     def _run(self):
-        dep_var = self.dep_combo.currentText()
-        ind_vars = [item.text() for item in self.ind_list.selectedItems()]
+        dep_var = self.dep_combo.currentData() or self.dep_combo.currentText()
+        ind_vars = [item.data(0x0100) or item.text() for item in self.ind_list.selectedItems()]
 
         if not dep_var:
             from PySide6.QtWidgets import QMessageBox

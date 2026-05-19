@@ -12,6 +12,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 from statworkbench.core.dataset import Dataset
+from statworkbench.ui.dialogs._dialog_helpers import (
+    scale_vars, numeric_vars, display_label, measure_icon
+)
 
 
 class ClusterAnalysisDialog(QDialog):
@@ -44,10 +47,13 @@ class ClusterAnalysisDialog(QDialog):
         left_layout.addWidget(QLabel("사용 가능한 변수:"))
         self.available_list = QListWidget()
         self.available_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-        import pandas as pd
-        for var in self._dataset.data.columns:
-            if pd.api.types.is_numeric_dtype(self._dataset.data[var]):
-                self.available_list.addItem(QListWidgetItem(var))
+        _vars = scale_vars(self._dataset) or numeric_vars(self._dataset)
+        for var in _vars:
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            item = QListWidgetItem(f"{icon} {label}" if icon else label)
+            item.setData(0x0100, var)
+            self.available_list.addItem(item)
         left_layout.addWidget(self.available_list)
         var_layout.addLayout(left_layout)
 
@@ -186,29 +192,37 @@ class ClusterAnalysisDialog(QDialog):
         layout.addStretch()
         return widget
 
+    def _clone_item(self, source: QListWidgetItem) -> QListWidgetItem:
+        new = QListWidgetItem(source.text())
+        new.setData(0x0100, source.data(0x0100))
+        return new
+
     def _add_vars(self):
-        already = [self.selected_list.item(i).text() for i in range(self.selected_list.count())]
+        already = {self.selected_list.item(i).data(0x0100) for i in range(self.selected_list.count())}
         for item in self.available_list.selectedItems():
-            if item.text() not in already:
-                self.selected_list.addItem(QListWidgetItem(item.text()))
+            if item.data(0x0100) not in already:
+                self.selected_list.addItem(self._clone_item(item))
 
     def _remove_vars(self):
         for item in self.selected_list.selectedItems():
             self.selected_list.takeItem(self.selected_list.row(item))
 
     def _add_all_vars(self):
-        already = [self.selected_list.item(i).text() for i in range(self.selected_list.count())]
+        already = {self.selected_list.item(i).data(0x0100) for i in range(self.selected_list.count())}
         for i in range(self.available_list.count()):
-            text = self.available_list.item(i).text()
-            if text not in already:
-                self.selected_list.addItem(QListWidgetItem(text))
+            src = self.available_list.item(i)
+            if src.data(0x0100) not in already:
+                self.selected_list.addItem(self._clone_item(src))
 
     def _remove_all_vars(self):
         self.selected_list.clear()
 
     def get_spec(self) -> dict:
         """현재 탭에 따라 분석 스펙 반환."""
-        variables = [self.selected_list.item(i).text() for i in range(self.selected_list.count())]
+        variables = [
+            self.selected_list.item(i).data(0x0100) or self.selected_list.item(i).text()
+            for i in range(self.selected_list.count())
+        ]
         current_tab = self.tab_widget.currentIndex()
 
         if current_tab == 0:
@@ -242,7 +256,10 @@ class ClusterAnalysisDialog(QDialog):
             }
 
     def _on_ok(self):
-        variables = [self.selected_list.item(i).text() for i in range(self.selected_list.count())]
+        variables = [
+            self.selected_list.item(i).data(0x0100) or self.selected_list.item(i).text()
+            for i in range(self.selected_list.count())
+        ]
         if len(variables) < 2:
             QMessageBox.warning(self, "경고", "분석 변수를 2개 이상 선택하세요.")
             return
