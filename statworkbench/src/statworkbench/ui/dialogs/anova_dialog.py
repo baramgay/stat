@@ -84,18 +84,30 @@ class ANOVADialog(QDialog):
         
         layout.addWidget(vars_group)
         
+        # 사후 검정 (Post-hoc)
+        post_hoc_group = QGroupBox("사후 검정 (Post-hoc)")
+        post_hoc_layout = QVBoxLayout(post_hoc_group)
+
+        self.chk_tukey = QCheckBox("Tukey HSD")
+        self.chk_tukey.setChecked(True)
+        post_hoc_layout.addWidget(self.chk_tukey)
+
+        self.chk_bonferroni = QCheckBox("Bonferroni")
+        post_hoc_layout.addWidget(self.chk_bonferroni)
+
+        self.chk_scheffe = QCheckBox("Scheffe")
+        post_hoc_layout.addWidget(self.chk_scheffe)
+
+        layout.addWidget(post_hoc_group)
+
         # 옵션
         options_group = QGroupBox("⚙️ 옵션")
         options_layout = QVBoxLayout(options_group)
-        
-        self.posthoc_check = QCheckBox("사후 검정 (Tukey HSD)")
-        self.posthoc_check.setChecked(True)
-        options_layout.addWidget(self.posthoc_check)
-        
+
         self.levene_check = QCheckBox("등분산성 검정 (Levene)")
         self.levene_check.setChecked(True)
         options_layout.addWidget(self.levene_check)
-        
+
         layout.addWidget(options_group)
         
         # 결과
@@ -187,26 +199,77 @@ class ANOVADialog(QDialog):
                 result_lines.append("")
                 
                 # 사후 검정
-                if self.posthoc_check.isChecked() and p_value < 0.05:
+                groups_data = [group[dep_var].values for name, group in df.groupby(ind1_var)]
+                group_names = [name for name, group in df.groupby(ind1_var)]
+
+                if self.chk_tukey.isChecked() and p_value < 0.05:
                     try:
                         from scipy.stats import tukey_hsd
                         result_lines.append("[사후 검정 - Tukey HSD]")
-                        
-                        groups_data = [group[dep_var].values for name, group in df.groupby(ind1_var)]
-                        group_names = [name for name, group in df.groupby(ind1_var)]
-                        
                         if len(groups_data) >= 2:
                             tukey_result = tukey_hsd(*groups_data)
-                            result_lines.append(f"  p-value matrix:")
+                            result_lines.append("  p-value matrix:")
                             for i in range(len(group_names)):
-                                for j in range(i+1, len(group_names)):
+                                for j in range(i + 1, len(group_names)):
                                     pval = tukey_result.pvalue[i, j]
                                     sig = "*" if pval < 0.05 else ""
-                                    result_lines.append(f"    {group_names[i]} vs {group_names[j]}: p={pval:.4f} {sig}")
+                                    result_lines.append(
+                                        f"    {group_names[i]} vs {group_names[j]}: p={pval:.4f} {sig}"
+                                    )
                         result_lines.append("")
                     except ImportError:
-                        result_lines.append("[사후 검정]")
+                        result_lines.append("[사후 검정 - Tukey HSD]")
                         result_lines.append("  Tukey HSD를 위한 scipy 버전이 필요합니다.")
+                        result_lines.append("")
+
+                if self.chk_bonferroni.isChecked() and p_value < 0.05:
+                    try:
+                        from itertools import combinations
+                        from scipy.stats import ttest_ind
+                        n_pairs = len(group_names) * (len(group_names) - 1) // 2
+                        result_lines.append("[사후 검정 - Bonferroni]")
+                        for (i, gi), (j, gj) in combinations(enumerate(group_names), 2):
+                            _, raw_p = ttest_ind(groups_data[i], groups_data[j])
+                            bonf_p = min(raw_p * n_pairs, 1.0)
+                            sig = "*" if bonf_p < 0.05 else ""
+                            result_lines.append(
+                                f"    {gi} vs {gj}: p(adjusted)={bonf_p:.4f} {sig}"
+                            )
+                        result_lines.append("")
+                    except Exception as exc_b:
+                        result_lines.append(f"  Bonferroni 계산 실패: {exc_b}")
+                        result_lines.append("")
+
+                if self.chk_scheffe.isChecked() and p_value < 0.05:
+                    try:
+                        from itertools import combinations
+                        result_lines.append("[사후 검정 - Scheffe]")
+                        k = len(groups_data)
+                        grand_n = sum(len(g) for g in groups_data)
+                        # Pooled within-group variance
+                        ss_within = sum(
+                            np.sum((g - np.mean(g)) ** 2) for g in groups_data
+                        )
+                        df_within = grand_n - k
+                        ms_within = ss_within / df_within if df_within > 0 else np.nan
+                        for (i, gi), (j, gj) in combinations(enumerate(group_names), 2):
+                            ni, nj = len(groups_data[i]), len(groups_data[j])
+                            diff = np.mean(groups_data[i]) - np.mean(groups_data[j])
+                            se = np.sqrt(ms_within * (1 / ni + 1 / nj)) if ms_within and ms_within > 0 else np.nan
+                            if se and not np.isnan(se):
+                                f_scheffe = (diff / se) ** 2 / (k - 1)
+                                from scipy.stats import f as f_dist
+                                scheffe_p = 1 - f_dist.cdf(f_scheffe, k - 1, df_within)
+                            else:
+                                scheffe_p = np.nan
+                            sig = "*" if (not np.isnan(scheffe_p) and scheffe_p < 0.05) else ""
+                            pval_str = f"{scheffe_p:.4f}" if not np.isnan(scheffe_p) else "nan"
+                            result_lines.append(
+                                f"    {gi} vs {gj}: p={pval_str} {sig}"
+                            )
+                        result_lines.append("")
+                    except Exception as exc_s:
+                        result_lines.append(f"  Scheffe 계산 실패: {exc_s}")
                         result_lines.append("")
             
             else:
@@ -223,8 +286,44 @@ class ANOVADialog(QDialog):
                 "type": "anova",
                 "dependent": dep_var,
                 "independent": [ind1_var, ind2_var] if ind2_var else [ind1_var],
+                "post_hoc": self._selected_post_hoc(),
                 "result": result_text,
             })
-            
+
         except Exception as exc:
             self.result_text.setText(f"[오류]\n{exc}")
+
+    def _selected_post_hoc(self) -> list[str]:
+        """Return list of selected post-hoc method keys."""
+        selected = []
+        if self.chk_tukey.isChecked():
+            selected.append("tukey")
+        if self.chk_bonferroni.isChecked():
+            selected.append("bonferroni")
+        if self.chk_scheffe.isChecked():
+            selected.append("scheffe")
+        return selected
+
+    def get_spec(self) -> dict:
+        """Return analysis specification dict including post-hoc selection.
+
+        Returns:
+            dict with keys: dependent, independent, post_hoc, levene.
+        """
+        dep_var = self.dep_combo.currentText()
+        ind1_var = self.ind1_combo.currentText()
+        ind2_var = self.ind2_combo.currentText()
+        if ind2_var == "(없음)":
+            ind2_var = None
+
+        return {
+            "type": "two_way" if (ind2_var and self.twoway_radio.isChecked()) else "one_way",
+            "variables": {
+                "dependent": dep_var,
+                "independent": [ind1_var, ind2_var] if ind2_var else [ind1_var],
+            },
+            "options": {
+                "post_hoc": self._selected_post_hoc(),
+                "levene": self.levene_check.isChecked(),
+            },
+        }

@@ -1349,12 +1349,18 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
             return
 
-        QMessageBox.information(
-            self,
-            "생존분석",
-            "Kaplan-Meier 생존분석이 곧 제공됩니다.\n"
-            "현재 버전에서는 구현 준비 중입니다.",
-        )
+        from statworkbench.ui.dialogs.survival_analysis_dialog import SurvivalAnalysisDialog
+        dialog = SurvivalAnalysisDialog(self.current_dataset, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            spec = dialog.get_spec()
+            try:
+                from statworkbench.analysis import survival_analysis
+                result = survival_analysis.run_analysis(self.current_dataset, spec)
+                self._ensure_output_window()
+                self._output_window.add_output(result.to_html(), "analysis")
+                self.statusbar.showMessage("생존분석 완료")
+            except Exception as exc:
+                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
 
     def _run_discriminant_analysis(self) -> None:
         """판별분석 실행."""
@@ -1362,12 +1368,18 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
             return
 
-        QMessageBox.information(
-            self,
-            "판별분석",
-            "선형 판별분석(LDA)이 곧 제공됩니다.\n"
-            "현재 버전에서는 구현 준비 중입니다.",
-        )
+        from statworkbench.ui.dialogs.discriminant_analysis_dialog import DiscriminantAnalysisDialog
+        dialog = DiscriminantAnalysisDialog(self.current_dataset, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            spec = dialog.get_spec()
+            try:
+                from statworkbench.analysis import discriminant_analysis
+                result = discriminant_analysis.run_analysis(self.current_dataset, spec)
+                self._ensure_output_window()
+                self._output_window.add_output(result.to_html(), "analysis")
+                self.statusbar.showMessage("판별분석 완료")
+            except Exception as exc:
+                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
 
     def _on_analysis_requested(self, analysis_type: str, params: dict) -> None:
         """분석 요청 처리."""
