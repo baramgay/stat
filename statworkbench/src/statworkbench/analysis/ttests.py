@@ -9,7 +9,7 @@ from scipy import stats
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
 from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci
+from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci, get_display_decimals
 from statworkbench.analysis.assumptions import (
     prepare_analysis_frame, get_case_processing_summary, levene_test
 )
@@ -138,20 +138,21 @@ def _independent_ttest(
         return str(val)
 
     # Group statistics table
+    d = get_display_decimals(dataset, dep_var)
     group_stats = pd.DataFrame([
         {
             "Group": _val_label(group_var, g1_val),
             "N": n1,
-            "Mean": format_number(mean1, 3),
-            "SD": format_number(sd1, 3),
-            "SE": format_number(sd1 / np.sqrt(n1), 3) if n1 > 0 else "",
+            "Mean": format_number(mean1, d),
+            "SD": format_number(sd1, d + 1),
+            "SE": format_number(sd1 / np.sqrt(n1), d + 1) if n1 > 0 else "",
         },
         {
             "Group": _val_label(group_var, g2_val),
             "N": n2,
-            "Mean": format_number(mean2, 3),
-            "SD": format_number(sd2, 3),
-            "SE": format_number(sd2 / np.sqrt(n2), 3) if n2 > 0 else "",
+            "Mean": format_number(mean2, d),
+            "SD": format_number(sd2, d + 1),
+            "SE": format_number(sd2 / np.sqrt(n2), d + 1) if n2 > 0 else "",
         },
     ])
     result.add_table(ResultTable(
@@ -285,21 +286,24 @@ def _paired_ttest(
     sd_diff = float(np.std(diff, ddof=1))
     se_diff = sd_diff / np.sqrt(n)
 
-    # Paired statistics
+    # Paired statistics — use stricter of the two variables' decimals
+    d1 = get_display_decimals(dataset, var1)
+    d2 = get_display_decimals(dataset, var2)
+    d = max(d1, d2)
     paired_stats = pd.DataFrame([
         {
             "Variable": var1,
             "N": n,
-            "Mean": format_number(mean1, 3),
-            "SD": format_number(sd1, 3),
-            "SE": format_number(sd1 / np.sqrt(n), 3),
+            "Mean": format_number(mean1, d),
+            "SD": format_number(sd1, d + 1),
+            "SE": format_number(sd1 / np.sqrt(n), d + 1),
         },
         {
             "Variable": var2,
             "N": n,
-            "Mean": format_number(mean2, 3),
-            "SD": format_number(sd2, 3),
-            "SE": format_number(sd2 / np.sqrt(n), 3),
+            "Mean": format_number(mean2, d),
+            "SD": format_number(sd2, d + 1),
+            "SE": format_number(sd2 / np.sqrt(n), d + 1),
         },
     ])
     result.add_table(ResultTable(

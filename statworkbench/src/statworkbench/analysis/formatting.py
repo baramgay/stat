@@ -6,14 +6,28 @@ Implements the p-value display rules from HERMES.md §12.2 and §16.
 from __future__ import annotations
 
 import math
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from statworkbench.core.dataset import Dataset
 
 
 # ---------------------------------------------------------------------------
 # p-value formatting
 # ---------------------------------------------------------------------------
+
+def get_display_decimals(dataset: "Dataset", var: str, extra: int = 0) -> int:
+    """Return the number of decimal places for displaying *var*'s statistics.
+
+    Uses variable's ``decimals`` metadata if available, capped at minimum 2.
+    Add *extra* for derived statistics like SD/SE (SPSS typically uses +1 or +2).
+    """
+    meta = dataset.variables.get(var) if dataset.variables else None
+    base = max(meta.decimals, 2) if (meta and meta.decimals is not None) else 2
+    return base + extra
+
 
 def format_pvalue(p: Union[float, None]) -> str:
     """Format a p-value according to HERMES.md rules.

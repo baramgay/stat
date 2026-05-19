@@ -98,7 +98,7 @@ def prepare_analysis_frame(
     dataset: Dataset,
     variables: list[str],
     missing_policy: MissingPolicy = MissingPolicy.LISTWISE,
-    include_user_missing: bool = False,
+    include_user_missing: bool = True,
 ) -> PreparedAnalysisFrame:
     """Prepare a clean analysis frame after applying missing-data policy.
 

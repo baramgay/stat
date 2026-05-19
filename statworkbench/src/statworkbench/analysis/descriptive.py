@@ -9,7 +9,7 @@ from scipy import stats
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
 from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci
+from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci, get_display_decimals
 from statworkbench.analysis.assumptions import (
     prepare_analysis_frame, get_case_processing_summary
 )
@@ -133,20 +133,21 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                     desc = _compute_descriptives(
                         grp_df[var], confidence_level=confidence_level
                     )
+                    d = get_display_decimals(dataset, var)
                     ci_str = format_ci(
-                        desc["CI_Lower"], desc["CI_Upper"], level=confidence_level
+                        desc["CI_Lower"], desc["CI_Upper"], decimals=d, level=confidence_level
                     )
                     rows.append({
                         "Group": grp,
                         "Variable": _var_label(var),
                         "N": desc["N"],
                         "Missing": desc["Missing"],
-                        "Mean": format_number(desc["Mean"], 3),
-                        "SD": format_number(desc["SD"], 3),
-                        "Median": format_number(desc["Median"], 3),
-                        "IQR": format_number(desc["IQR"], 3),
-                        "Min": format_number(desc["Min"], 3),
-                        "Max": format_number(desc["Max"], 3),
+                        "Mean": format_number(desc["Mean"], d),
+                        "SD": format_number(desc["SD"], d + 1),
+                        "Median": format_number(desc["Median"], d),
+                        "IQR": format_number(desc["IQR"], d),
+                        "Min": format_number(desc["Min"], d),
+                        "Max": format_number(desc["Max"], d),
                         "Skewness": format_number(desc["Skewness"], 3),
                         "Kurtosis": format_number(desc["Kurtosis"], 3),
                         "CI": ci_str,
@@ -160,19 +161,20 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 desc = _compute_descriptives(
                     df[var], confidence_level=confidence_level
                 )
+                d = get_display_decimals(dataset, var)
                 ci_str = format_ci(
-                    desc["CI_Lower"], desc["CI_Upper"], level=confidence_level
+                    desc["CI_Lower"], desc["CI_Upper"], decimals=d, level=confidence_level
                 )
                 rows.append({
                     "Variable": _var_label(var),
                     "N": desc["N"],
                     "Missing": desc["Missing"],
-                    "Mean": format_number(desc["Mean"], 3),
-                    "SD": format_number(desc["SD"], 3),
-                    "Median": format_number(desc["Median"], 3),
-                    "IQR": format_number(desc["IQR"], 3),
-                    "Min": format_number(desc["Min"], 3),
-                    "Max": format_number(desc["Max"], 3),
+                    "Mean": format_number(desc["Mean"], d),
+                    "SD": format_number(desc["SD"], d + 1),
+                    "Median": format_number(desc["Median"], d),
+                    "IQR": format_number(desc["IQR"], d),
+                    "Min": format_number(desc["Min"], d),
+                    "Max": format_number(desc["Max"], d),
                     "Skewness": format_number(desc["Skewness"], 3),
                     "Kurtosis": format_number(desc["Kurtosis"], 3),
                     "CI": ci_str,

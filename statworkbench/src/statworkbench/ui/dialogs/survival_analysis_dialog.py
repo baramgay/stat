@@ -8,9 +8,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-import pandas as pd
-
 from statworkbench.core.dataset import Dataset
+from statworkbench.ui.dialogs._dialog_helpers import (
+    scale_vars, numeric_vars, categorical_vars, all_vars,
+    display_label, measure_icon
+)
 
 
 class SurvivalAnalysisDialog(QDialog):
@@ -76,26 +78,27 @@ class SurvivalAnalysisDialog(QDialog):
 
         form = QFormLayout()
 
-        # 숫자형 변수 목록
-        numeric_vars = [
-            col for col in self._dataset.data.columns
-            if pd.api.types.is_numeric_dtype(self._dataset.data[col])
-        ]
-        all_vars = list(self._dataset.data.columns)
+        _scale = scale_vars(self._dataset) or numeric_vars(self._dataset)
+        _num = numeric_vars(self._dataset)
+        _cat = categorical_vars(self._dataset) or all_vars(self._dataset)
 
-        # 시간 변수
+        def _add_to(combo, var_list, placeholder=None):
+            if placeholder:
+                combo.addItem(placeholder, None)
+            for v in var_list:
+                icon = measure_icon(self._dataset, v)
+                label = display_label(self._dataset, v)
+                combo.addItem(f"{icon} {label}" if icon else label, v)
+
+        # 시간 변수 — 척도형(생존 시간은 연속형)
         self.duration_combo = QComboBox()
-        self.duration_combo.addItem("-- 선택하세요 --", None)
-        for v in numeric_vars:
-            self.duration_combo.addItem(v, v)
+        _add_to(self.duration_combo, _scale, "-- 선택하세요 --")
         form.addRow("시간 변수 (생존 시간):", self.duration_combo)
 
-        # 상태 변수 + 이벤트 값
+        # 상태 변수 — 수치형 (이벤트 0/1)
         event_row_layout = QHBoxLayout()
         self.event_combo = QComboBox()
-        self.event_combo.addItem("-- 선택하세요 --", None)
-        for v in numeric_vars:
-            self.event_combo.addItem(v, v)
+        _add_to(self.event_combo, _num, "-- 선택하세요 --")
         event_row_layout.addWidget(self.event_combo)
         event_row_layout.addWidget(QLabel("이벤트 값:"))
         self.event_value_spin = QSpinBox()
@@ -105,11 +108,13 @@ class SurvivalAnalysisDialog(QDialog):
         event_row_layout.addWidget(self.event_value_spin)
         form.addRow("상태 변수:", event_row_layout)
 
-        # 비교 요인 (선택적)
+        # 비교 요인 — 범주형 우선 (Log-rank 그룹 비교)
         self.group_combo = QComboBox()
         self.group_combo.addItem("-- 없음 (단일 집단) --", None)
-        for v in all_vars:
-            self.group_combo.addItem(v, v)
+        for v in _cat:
+            icon = measure_icon(self._dataset, v)
+            label = display_label(self._dataset, v)
+            self.group_combo.addItem(f"{icon} {label}" if icon else label, v)
         form.addRow("비교 요인 (Log-rank용):", self.group_combo)
 
         layout.addLayout(form)
@@ -130,12 +135,13 @@ class SurvivalAnalysisDialog(QDialog):
         left_vbox.addWidget(QLabel("사용 가능한 변수:"))
         self.cov_available = QListWidget()
         self.cov_available.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-        numeric_vars = [
-            col for col in self._dataset.data.columns
-            if pd.api.types.is_numeric_dtype(self._dataset.data[col])
-        ]
-        for v in numeric_vars:
-            self.cov_available.addItem(QListWidgetItem(v))
+        _cov_vars = scale_vars(self._dataset) or numeric_vars(self._dataset)
+        for v in _cov_vars:
+            icon = measure_icon(self._dataset, v)
+            label = display_label(self._dataset, v)
+            item = QListWidgetItem(f"{icon} {label}" if icon else label)
+            item.setData(0x0100, v)
+            self.cov_available.addItem(item)
         left_vbox.addWidget(self.cov_available)
         cov_layout.addLayout(left_vbox)
 
@@ -185,22 +191,27 @@ class SurvivalAnalysisDialog(QDialog):
     # 공변량 이동 버튼 슬롯
     # ------------------------------------------------------------------
 
+    def _clone_item(self, source: QListWidgetItem) -> QListWidgetItem:
+        new = QListWidgetItem(source.text())
+        new.setData(0x0100, source.data(0x0100))
+        return new
+
     def _add_covariates(self):
-        already = {self.cov_selected.item(i).text() for i in range(self.cov_selected.count())}
+        already = {self.cov_selected.item(i).data(0x0100) for i in range(self.cov_selected.count())}
         for item in self.cov_available.selectedItems():
-            if item.text() not in already:
-                self.cov_selected.addItem(QListWidgetItem(item.text()))
+            if item.data(0x0100) not in already:
+                self.cov_selected.addItem(self._clone_item(item))
 
     def _remove_covariates(self):
         for item in self.cov_selected.selectedItems():
             self.cov_selected.takeItem(self.cov_selected.row(item))
 
     def _add_all_covariates(self):
-        already = {self.cov_selected.item(i).text() for i in range(self.cov_selected.count())}
+        already = {self.cov_selected.item(i).data(0x0100) for i in range(self.cov_selected.count())}
         for i in range(self.cov_available.count()):
-            text = self.cov_available.item(i).text()
-            if text not in already:
-                self.cov_selected.addItem(QListWidgetItem(text))
+            src = self.cov_available.item(i)
+            if src.data(0x0100) not in already:
+                self.cov_selected.addItem(self._clone_item(src))
 
     def _remove_all_covariates(self):
         self.cov_selected.clear()
@@ -230,7 +241,7 @@ class SurvivalAnalysisDialog(QDialog):
         event_value = self.event_value_spin.value()
         group = self.group_combo.currentData()  # None 이면 그룹 없음
         covariates = [
-            self.cov_selected.item(i).text()
+            self.cov_selected.item(i).data(0x0100) or self.cov_selected.item(i).text()
             for i in range(self.cov_selected.count())
         ]
 
