@@ -29,7 +29,7 @@ from typing import Optional
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.models.spss_grid_model import SPSSGridModel, generate_var_name
-from statworkbench.ui.delegates.cell_delegate import CellDelegate, CellEditor
+from statworkbench.ui.delegates.cell_delegate import CellDelegate
 
 
 class DataView(QWidget):
@@ -113,6 +113,7 @@ class DataView(QWidget):
         # SPSS 스타일 delegate
         self.cell_delegate = CellDelegate(self.table)
         self.table.setItemDelegate(self.cell_delegate)
+        self.cell_delegate.closeEditor.connect(self._on_editor_closed)
 
         # 편집 트리거: F2 또는 직접 타이핑으로만 편집 진입
         self.table.setEditTriggers(
@@ -271,28 +272,19 @@ class DataView(QWidget):
                     and not (modifiers & Qt.KeyboardModifier.AltModifier)):
                 current = self.table.currentIndex()
                 if current.isValid():
+                    self.cell_delegate.set_initial_text(key_event.text())
                     self.table.edit(current)
-                    # 편집기 찾아서 첫 글자 전달
-                    QTimer.singleShot(0, lambda: self._inject_key_to_editor(key_event.text()))
                 return True
 
         return super().eventFilter(obj, event)
 
-    def _inject_key_to_editor(self, text: str) -> None:
-        """현재 편집 중인 셀 에디터에 첫 글자를 주입."""
-        current = self.table.currentIndex()
-        if not current.isValid():
-            return
-        editor = self.table.indexWidget(current)
-        if editor is None:
-            # persistent editor가 아닌 경우 viewport 하위에서 찾기
-            for child in self.table.viewport().children():
-                if isinstance(child, QLineEdit) and child.isVisible():
-                    editor = child
-                    break
-        if editor and isinstance(editor, QLineEdit):
-            editor.setText(text)
-            editor.setCursorPosition(len(text))
+    def _on_editor_closed(self, editor, hint) -> None:
+        """편집기 닫힌 후 delegate의 _pending_navigate로 셀 이동."""
+        nav = self.cell_delegate._pending_navigate
+        if nav:
+            self.cell_delegate._pending_navigate = None
+            dc, dr = nav
+            QTimer.singleShot(0, lambda: self._navigate(dc, dr))
 
     # ── 셀 선택 변경 → Formula Bar 업데이트 ────────────────────────────────
 

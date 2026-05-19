@@ -14,7 +14,114 @@ from PySide6.QtGui import QColor
 from typing import Any, Optional, List
 
 from statworkbench.core.dataset import Dataset
-from statworkbench.core.variable import VariableMeta, StorageType, MeasureType
+from statworkbench.core.variable import VariableMeta, StorageType, MeasureType, Role
+
+
+# SPSS 호환 표시 이름
+_TYPE_DISPLAY = {
+    StorageType.FLOAT:       "숫자형",
+    StorageType.INTEGER:     "정수형",
+    StorageType.STRING:      "문자열",
+    StorageType.DATETIME:    "날짜/시간",
+    StorageType.BOOLEAN:     "논리형",
+    StorageType.CATEGORICAL: "범주형",
+}
+_TYPE_REVERSE = {v: k for k, v in _TYPE_DISPLAY.items()}
+_TYPE_OPTIONS  = ["숫자형", "정수형", "문자열", "날짜/시간", "논리형", "범주형"]
+
+_MEASURE_DISPLAY = {
+    MeasureType.SCALE:     "척도",
+    MeasureType.ORDINAL:   "순서형",
+    MeasureType.NOMINAL:   "명목형",
+    MeasureType.BINARY:    "이분형",
+    MeasureType.DATE_TIME: "날짜/시간",
+    MeasureType.TEXT:      "텍스트",
+}
+_MEASURE_REVERSE = {v: k for k, v in _MEASURE_DISPLAY.items()}
+_MEASURE_OPTIONS = ["척도", "순서형", "명목형", "이분형"]
+
+_ALIGN_OPTIONS  = ["오른쪽", "왼쪽", "가운데"]
+_ALIGN_TO_STR   = {"오른쪽": "right", "왼쪽": "left", "가운데": "center"}
+_STR_TO_ALIGN   = {v: k for k, v in _ALIGN_TO_STR.items()}
+_STR_TO_ALIGN.update({"Right": "오른쪽", "Left": "왼쪽", "Center": "가운데",
+                       "right": "오른쪽", "left": "왼쪽", "center": "가운데"})
+
+_ROLE_DISPLAY = {
+    Role.INPUT:     "입력",
+    Role.TARGET:    "목표",
+    Role.WEIGHT:    "가중치",
+    Role.ID:        "ID",
+    Role.SPLIT:     "분리",
+    Role.FREQUENCY: "빈도",
+    Role.NONE:      "없음",
+}
+_ROLE_REVERSE = {v: k for k, v in _ROLE_DISPLAY.items()}
+_ROLE_OPTIONS = ["입력", "목표", "가중치", "ID", "분리", "빈도", "없음"]
+
+
+class VariableViewDelegate(QStyledItemDelegate):
+    """Variable View 전용 delegate: 콤보박스(유형/측정/정렬/역할) + 스핀박스(너비/소수/열)."""
+
+    def createEditor(self, parent, option, index):
+        col = index.column()
+        if col == 1:   # 유형
+            cb = QComboBox(parent)
+            cb.addItems(_TYPE_OPTIONS)
+            cb.activated.connect(lambda idx, e=cb: (self.commitData.emit(e), self.closeEditor.emit(e, QStyledItemDelegate.EndEditHint.NoHint)))
+            return cb
+        if col == 8:   # 정렬
+            cb = QComboBox(parent)
+            cb.addItems(_ALIGN_OPTIONS)
+            cb.activated.connect(lambda idx, e=cb: (self.commitData.emit(e), self.closeEditor.emit(e, QStyledItemDelegate.EndEditHint.NoHint)))
+            return cb
+        if col == 9:   # 측정
+            cb = QComboBox(parent)
+            cb.addItems(_MEASURE_OPTIONS)
+            cb.activated.connect(lambda idx, e=cb: (self.commitData.emit(e), self.closeEditor.emit(e, QStyledItemDelegate.EndEditHint.NoHint)))
+            return cb
+        if col == 10:  # 역할
+            cb = QComboBox(parent)
+            cb.addItems(_ROLE_OPTIONS)
+            cb.activated.connect(lambda idx, e=cb: (self.commitData.emit(e), self.closeEditor.emit(e, QStyledItemDelegate.EndEditHint.NoHint)))
+            return cb
+        if col in (2, 7):  # 너비, 열
+            sb = QSpinBox(parent)
+            sb.setRange(1, 255)
+            sb.setFrame(False)
+            return sb
+        if col == 3:  # 소수
+            sb = QSpinBox(parent)
+            sb.setRange(0, 16)
+            sb.setFrame(False)
+            return sb
+        if col in (5, 6):  # 값, 결측 → 인라인 편집 불가 (다이얼로그로만)
+            return None
+        return super().createEditor(parent, option, index)
+
+    def setEditorData(self, editor, index):
+        value = index.data(Qt.ItemDataRole.DisplayRole)
+        if isinstance(editor, QComboBox):
+            idx = editor.findText(str(value) if value else "")
+            if idx >= 0:
+                editor.setCurrentIndex(idx)
+        elif isinstance(editor, QSpinBox):
+            try:
+                editor.setValue(int(str(value)) if value else 1)
+            except (ValueError, TypeError):
+                editor.setValue(1)
+        else:
+            super().setEditorData(editor, index)
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QComboBox):
+            model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+        elif isinstance(editor, QSpinBox):
+            model.setData(index, editor.value(), Qt.ItemDataRole.EditRole)
+        else:
+            super().setModelData(editor, model, index)
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect)
 
 
 class VariablePropertiesModel(QAbstractTableModel):
@@ -90,7 +197,7 @@ class VariablePropertiesModel(QAbstractTableModel):
         if col == 0:
             return var.name
         elif col == 1:
-            return var.storage_type.value if hasattr(var.storage_type, 'value') else str(var.storage_type)
+            return _TYPE_DISPLAY.get(var.storage_type, "숫자형")
         elif col == 2:
             return str(var.width if hasattr(var, 'width') else 8)
         elif col == 3:
@@ -100,19 +207,26 @@ class VariablePropertiesModel(QAbstractTableModel):
         elif col == 5:
             if var.value_labels:
                 return f"{{{len(var.value_labels)}개}}"
-            return ""
+            return "없음"
         elif col == 6:
             if var.missing_values:
                 return f"{{{len(var.missing_values)}개}}"
-            return ""
+            return "없음"
         elif col == 7:
             return str(var.column_width if hasattr(var, 'column_width') else 8)
         elif col == 8:
-            return var.align if hasattr(var, 'align') else "Right"
+            align_str = var.align if hasattr(var, 'align') else "right"
+            return _STR_TO_ALIGN.get(align_str, "오른쪽")
         elif col == 9:
-            return var.measure.value if hasattr(var.measure, 'value') else str(var.measure)
+            return _MEASURE_DISPLAY.get(var.measure, "척도")
         elif col == 10:
-            return var.role if hasattr(var, 'role') else "Input"
+            role = var.role if hasattr(var, 'role') else Role.INPUT
+            if isinstance(role, str):
+                try:
+                    role = Role(role)
+                except ValueError:
+                    return "입력"
+            return _ROLE_DISPLAY.get(role, "입력")
         return ""
     
     def setData(self, index: QModelIndex, value: Any, role: int = Qt.ItemDataRole.EditRole) -> bool:
@@ -135,31 +249,37 @@ class VariablePropertiesModel(QAbstractTableModel):
                         self._dataset.variables[new_name] = self._dataset.variables.pop(old_name)
                         if old_name in self._dataset.data.columns:
                             self._dataset.data.rename(columns={old_name: new_name}, inplace=True)
-            elif col == 1:  # Type
-                var.storage_type = StorageType(str(value))
+            elif col == 1:  # Type — SPSS 표시 이름으로 받음
+                new_type = _TYPE_REVERSE.get(str(value))
+                if new_type is not None:
+                    var.storage_type = new_type
+                    # 문자열로 변경 시 측정 척도 자동 조정
+                    if new_type == StorageType.STRING and var.measure not in (
+                        MeasureType.NOMINAL, MeasureType.ORDINAL, MeasureType.TEXT
+                    ):
+                        var.measure = MeasureType.NOMINAL
+                        measure_idx = self.index(row, 9)
+                        self.dataChanged.emit(measure_idx, measure_idx)
             elif col == 2:  # Width
-                var.width = int(value)
+                var.width = max(1, int(value))
             elif col == 3:  # Decimals
-                var.decimals = int(value)
+                var.decimals = max(0, int(value))
             elif col == 4:  # Label
                 var.label = str(value)
-            elif col == 7:  # Columns
-                var.column_width = int(value)
-            elif col == 8:  # Align
-                var.align = str(value)
-            elif col == 9:  # Measure
-                measure_str = str(value).strip().upper()
-                if measure_str == "SCALE":
-                    var.measure = MeasureType.SCALE
-                elif measure_str == "NOMINAL":
-                    var.measure = MeasureType.NOMINAL
-                elif measure_str == "ORDINAL":
-                    var.measure = MeasureType.ORDINAL
-                else:
-                    var.measure = MeasureType(str(value))
-            elif col == 10:  # Role
-                var.role = str(value)
-            
+            elif col == 7:  # Columns (= column_width)
+                var.column_width = max(1, int(value))
+            elif col == 8:  # Align — SPSS 표시 이름으로 받음
+                align_str = _ALIGN_TO_STR.get(str(value), "right")
+                var.align = align_str
+            elif col == 9:  # Measure — SPSS 표시 이름으로 받음
+                new_measure = _MEASURE_REVERSE.get(str(value))
+                if new_measure is not None:
+                    var.measure = new_measure
+            elif col == 10:  # Role — SPSS 표시 이름으로 받음
+                new_role = _ROLE_REVERSE.get(str(value))
+                if new_role is not None:
+                    var.role = new_role
+
             self.dataChanged.emit(index, index)
             self.data_changed.emit()
             return True
@@ -302,7 +422,7 @@ class VariableView(QWidget):
         # 변수 속성 테이블
         self.table = QTableView()
         self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.table.horizontalHeader().setStretchLastSection(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
@@ -332,8 +452,19 @@ class VariableView(QWidget):
             }
         """)
         
+        # SPSS 스타일 delegate (콤보박스/스핀박스)
+        self._var_delegate = VariableViewDelegate(self.table)
+        self.table.setItemDelegate(self._var_delegate)
+
+        # 편집 트리거: 더블클릭 또는 현재 항목 활성화 시
+        self.table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked |
+            QAbstractItemView.EditTrigger.SelectedClicked |
+            QAbstractItemView.EditTrigger.EditKeyPressed
+        )
+
         layout.addWidget(self.table)
-        
+
         # 안내 문구
         self.help_label = QLabel(
             "💡 팁: 셀을 더블클릭하여 편집 | "
