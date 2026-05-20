@@ -183,22 +183,23 @@ class TestVariableAutoCreation:
         model.setData(model.index(1, 0), "20", Qt.ItemDataRole.EditRole)
         model.setData(model.index(2, 0), "30", Qt.ItemDataRole.EditRole)
         
-        # Metadata should update
+        # SPSS 호환: 숫자형은 고유값 수 무관하게 SCALE
         var = model.get_variables()["VAR00001"]
-        assert var.measure == MeasureType.ORDINAL  # 3 unique values
+        assert var.measure == MeasureType.SCALE
 
 
 class TestDataTypes:
     """Test different data type handling."""
 
     def test_integer_values(self):
-        """Integer values should be stored as int."""
+        """Integer values should be numeric (int or np.integer)."""
+        import numpy as np
         model = SPSSGridModel()
         model.setData(model.index(0, 0), "42", Qt.ItemDataRole.EditRole)
-        
+
         df = model.get_dataframe()
         assert df.iloc[0, 0] == 42
-        assert isinstance(df.iloc[0, 0], int)
+        assert isinstance(df.iloc[0, 0], (int, np.integer))
 
     def test_float_values(self):
         """Float values should be stored as float."""
@@ -219,16 +220,19 @@ class TestDataTypes:
         assert isinstance(df.iloc[0, 0], str)
 
     def test_mixed_types_in_column(self):
-        """Mixed types should default to string."""
+        """SPSS 동작: 수치형으로 추론된 컬럼에 문자 입력 시 결측(NaN) 처리."""
+        import pandas as pd
+        import numpy as np
         model = SPSSGridModel()
-        
+
+        # 첫 값이 정수 → 컬럼이 INTEGER로 추론됨
         model.setData(model.index(0, 0), "10", Qt.ItemDataRole.EditRole)
         model.setData(model.index(1, 0), "text", Qt.ItemDataRole.EditRole)
-        
+
         df = model.get_dataframe()
-        # Both should be strings when mixed
-        assert df.iloc[0, 0] == "10" or df.iloc[0, 0] == 10
-        assert df.iloc[1, 0] == "text"
+        # 수치형 컬럼이므로 row 0은 숫자, row 1("text")은 NaN (SPSS 시스템 결측)
+        assert df.iloc[0, 0] == 10
+        assert pd.isna(df.iloc[1, 0])
 
     def test_negative_numbers(self):
         """Negative numbers should work."""
@@ -371,49 +375,94 @@ class TestRowColumnOperations:
 
 
 class TestMeasureTypeInference:
-    """Test measure type inference with various data patterns."""
+    """SPSS 호환 변수 유형 자동 감지 테스트.
 
-    def test_binary_numeric(self):
-        """Two unique numeric values -> BINARY."""
-        model = SPSSGridModel()
-        model.setData(model.index(0, 0), "0", Qt.ItemDataRole.EditRole)
-        model.setData(model.index(1, 0), "1", Qt.ItemDataRole.EditRole)
-        
-        var = model.get_variables()["VAR00001"]
-        assert var.measure == MeasureType.BINARY
+    SPSS 규칙:
+      - 숫자형 → SCALE (고유값 수, 값 범위 무관)
+      - 문자형 → NOMINAL
+    SPSS는 데이터 입력 시 BINARY/ORDINAL을 자동으로 설정하지 않는다.
+    """
 
-    def test_binary_string(self):
-        """Two unique string values -> BINARY."""
+    def test_single_integer_is_scale(self):
+        """정수 1개 → SCALE (SPSS 기본)."""
         model = SPSSGridModel()
-        model.setData(model.index(0, 0), "Male", Qt.ItemDataRole.EditRole)
-        model.setData(model.index(1, 0), "Female", Qt.ItemDataRole.EditRole)
-        
-        var = model.get_variables()["VAR00001"]
-        assert var.measure == MeasureType.BINARY
-
-    def test_ordinal_few_values(self):
-        """3-10 unique integer values -> ORDINAL."""
-        model = SPSSGridModel()
-        for i in range(5):
-            model.setData(model.index(i, 0), str(i + 1), Qt.ItemDataRole.EditRole)
-        
-        var = model.get_variables()["VAR00001"]
-        assert var.measure == MeasureType.ORDINAL
-
-    def test_scale_many_values(self):
-        """Many unique numeric values -> SCALE."""
-        model = SPSSGridModel()
-        for i in range(20):
-            model.setData(model.index(i, 0), str(i * 10), Qt.ItemDataRole.EditRole)
-        
+        model.setData(model.index(0, 0), "42", Qt.ItemDataRole.EditRole)
         var = model.get_variables()["VAR00001"]
         assert var.measure == MeasureType.SCALE
 
-    def test_nominal_many_strings(self):
-        """Many unique string values -> NOMINAL."""
+    def test_two_integer_values_is_scale_not_binary(self):
+        """정수 2개 고유값 → SCALE (이전 코드: BINARY, SPSS: SCALE)."""
+        model = SPSSGridModel()
+        model.setData(model.index(0, 0), "0", Qt.ItemDataRole.EditRole)
+        model.setData(model.index(1, 0), "1", Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.SCALE
+
+    def test_five_integer_values_is_scale_not_ordinal(self):
+        """정수 5개 고유값 → SCALE (이전 코드: ORDINAL, SPSS: SCALE)."""
+        model = SPSSGridModel()
+        for i in range(5):
+            model.setData(model.index(i, 0), str(i + 1), Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.SCALE
+
+    def test_many_integer_values_is_scale(self):
+        """정수 20개 고유값 → SCALE."""
+        model = SPSSGridModel()
+        for i in range(20):
+            model.setData(model.index(i, 0), str(i * 10), Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.SCALE
+
+    def test_float_values_is_scale(self):
+        """실수 → SCALE."""
+        model = SPSSGridModel()
+        for v in ["1.5", "2.3", "3.7"]:
+            model.setData(model.index(0, 0), v, Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.SCALE
+
+    def test_two_string_values_is_nominal_not_binary(self):
+        """문자 2개 고유값 → NOMINAL (이전 코드: BINARY, SPSS: NOMINAL)."""
+        model = SPSSGridModel()
+        model.setData(model.index(0, 0), "Male", Qt.ItemDataRole.EditRole)
+        model.setData(model.index(1, 0), "Female", Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.NOMINAL
+
+    def test_many_string_values_is_nominal(self):
+        """문자 다수 고유값 → NOMINAL."""
         model = SPSSGridModel()
         for i in range(15):
             model.setData(model.index(i, 0), f"Category{i}", Qt.ItemDataRole.EditRole)
-        
         var = model.get_variables()["VAR00001"]
         assert var.measure == MeasureType.NOMINAL
+
+    def test_binary_0_1_integers_is_scale(self):
+        """0/1 코딩된 정수 → SCALE (SPSS: 사용자가 NOMINAL로 수동 변경)."""
+        model = SPSSGridModel()
+        for v in ["0", "1", "0", "1", "1"]:
+            model.setData(model.index(0, 0), v, Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.SCALE
+
+    def test_storage_integer_for_whole_numbers(self):
+        """정수값 → StorageType.INTEGER."""
+        model = SPSSGridModel()
+        model.setData(model.index(0, 0), "7", Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.storage_type == StorageType.INTEGER
+
+    def test_storage_float_for_decimal_numbers(self):
+        """소수점 포함 → StorageType.FLOAT."""
+        model = SPSSGridModel()
+        model.setData(model.index(0, 0), "3.14", Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.storage_type == StorageType.FLOAT
+
+    def test_storage_string_for_text(self):
+        """문자열 → StorageType.STRING."""
+        model = SPSSGridModel()
+        model.setData(model.index(0, 0), "hello", Qt.ItemDataRole.EditRole)
+        var = model.get_variables()["VAR00001"]
+        assert var.storage_type == StorageType.STRING

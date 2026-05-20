@@ -82,16 +82,16 @@ class TestDataEntryFlow:
         assert var.storage_type == StorageType.STRING
         assert var.measure == MeasureType.NOMINAL
 
-    def test_multiple_values_ordinal_measure(self):
-        """Multiple integer values with few unique should create ORDINAL."""
+    def test_multiple_values_scale_measure(self):
+        """Multiple integer values -> SCALE (SPSS 호환, 고유값 수 무관)."""
         model = SPSSGridModel()
         model.setData(model.index(0, 0), "1", Qt.ItemDataRole.EditRole)
         model.setData(model.index(1, 0), "2", Qt.ItemDataRole.EditRole)
         model.setData(model.index(2, 0), "3", Qt.ItemDataRole.EditRole)
-        
+
         variables = model.get_variables()
         var = variables["VAR00001"]
-        assert var.measure == MeasureType.ORDINAL
+        assert var.measure == MeasureType.SCALE
 
     def test_dataframe_with_existing_variables(self):
         """Model should accept existing variables dict."""

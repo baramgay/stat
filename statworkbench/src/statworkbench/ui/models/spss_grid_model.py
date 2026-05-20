@@ -48,35 +48,25 @@ def infer_storage_type(value: Any) -> StorageType:
 
 
 def infer_measure_type(series: pd.Series) -> MeasureType:
-    """Infer measure type from a pandas Series."""
+    """Infer measure type from a pandas Series.
+
+    SPSS 호환 규칙:
+      - 숫자형 데이터 → SCALE (고유값 수 무관)
+      - 문자형 데이터 → NOMINAL
+    SPSS는 데이터 입력 시 BINARY/ORDINAL을 자동 설정하지 않는다.
+    사용자가 Variable View에서 직접 변경해야 한다.
+    """
     non_null = series.dropna()
     if len(non_null) == 0:
         return MeasureType.NOMINAL
 
-    unique_count = non_null.nunique()
-
-    is_numeric = True
     for val in non_null:
         try:
             float(val)
         except (ValueError, TypeError):
-            is_numeric = False
-            break
+            return MeasureType.NOMINAL
 
-    if is_numeric:
-        if unique_count == 1:
-            return MeasureType.SCALE
-        if unique_count <= 2:
-            return MeasureType.BINARY
-        elif unique_count <= 10:
-            return MeasureType.ORDINAL
-        return MeasureType.SCALE
-
-    if unique_count == 1:
-        return MeasureType.NOMINAL
-    if unique_count <= 2:
-        return MeasureType.BINARY
-    return MeasureType.NOMINAL
+    return MeasureType.SCALE
 
 
 # SPSS 스타일 색상 상수
@@ -371,9 +361,9 @@ class SPSSGridModel(QAbstractTableModel):
 
             self._dataframe.iloc[row, col] = new_value
             self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole])
-            self.data_changed.emit()
-            self._update_last_data_row()
+            self._last_data_row = max(self._last_data_row, row)
             self._update_variable_metadata(col_name)
+            self.data_changed.emit()
 
             return True
         except (ValueError, TypeError) as exc:
@@ -401,15 +391,26 @@ class SPSSGridModel(QAbstractTableModel):
         return str_value
 
     def _create_variable_at_col(self, col: int) -> None:
-        """Create a new variable at the specified column index."""
-        self.beginResetModel()
+        """Create a new variable at the specified column index.
 
+        beginResetModel 대신 beginInsertColumns/headerDataChanged를 사용해
+        뷰의 현재 인덱스(포커스/커서)를 보존한다.
+        """
         while len(self._dataframe.columns) <= col:
             var_name = generate_var_name(self._var_counter)
             while var_name in self._dataframe.columns:
                 self._var_counter += 1
                 var_name = generate_var_name(self._var_counter)
             self._var_counter += 1
+
+            col_idx = len(self._dataframe.columns)
+            old_virtual = self.columnCount()
+            # 새 열 추가 후 columnCount가 얼마가 될지 미리 계산
+            new_virtual = max(self.DEFAULT_COLS, col_idx + 11)
+            needs_insert = new_virtual > old_virtual
+
+            if needs_insert:
+                self.beginInsertColumns(QModelIndex(), old_virtual, new_virtual - 1)
 
             if len(self._dataframe) == 0:
                 self._dataframe = pd.DataFrame({var_name: [pd.NA]})
@@ -423,10 +424,15 @@ class SPSSGridModel(QAbstractTableModel):
                 measure=MeasureType.NOMINAL,
             )
             self._variables[var_name] = var_meta
+
+            if needs_insert:
+                self.endInsertColumns()
+            else:
+                # 헤더 텍스트만 갱신 (가상 그리드 크기 불변)
+                self.headerDataChanged.emit(Qt.Orientation.Horizontal, col_idx, col_idx)
+
             self.variable_added.emit(var_name)
             logger.info("Created variable: %s", var_name)
-
-        self.endResetModel()
 
     def _update_variable_metadata(self, var_name: str) -> None:
         """Update variable metadata based on actual data."""
@@ -538,17 +544,30 @@ class SPSSGridModel(QAbstractTableModel):
         self.data_changed.emit()
 
     def get_dataframe(self) -> pd.DataFrame:
-        """Return DataFrame with all columns and data-containing rows."""
+        """Return DataFrame with all columns and data-containing rows.
+
+        dtype은 variables 메타데이터 기준으로 변환 — object 컬럼에 숫자가 담긴
+        경우 is_numeric_dtype 체크가 False가 되는 문제를 방지한다.
+        """
         if self._dataframe.empty:
             return self._dataframe.copy()
 
         if self._last_data_row >= 0:
-            return self._dataframe.iloc[:self._last_data_row + 1].copy()
+            df = self._dataframe.iloc[:self._last_data_row + 1].copy()
+        elif len(self._dataframe.columns) > 0:
+            df = self._dataframe.iloc[:0].copy()
+        else:
+            return pd.DataFrame()
 
-        if len(self._dataframe.columns) > 0:
-            return self._dataframe.iloc[:0].copy()
+        # variables 메타데이터 기준으로 수치형 컬럼 dtype 변환
+        for col_name in df.columns:
+            var_meta = self._variables.get(col_name)
+            if var_meta is not None and var_meta.storage_type in (
+                StorageType.FLOAT, StorageType.INTEGER
+            ):
+                df[col_name] = pd.to_numeric(df[col_name], errors="coerce")
 
-        return pd.DataFrame()
+        return df
 
     def get_full_dataframe(self) -> pd.DataFrame:
         """Return full DataFrame."""
@@ -600,7 +619,13 @@ class SPSSGridModel(QAbstractTableModel):
 
     def add_column(self, name: str, values: Optional[list[Any]] = None) -> None:
         """Add a new column."""
-        self.beginResetModel()
+        col_idx = len(self._dataframe.columns)
+        old_virtual = self.columnCount()
+        new_virtual = max(self.DEFAULT_COLS, col_idx + 11)
+        needs_insert = new_virtual > old_virtual
+
+        if needs_insert:
+            self.beginInsertColumns(QModelIndex(), old_virtual, new_virtual - 1)
 
         if values is not None:
             self._dataframe[name] = values
@@ -615,18 +640,34 @@ class SPSSGridModel(QAbstractTableModel):
                 measure=MeasureType.NOMINAL,
             )
 
-        self.endResetModel()
+        if needs_insert:
+            self.endInsertColumns()
+        else:
+            self.headerDataChanged.emit(Qt.Orientation.Horizontal, col_idx, col_idx)
+
         self.data_changed.emit()
 
     def remove_column(self, col: int) -> bool:
         """Remove a column."""
         if 0 <= col < len(self._dataframe.columns):
-            self.beginResetModel()
             col_name = self._dataframe.columns[col]
+            old_virtual = self.columnCount()
+            # 제거 후 가상 크기 예측 (제거 전 컬럼 수 - 1 기준)
+            remaining = len(self._dataframe.columns) - 1
+            new_virtual = max(self.DEFAULT_COLS, remaining + 11) if remaining > 0 else self.DEFAULT_COLS
+
+            if new_virtual < old_virtual:
+                self.beginRemoveColumns(QModelIndex(), new_virtual, old_virtual - 1)
+
             self._dataframe = self._dataframe.drop(columns=[col_name])
             if col_name in self._variables:
                 del self._variables[col_name]
-            self.endResetModel()
+
+            if new_virtual < old_virtual:
+                self.endRemoveColumns()
+            else:
+                self.headerDataChanged.emit(Qt.Orientation.Horizontal, col, self.columnCount() - 1)
+
             self.data_changed.emit()
             return True
         return False
