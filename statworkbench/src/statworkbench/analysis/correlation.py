@@ -153,9 +153,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             ci_high_matrix[j, i] = ci_low
             ci_high_matrix[i, j] = ci_low_matrix[j, i] = ci_high
 
-    # Correlation matrix DataFrame
+    # Correlation matrix — raw floats rounded to 3 dp (SPSS standard for r)
     corr_df = pd.DataFrame(
-        corr_matrix,
+        np.round(corr_matrix, 3),
         index=target_vars,
         columns=target_vars,
     )
@@ -164,7 +164,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         dataframe=corr_df,
     ))
 
-    # P-value matrix
+    # P-value matrix — raw floats (formatted at render time)
     p_df = pd.DataFrame(
         p_matrix,
         index=target_vars,
