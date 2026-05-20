@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QFrame,
 )
-from PySide6.QtCore import Qt, Signal, QEvent, QTimer
+from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QKeyEvent, QFont, QColor
 from typing import Optional
 
@@ -115,10 +115,10 @@ class DataView(QWidget):
         self.table.setItemDelegate(self.cell_delegate)
         self.cell_delegate.closeEditor.connect(self._on_editor_closed)
 
-        # 편집 트리거: F2 또는 직접 타이핑으로만 편집 진입
+        # 편집 트리거: 더블클릭, F2만 허용 — 직접타이핑은 eventFilter에서 처리
         self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.AnyKeyPressed
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
         )
 
         # 탭 네비게이션 활성화
@@ -197,10 +197,17 @@ class DataView(QWidget):
         if not hasattr(self, 'table') or not hasattr(self, 'formula_bar'):
             return super().eventFilter(obj, event)
 
-        # Formula Bar: Escape → 포커스 반환, 값 원복
+        # Formula Bar: Escape → 포커스 반환, 값 원복 / Tab → 커밋 후 오른쪽 이동
         if obj is self.formula_bar and event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key.Key_Escape:
                 self._formula_bar_cancel()
+                return True
+            if event.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
+                self._formula_bar_commit()
+                if event.key() == Qt.Key.Key_Tab:
+                    self._navigate(1, 0)
+                else:
+                    self._navigate(-1, 0)
                 return True
 
         if obj is not self.table or event.type() != QEvent.Type.KeyPress:
@@ -243,12 +250,16 @@ class DataView(QWidget):
             if key == Qt.Key.Key_Z and modifiers & Qt.KeyboardModifier.ControlModifier:
                 return True  # 현재는 pass-through
 
-            # Enter: 아래로 이동
+            # Enter: 아래로 이동 (auto-repeat 무시 — Windows에서 키 유지 시 다중 이동 방지)
             if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if key_event.isAutoRepeat():
+                    return True
                 return self._navigate(0, 1)
 
             # Tab: 오른쪽으로 이동
             if key == Qt.Key.Key_Tab:
+                if key_event.isAutoRepeat():
+                    return True
                 return self._navigate(1, 0)
 
             # Shift+Tab: 왼쪽으로 이동
@@ -279,12 +290,18 @@ class DataView(QWidget):
         return super().eventFilter(obj, event)
 
     def _on_editor_closed(self, editor, hint) -> None:
-        """편집기 닫힌 후 delegate의 _pending_navigate로 셀 이동."""
+        """편집기 닫힌 후 delegate의 _pending_navigate로 셀 이동.
+
+        저장된 원래 위치로 무조건 복원 후 이동 — Qt가 closeEditor 처리 중
+        currentIndex를 다른 위치로 옮길 수 있어, 조건부 복원만으로는 오이동 발생.
+        """
         nav = self.cell_delegate._pending_navigate
         if nav:
+            dc, dr, src_row, src_col = nav
             self.cell_delegate._pending_navigate = None
-            dc, dr = nav
-            QTimer.singleShot(0, lambda: self._navigate(dc, dr))
+            if src_row >= 0:
+                self.table.setCurrentIndex(self._model.index(src_row, src_col))
+            self._navigate(dc, dr)
 
     # ── 셀 선택 변경 → Formula Bar 업데이트 ────────────────────────────────
 
@@ -352,13 +369,10 @@ class DataView(QWidget):
         if new_row < 0 or new_col < 0:
             return False
 
-        # 열 자동 확장
-        if dc > 0 and new_col >= len(self._model.get_full_dataframe().columns):
-            self._model._create_variable_at_col(new_col)
-
-        # 행 자동 확장
-        if dr > 0 and new_row >= self._model.DEFAULT_ROWS:
-            pass  # 가상 그리드 범위 내
+        # SPSS 호환: 네비게이션만으로는 변수를 생성하지 않는다.
+        # 변수는 실제 데이터 입력(setData) 시에만 생성된다.
+        # 가상 그리드(DEFAULT_COLS=100)가 빈 열을 이미 제공하므로
+        # _create_variable_at_col 호출 불필요.
 
         next_index = self._model.index(new_row, new_col)
         if next_index.isValid():
@@ -623,7 +637,8 @@ class DataView(QWidget):
     def _on_data_changed(self) -> None:
         if self._dataset is not None and self._model is not None:
             self._dataset.data = self._model.get_dataframe()
-            # Formula Bar 현재 셀 값 갱신
+            for var_name, var_meta in self._model.get_variables().items():
+                self._dataset.variables[var_name] = var_meta
             current = self.table.currentIndex()
             if current.isValid():
                 self._on_cell_changed(current, current)

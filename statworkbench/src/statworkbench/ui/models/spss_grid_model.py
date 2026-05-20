@@ -134,6 +134,11 @@ class SPSSGridModel(QAbstractTableModel):
         # 값 라벨 표시 모드 (SPSS "View > Value Labels")
         self.show_value_labels: bool = False
 
+        # 측정 척도 자동 감지 완료 여부 추적:
+        #   - 신규 변수(_create_variable_at_col): 첫 입력 시 자동 감지 예정 → set에 없음
+        #   - 기존 변수(생성자/set_dataframe): 이미 타입 설정 완료 → set에 있음
+        self._measure_initialized: set[str] = set(self._variables.keys())
+
         self._last_data_row = -1
         self._update_last_data_row()
 
@@ -435,7 +440,13 @@ class SPSSGridModel(QAbstractTableModel):
             logger.info("Created variable: %s", var_name)
 
     def _update_variable_metadata(self, var_name: str) -> None:
-        """Update variable metadata based on actual data."""
+        """Update variable metadata based on actual data.
+
+        SPSS 호환 규칙:
+          - 측정 척도(measure)는 첫 번째 데이터 입력 시에만 자동 감지.
+          - _measure_initialized에 등록된 변수는 사용자 설정 보존 — 덮어쓰지 않음.
+          - storage_type은 항상 최신 데이터 기준으로 갱신.
+        """
         if var_name not in self._variables:
             return
 
@@ -449,7 +460,12 @@ class SPSSGridModel(QAbstractTableModel):
 
         first_value = non_null.iloc[0]
         var_meta.storage_type = infer_storage_type(first_value)
-        var_meta.measure = infer_measure_type(series)
+
+        # 측정 척도: 최초 데이터 입력 시에만 자동 감지
+        if var_name not in self._measure_initialized:
+            var_meta.measure = infer_measure_type(series)
+            self._measure_initialized.add(var_name)
+        # 이후 입력 시 measure는 사용자 설정 보존
 
         if var_meta.storage_type == StorageType.FLOAT:
             max_decimals = 0
@@ -539,6 +555,8 @@ class SPSSGridModel(QAbstractTableModel):
         self._var_counter = len(dataframe.columns) + 1
         if variables is not None:
             self._variables = variables.copy()
+        # 새 데이터셋: 모든 변수를 초기화 완료 상태로 표시
+        self._measure_initialized = set(self._variables.keys())
         self._update_last_data_row()
         self.endResetModel()
         self.data_changed.emit()

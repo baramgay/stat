@@ -501,3 +501,130 @@ class TestComplexInputScenarios:
         assert model.columnCount() >= 95
         vars_ = model.get_variables()
         assert len(vars_) == 95
+
+
+# ──────────────────────────────────────────────────────────────
+# 6. 사용자 설정 측정 척도 보존 테스트
+# ──────────────────────────────────────────────────────────────
+
+class TestUserDefinedMeasurePreservation:
+    """사용자가 Variable View에서 설정한 측정 척도가 재입력 시 유지되는지 검증.
+
+    SPSS 29 동작:
+      - 자동 감지: 첫 입력 시 숫자→SCALE, 문자→NOMINAL
+      - 사용자 설정 후에는 추가 데이터 입력으로 덮어씌워지지 않음
+    """
+
+    def test_user_set_ordinal_preserved_on_more_data(self):
+        """사용자가 ORDINAL로 설정한 후 추가 입력 → ORDINAL 유지."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "1")  # 첫 입력: 자동 SCALE
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.SCALE
+
+        # 사용자가 Variable View에서 ORDINAL로 변경
+        var.measure = MeasureType.ORDINAL
+
+        # 추가 데이터 입력 → ORDINAL 유지되어야 함
+        _enter(model, 1, 0, "2")
+        _enter(model, 2, 0, "3")
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.ORDINAL, (
+            "사용자 설정 ORDINAL이 추가 입력으로 덮어씌워지면 안 됨"
+        )
+
+    def test_user_set_nominal_on_numeric_preserved(self):
+        """사용자가 숫자 변수를 NOMINAL로 설정 → 추가 입력에도 NOMINAL 유지."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "0")
+        _enter(model, 1, 0, "1")
+
+        # 사용자가 0/1 변수를 NOMINAL로 수동 설정
+        var = model.get_variables()["VAR00001"]
+        var.measure = MeasureType.NOMINAL
+
+        # 추가 입력
+        _enter(model, 2, 0, "0")
+        _enter(model, 3, 0, "1")
+
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.NOMINAL, (
+            "사용자 설정 NOMINAL이 추가 입력으로 SCALE로 바뀌면 안 됨"
+        )
+
+    def test_user_set_binary_preserved(self):
+        """사용자가 BINARY로 설정 → 추가 입력에도 유지."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "10")
+        var = model.get_variables()["VAR00001"]
+        var.measure = MeasureType.BINARY
+
+        _enter(model, 1, 0, "20")
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.BINARY
+
+    def test_first_entry_still_auto_detects(self):
+        """첫 번째 입력은 여전히 자동 감지."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "42")
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.SCALE
+
+    def test_new_string_var_auto_nominal(self):
+        """문자형 변수는 첫 입력에 NOMINAL 자동 감지."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "Apple")
+        var = model.get_variables()["VAR00001"]
+        assert var.storage_type == StorageType.STRING
+        assert var.measure == MeasureType.NOMINAL
+
+        # 사용자가 BINARY로 설정
+        var.measure = MeasureType.BINARY
+
+        # 추가 입력 → BINARY 유지 (재감지 없음)
+        _enter(model, 1, 0, "Banana")
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.BINARY
+
+
+# ──────────────────────────────────────────────────────────────
+# 7. 네비게이션 동작 SPSS 호환 테스트
+# ──────────────────────────────────────────────────────────────
+
+class TestNavigationDoesNotCreateVariables:
+    """네비게이션(Tab/화살표)만으로 변수가 생성되면 안 됨 (SPSS 호환)."""
+
+    def test_navigate_beyond_columns_no_var_created(self):
+        """실제 데이터 열 범위를 벗어나도 네비게이션만으로 변수 생성 없음."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "1")  # VAR00001 생성
+        assert len(model.get_variables()) == 1
+
+        # 데이터 없이 col=5에 접근 (가상 열)
+        # _navigate 코드는 _create_variable_at_col을 호출하지 않음
+        # 모델 레벨에서 확인: setData 없이 get_variables 체크
+        vars_before = len(model.get_variables())
+
+        # 가상 셀 index 접근 (데이터 없음)
+        idx = model.index(0, 5)
+        assert idx.isValid()
+        assert len(model.get_variables()) == vars_before  # 변수 생성 없음
+
+    def test_only_setdata_creates_variable(self):
+        """setData 호출 시에만 변수가 생성됨."""
+        model = SPSSGridModel()
+        assert len(model.get_variables()) == 0
+
+        # 데이터 입력 → 변수 생성
+        _enter(model, 0, 3, "99")  # col 3에 직접 입력
+        assert len(model.get_variables()) == 4  # VAR00001 ~ VAR00004
+
+    def test_empty_virtual_cell_data_returns_empty(self):
+        """가상 열의 빈 셀은 EditRole로 빈 문자열 반환."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "1")  # 1개 열만 있는 상태
+
+        # col 5 (가상 열) - 데이터 없음
+        idx = model.index(0, 5)
+        val = model.data(idx, Qt.ItemDataRole.EditRole)
+        assert val == "" or val is None
