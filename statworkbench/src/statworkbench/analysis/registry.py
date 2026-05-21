@@ -93,7 +93,7 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "descriptives", "name": "Descriptives", "category": "Descriptive Statistics", "description": "Descriptive statistics for scale variables.", "implemented": True},
     {"id": "explore", "name": "Explore", "category": "Descriptive Statistics", "description": "Detailed examination of variables.", "implemented": False},
     {"id": "crosstab", "name": "Crosstabs", "category": "Descriptive Statistics", "description": "Cross-tabulation and chi-square test.", "implemented": True},
-    {"id": "one_sample_t_test", "name": "One-Sample T Test", "category": "Compare Means", "description": "Compare a sample mean to a known value.", "implemented": False},
+    {"id": "one_sample_t_test", "name": "One-Sample T Test", "category": "Compare Means", "description": "Compare a sample mean to a known value.", "implemented": True},
     {"id": "independent_t_test", "name": "Independent-Samples T Test", "category": "Compare Means", "description": "Compare means of two independent groups.", "implemented": True},
     {"id": "paired_t_test", "name": "Paired-Samples T Test", "category": "Compare Means", "description": "Compare means of paired samples.", "implemented": True},
     {"id": "one_way_anova", "name": "One-Way ANOVA", "category": "Compare Means", "description": "Compare means across multiple groups.", "implemented": True},
@@ -111,7 +111,7 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "cluster_analysis", "name": "Cluster Analysis", "category": "Classification", "description": "K-means and hierarchical clustering with silhouette coefficient and dendrogram data.", "implemented": True},
     {"id": "survival_analysis", "name": "Survival Analysis", "category": "Survival", "description": "Kaplan-Meier estimator, log-rank test, and Cox proportional hazards regression.", "implemented": True},
     {"id": "discriminant_analysis", "name": "Discriminant Analysis", "category": "Classification", "description": "Linear Discriminant Analysis with Wilks Lambda, classification matrix, structure matrix.", "implemented": True},
-    {"id": "reliability", "name": "Reliability Analysis", "category": "Scale", "description": "Cronbach's alpha and reliability statistics.", "implemented": False},
+    {"id": "reliability", "name": "Reliability Analysis", "category": "Scale", "description": "Cronbach's alpha and reliability statistics.", "implemented": True},
     {"id": "roc_analysis", "name": "ROC Analysis", "category": "Diagnostic Tests", "description": "Receiver operating characteristic analysis.", "implemented": False},
     {"id": "sensitivity_specificity", "name": "Sensitivity/Specificity", "category": "Diagnostic Tests", "description": "Diagnostic accuracy measures.", "implemented": False},
     {"id": "kaplan_meier", "name": "Kaplan-Meier", "category": "Survival", "description": "Survival analysis with Kaplan-Meier estimator (use survival_analysis).", "implemented": False},
@@ -467,6 +467,13 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="Classification",
             description="선형 판별분석: Wilks Lambda, 분류 행렬, 구조 행렬",
             module_path="statworkbench.analysis.discriminant_analysis",
+        ),
+        _ModulePlugin(
+            plugin_id="reliability",
+            name="Reliability Analysis",
+            category="Scale",
+            description="Cronbach's alpha, 항목 통계, 항목-전체 상관",
+            module_path="statworkbench.analysis.reliability",
         ),
     ]
 

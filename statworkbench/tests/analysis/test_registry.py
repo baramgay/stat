@@ -228,8 +228,8 @@ class TestRetrieval:
         cats = registry.categories()
         assert isinstance(cats, list)
         assert len(cats) > 0
-        # Check for expected categories
-        expected = ["Descriptive Statistics", "Compare Means"]
+        # Check for expected categories (planned stubs + registered plugins)
+        expected = ["Descriptive Statistics", "Nonparametric Tests"]
         for exp in expected:
             assert exp in cats
 

@@ -45,7 +45,7 @@ def export_html(
 
     for table in tables:
         table_title = table.get("title", "")
-        df = table.get("dataframe") or table.get("data")
+        df = table.get("dataframe") if table.get("dataframe") is not None else table.get("data")
 
         if df is None:
             continue
@@ -157,7 +157,7 @@ def export_markdown(
     # Tables
     for table in result.get("tables", []):
         title = table.get("title", "")
-        df = table.get("dataframe") or table.get("data")
+        df = table.get("dataframe") if table.get("dataframe") is not None else table.get("data")
 
         if df is None:
             continue
@@ -224,7 +224,7 @@ def export_csv_table(
 
     # Resolve DataFrame
     if isinstance(table, dict):
-        df = table.get("dataframe") or table.get("data")
+        df = table.get("dataframe") if table.get("dataframe") is not None else table.get("data")
     else:
         df = table
 

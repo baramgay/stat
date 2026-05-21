@@ -41,23 +41,37 @@ def read_sav(path: str | Path) -> Dataset:
         df, meta = pyreadstat.read_sav(str(path))
         
         # 변수 메타데이터 변환
+        _MEASURE_MAP = {
+            "scale":   MeasureType.SCALE,
+            "ordinal": MeasureType.ORDINAL,
+            "nominal": MeasureType.NOMINAL,
+            "unknown": MeasureType.NOMINAL,
+        }
         variables = {}
         for i, col in enumerate(df.columns):
+            # 측정 척도: 파일에 저장된 값 우선, 없으면 dtype 추정
+            if meta.variable_measure and col in meta.variable_measure:
+                measure = _MEASURE_MAP.get(
+                    meta.variable_measure[col].lower(), MeasureType.NOMINAL
+                )
+            else:
+                measure = _guess_measure_type(df[col])
+
             var_meta = VariableMeta(
                 name=col,
                 label=meta.column_labels[i] if meta.column_labels and i < len(meta.column_labels) else col,
                 storage_type=_guess_storage_type(df[col]),
-                measure=_guess_measure_type(df[col]),
+                measure=measure,
             )
-            
+
             # 값 레이블
             if meta.variable_value_labels and col in meta.variable_value_labels:
                 var_meta.value_labels = meta.variable_value_labels[col]
-            
+
             # 결측치 정의
             if meta.missing_ranges and col in meta.missing_ranges:
                 var_meta.missing_values = meta.missing_ranges[col]
-            
+
             variables[col] = var_meta
         
         dataset = Dataset(
@@ -79,12 +93,19 @@ def read_sav(path: str | Path) -> Dataset:
 
 
 def _guess_storage_type(series: pd.Series) -> StorageType:
-    """시리즈 타입에 맞는 StorageType 추정."""
+    """시리즈 타입에 맞는 StorageType 추정.
+
+    pyreadstat은 SPSS 정수 변수도 float64로 읽어오는 경우가 있다.
+    유효 값이 모두 정수인 경우 INTEGER로 처리해 NOMINAL/ORDINAL 호환성을 유지한다.
+    """
     dtype = series.dtype
-    
+
     if pd.api.types.is_integer_dtype(dtype):
         return StorageType.INTEGER
     elif pd.api.types.is_float_dtype(dtype):
+        non_null = series.dropna()
+        if len(non_null) > 0 and non_null.apply(lambda v: float(v).is_integer()).all():
+            return StorageType.INTEGER
         return StorageType.FLOAT
     elif pd.api.types.is_datetime64_any_dtype(dtype):
         return StorageType.DATETIME
@@ -93,12 +114,14 @@ def _guess_storage_type(series: pd.Series) -> StorageType:
 
 
 def _guess_measure_type(series: pd.Series) -> MeasureType:
-    """시리즈 타입에 맞는 MeasureType 추정."""
+    """시리즈 타입에 맞는 MeasureType 추정.
+
+    SPSS 29 기본 규칙:
+      - 수치형 → SCALE
+      - 문자형 / 범주형 → NOMINAL
+    ORDINAL/BINARY는 사용자가 Variable View에서 직접 지정한다.
+    """
     dtype = series.dtype
-    
     if pd.api.types.is_numeric_dtype(dtype):
         return MeasureType.SCALE
-    elif pd.api.types.is_categorical_dtype(dtype):
-        return MeasureType.ORDINAL
-    else:
-        return MeasureType.NOMINAL
+    return MeasureType.NOMINAL

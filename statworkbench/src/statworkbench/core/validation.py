@@ -30,6 +30,7 @@ _MEASURE_STORAGE_COMPAT: dict[MeasureType, set[StorageType] | None] = {
         StorageType.STRING,
         StorageType.INTEGER,
         StorageType.CATEGORICAL,
+        StorageType.FLOAT,
     },
     MeasureType.SCALE: {
         StorageType.INTEGER,
