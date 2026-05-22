@@ -475,6 +475,27 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             description="Cronbach's alpha, 항목 통계, 항목-전체 상관",
             module_path="statworkbench.analysis.reliability",
         ),
+        _ModulePlugin(
+            plugin_id="partial_correlation",
+            name="Partial Correlation",
+            category="Correlate",
+            description="편상관분석: 통제 변수 고려한 순수 상관계수, 역행렬법",
+            module_path="statworkbench.analysis.partial_correlation",
+        ),
+        _ModulePlugin(
+            plugin_id="roc_analysis",
+            name="ROC Analysis",
+            category="Diagnostic Tests",
+            description="ROC 곡선, AUC, Youden J 최적 컷오프, 민감도/특이도",
+            module_path="statworkbench.analysis.roc_analysis",
+        ),
+        _ModulePlugin(
+            plugin_id="explore",
+            name="Explore",
+            category="Descriptive Statistics",
+            description="탐색적 분석: 기술통계, Shapiro-Wilk, 백분위수, 극단값, 그룹별 분석",
+            module_path="statworkbench.analysis.explore",
+        ),
     ]
 
     for plugin in new_plugins:

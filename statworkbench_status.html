@@ -71,27 +71,27 @@
   <div class="grid-3">
     <div class="card green">
       <h2>전체 테스트</h2>
-      <div class="big">1,703</div>
+      <div class="big">1,837</div>
       <div class="sub">통과 · 7 skipped · 0 실패</div>
       <div class="prog-bar"><div class="prog-fill fill-green" style="width:100%"></div></div>
     </div>
     <div class="card blue">
       <h2>구현 완료 분석</h2>
-      <div class="big">21</div>
-      <div class="sub">전체 30개 중 (70%)</div>
-      <div class="prog-bar"><div class="prog-fill fill-blue" style="width:70%"></div></div>
+      <div class="big">24</div>
+      <div class="sub">전체 30개 중 (80%)</div>
+      <div class="prog-bar"><div class="prog-fill fill-blue" style="width:80%"></div></div>
     </div>
     <div class="card orange">
       <h2>미구현 분석</h2>
-      <div class="big">11</div>
+      <div class="big">8</div>
       <div class="sub">계획됨 · 우선순위 분류</div>
-      <div class="prog-bar"><div class="prog-fill fill-orange" style="width:37%"></div></div>
+      <div class="prog-bar"><div class="prog-fill fill-orange" style="width:27%"></div></div>
     </div>
   </div>
 
   <!-- 구현 완료 분석 목록 -->
   <section>
-    <h3>✅ 구현 완료 분석 (21개)</h3>
+    <h3>✅ 구현 완료 분석 (24개)</h3>
     <table>
       <thead><tr><th>카테고리</th><th>분석명</th><th>모듈</th><th>상태</th><th>SPSS 대응</th></tr></thead>
       <tbody>
@@ -115,21 +115,21 @@
         <tr><td>분류</td><td>군집분석 (K-Means)</td><td>cluster_analysis.py</td><td><span class="badge-impl">구현 완료</span></td><td>Analyze &gt; Classify &gt; K-Means Cluster</td></tr>
         <tr><td>분류</td><td>판별분석</td><td>discriminant_analysis.py</td><td><span class="badge-impl">구현 완료</span></td><td>Analyze &gt; Classify &gt; Discriminant</td></tr>
         <tr><td>생존</td><td>생존분석 (KM + Cox)</td><td>survival_analysis.py</td><td><span class="badge-impl">구현 완료</span></td><td>Analyze &gt; Survival</td></tr>
-        <tr><td>척도</td><td>신뢰도 분석 (Cronbach's α)</td><td>reliability.py</td><td><span class="badge-impl">신규 구현</span></td><td>Analyze &gt; Scale &gt; Reliability Analysis</td></tr>
+        <tr><td>척도</td><td>신뢰도 분석 (Cronbach's α)</td><td>reliability.py</td><td><span class="badge-impl">구현 완료</span></td><td>Analyze &gt; Scale &gt; Reliability Analysis</td></tr>
+        <tr><td>상관</td><td>편상관분석</td><td>partial_correlation.py</td><td><span class="badge-impl">신규 구현</span></td><td>Analyze &gt; Correlate &gt; Partial</td></tr>
+        <tr><td>진단</td><td>ROC 분석</td><td>roc_analysis.py</td><td><span class="badge-impl">신규 구현</span></td><td>Analyze &gt; ROC Curve</td></tr>
+        <tr><td>기술통계</td><td>탐색적 분석 (Explore)</td><td>explore.py</td><td><span class="badge-impl">신규 구현</span></td><td>Analyze &gt; Descriptive Statistics &gt; Explore</td></tr>
       </tbody>
     </table>
   </section>
 
   <!-- 미구현 분석 목록 -->
   <section>
-    <h3>🚧 미구현 분석 (11개) — 우선순위별</h3>
+    <h3>🚧 미구현 분석 (8개) — 우선순위별</h3>
     <table>
       <thead><tr><th>우선순위</th><th>카테고리</th><th>분석명</th><th>설명</th><th>SPSS 대응</th></tr></thead>
       <tbody>
-        <tr><td><span class="badge-pri">높음</span></td><td>상관</td><td>편상관분석</td><td>통제 변수 고려한 순수 상관계수</td><td>Analyze &gt; Correlate &gt; Partial</td></tr>
-        <tr><td><span class="badge-pri">높음</span></td><td>진단</td><td>ROC 분석</td><td>AUC, 최적 컷오프, 민감도/특이도 곡선</td><td>Analyze &gt; ROC Curve</td></tr>
-        <tr><td><span class="badge-pri">높음</span></td><td>기술통계</td><td>탐색적 분석</td><td>Stem-Leaf, Box Plot, 그룹별 기술통계</td><td>Analyze &gt; Descriptive Statistics &gt; Explore</td></tr>
-        <tr><td><span class="badge-mid">중간</span></td><td>비모수</td><td>카이제곱 적합도</td><td>기대 빈도와 관찰 빈도 비교</td><td>Analyze &gt; Nonparametric &gt; Chi-Square</td></tr>
+        <tr><td><span class="badge-pri">높음</span></td><td>비모수</td><td>카이제곱 적합도</td><td>기대 빈도와 관찰 빈도 비교</td><td>Analyze &gt; Nonparametric &gt; Chi-Square</td></tr>
         <tr><td><span class="badge-mid">중간</span></td><td>일치도</td><td>Cohen's Kappa</td><td>평가자 간 일치도 (범주형)</td><td>Analyze &gt; Descriptive Statistics &gt; Crosstabs &gt; Kappa</td></tr>
         <tr><td><span class="badge-mid">중간</span></td><td>일치도</td><td>급내 상관 계수 (ICC)</td><td>평가자 간 일치도 (연속형)</td><td>Analyze &gt; Scale &gt; Reliability (ICC)</td></tr>
         <tr><td><span class="badge-mid">중간</span></td><td>진단</td><td>민감도/특이도</td><td>진단 정확도 지표 (PPV, NPV 포함)</td><td>—</td></tr>
@@ -143,7 +143,7 @@
 
   <!-- 테스트 현황 -->
   <section>
-    <h3>🧪 테스트 현황 (총 1,703개)</h3>
+    <h3>🧪 테스트 현황 (총 1,837개)</h3>
     <div class="two-col">
       <div>
         <table>
@@ -171,7 +171,10 @@
             <tr><td>측정 척도 자동 감지</td><td><span class="badge-impl">검증 완료</span></td></tr>
             <tr><td>대용량 N=100,000</td><td><span class="badge-impl">검증 완료</span></td></tr>
             <tr><td>보안 샌드박스 (Python Bridge)</td><td><span class="badge-impl">검증 완료</span></td></tr>
-            <tr><td>신뢰도 분석 Cronbach's α</td><td><span class="badge-impl">신규 완료</span></td></tr>
+            <tr><td>신뢰도 분석 Cronbach's α</td><td><span class="badge-impl">완료</span></td></tr>
+            <tr><td>편상관분석 (역행렬법)</td><td><span class="badge-impl">신규 완료</span></td></tr>
+            <tr><td>ROC 분석 (AUC, Youden J)</td><td><span class="badge-impl">신규 완료</span></td></tr>
+            <tr><td>탐색적 분석 (Explore)</td><td><span class="badge-impl">신규 완료</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -216,8 +219,8 @@
     <h3>🗺 향후 개선 과제</h3>
     <div class="two-col">
       <div>
-        <div class="warn-item"><strong>단기 (1~2주)</strong><br>① 편상관분석(partial correlation) 구현<br>② ROC 분석 모듈 구현 (AUC, 최적 컷오프)<br>③ 탐색적 분석(Explore) 기술통계 확장</div>
-        <div class="warn-item"><strong>중기 (1개월)</strong><br>① Cohen's Kappa 구현<br>② ICC (급내 상관 계수) 구현<br>③ 카이제곱 적합도 검정 추가</div>
+        <div class="warn-item"><strong>단기 (1~2주)</strong><br>① 카이제곱 적합도 검정 구현<br>② Cohen's Kappa 구현<br>③ ICC (급내 상관 계수) 구현</div>
+        <div class="warn-item"><strong>중기 (1개월)</strong><br>① Bland-Altman 일치도 분석<br>② t-tests registry _ModulePlugin 등록 ("Compare Means" 카테고리 복원)<br>③ UI 다이얼로그 — 편상관/ROC/Explore 연결</div>
       </div>
       <div>
         <div class="note-item"><strong>UI/UX 개선</strong><br>① SettingsManager 테스트 추가 (QSettings)<br>② 신뢰도 분석 다이얼로그(reliability_dialog.py) 연결<br>③ Variable View 셀 편집 UX 개선</div>
