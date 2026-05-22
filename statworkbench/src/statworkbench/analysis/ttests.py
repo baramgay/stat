@@ -429,3 +429,28 @@ def run_one_sample_ttest(
     result.add_table(ResultTable(title="One-Sample t-Test", dataframe=test_df))
 
     return result
+
+
+def run_one_sample_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
+    """_ModulePlugin 호환 wrapper — one_sample_t_test 플러그인용."""
+    variables = spec.get("variables", {})
+    options = spec.get("options", {})
+    target_vars: list[str] = variables.get("target", [])
+    test_value: float = float(options.get("test_value", 0.0))
+    confidence_level: float = float(spec.get("confidence_level", 0.95))
+
+    result = AnalysisResult(id="one_sample_t_test", title="One-Sample T Test", spec=spec)
+    if not target_vars:
+        result.warnings.append("분석 변수가 지정되지 않았습니다.")
+        return result
+
+    combined = AnalysisResult(id="one_sample_t_test", title="One-Sample T Test", spec=spec)
+    for var in target_vars:
+        if var not in dataset.data.columns:
+            combined.warnings.append(f"변수를 찾을 수 없습니다: {var}")
+            continue
+        sub = run_one_sample_ttest(dataset.data, var, test_value, confidence_level)
+        combined.tables.extend(sub.tables)
+        combined.warnings.extend(sub.warnings)
+        combined.notes.extend(sub.notes)
+    return combined

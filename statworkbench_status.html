@@ -71,27 +71,27 @@
   <div class="grid-3">
     <div class="card green">
       <h2>전체 테스트</h2>
-      <div class="big">2,003</div>
+      <div class="big">2,066</div>
       <div class="sub">통과 · 7 skipped · 0 실패</div>
       <div class="prog-bar"><div class="prog-fill fill-green" style="width:100%"></div></div>
     </div>
     <div class="card blue">
       <h2>구현 완료 분석</h2>
-      <div class="big">27</div>
-      <div class="sub">전체 30개 중 (90%)</div>
-      <div class="prog-bar"><div class="prog-fill fill-blue" style="width:90%"></div></div>
+      <div class="big">31</div>
+      <div class="sub">전체 32개 중 (97%)</div>
+      <div class="prog-bar"><div class="prog-fill fill-blue" style="width:97%"></div></div>
     </div>
     <div class="card orange">
       <h2>미구현 분석</h2>
-      <div class="big">5</div>
-      <div class="sub">계획됨 · 우선순위 분류</div>
-      <div class="prog-bar"><div class="prog-fill fill-orange" style="width:17%"></div></div>
+      <div class="big">1</div>
+      <div class="sub">민감도/특이도 (ROC 통합)</div>
+      <div class="prog-bar"><div class="prog-fill fill-orange" style="width:3%"></div></div>
     </div>
   </div>
 
   <!-- 구현 완료 분석 목록 -->
   <section>
-    <h3>✅ 구현 완료 분석 (27개)</h3>
+    <h3>✅ 구현 완료 분석 (31개)</h3>
     <table>
       <thead><tr><th>카테고리</th><th>분석명</th><th>모듈</th><th>상태</th><th>SPSS 대응</th></tr></thead>
       <tbody>
@@ -121,18 +121,22 @@
         <tr><td>기술통계</td><td>탐색적 분석 (Explore)</td><td>explore.py</td><td><span class="badge-impl">구현 완료</span></td><td>Analyze &gt; Descriptive Statistics &gt; Explore</td></tr>
         <tr><td>비모수</td><td>카이제곱 적합도</td><td>chi_square_gof.py</td><td><span class="badge-impl">신규 구현</span></td><td>Analyze &gt; Nonparametric &gt; Chi-Square</td></tr>
         <tr><td>일치도</td><td>Cohen's Kappa</td><td>cohens_kappa.py</td><td><span class="badge-impl">신규 구현</span></td><td>Analyze &gt; Descriptive Statistics &gt; Crosstabs &gt; Kappa</td></tr>
-        <tr><td>일치도</td><td>급내 상관 계수 (ICC)</td><td>icc.py</td><td><span class="badge-impl">신규 구현</span></td><td>Analyze &gt; Scale &gt; Reliability (ICC)</td></tr>
+        <tr><td>일치도</td><td>급내 상관 계수 (ICC)</td><td>icc.py</td><td><span class="badge-impl">구현 완료</span></td><td>Analyze &gt; Scale &gt; Reliability (ICC)</td></tr>
+        <tr><td>평균 비교</td><td>독립 표본 t-검정</td><td>ttests.py</td><td><span class="badge-impl">registry 등록</span></td><td>Analyze &gt; Compare Means &gt; Independent-Samples T Test</td></tr>
+        <tr><td>평균 비교</td><td>대응 표본 t-검정</td><td>ttests.py</td><td><span class="badge-impl">registry 등록</span></td><td>Analyze &gt; Compare Means &gt; Paired-Samples T Test</td></tr>
+        <tr><td>평균 비교</td><td>단일 표본 t-검정</td><td>ttests.py</td><td><span class="badge-impl">registry 등록</span></td><td>Analyze &gt; Compare Means &gt; One-Sample T Test</td></tr>
+        <tr><td>일치도</td><td>Bland-Altman</td><td>bland_altman.py</td><td><span class="badge-impl">신규 구현</span></td><td>MedCalc 표준 / SPSS 매크로 대응</td></tr>
       </tbody>
     </table>
   </section>
 
   <!-- 미구현 분석 목록 -->
   <section>
-    <h3>🚧 미구현 분석 (5개) — 우선순위별</h3>
+    <h3>🚧 미구현 분석 (1개)</h3>
     <table>
       <thead><tr><th>우선순위</th><th>카테고리</th><th>분석명</th><th>설명</th><th>SPSS 대응</th></tr></thead>
       <tbody>
-        <tr><td><span class="badge-pri">높음</span></td><td>기타</td><td>t-tests Compare Means 등록</td><td>ttests.py 구현됨, _ModulePlugin 미등록으로 카테고리 누락</td><td>Analyze &gt; Compare Means</td></tr>
+        <tr><td><span class="badge-low">낮음</span></td><td>진단</td><td>민감도/특이도</td><td>ROC 분석에 통합됨 (roc_analysis.py의 Optimal Cutoff 테이블 활용)</td><td>—</td></tr>
         <tr><td><span class="badge-mid">중간</span></td><td>일치도</td><td>Cohen's Kappa</td><td>평가자 간 일치도 (범주형)</td><td>Analyze &gt; Descriptive Statistics &gt; Crosstabs &gt; Kappa</td></tr>
         <tr><td><span class="badge-mid">중간</span></td><td>일치도</td><td>급내 상관 계수 (ICC)</td><td>평가자 간 일치도 (연속형)</td><td>Analyze &gt; Scale &gt; Reliability (ICC)</td></tr>
         <tr><td><span class="badge-mid">중간</span></td><td>진단</td><td>민감도/특이도</td><td>진단 정확도 지표 (PPV, NPV 포함)</td><td>—</td></tr>
@@ -146,7 +150,7 @@
 
   <!-- 테스트 현황 -->
   <section>
-    <h3>🧪 테스트 현황 (총 2,003개)</h3>
+    <h3>🧪 테스트 현황 (총 2,066개)</h3>
     <div class="two-col">
       <div>
         <table>
@@ -180,7 +184,9 @@
             <tr><td>탐색적 분석 (Explore)</td><td><span class="badge-impl">완료</span></td></tr>
             <tr><td>카이제곱 적합도 검정</td><td><span class="badge-impl">신규 완료</span></td></tr>
             <tr><td>Cohen's Kappa (Landis-Koch 등급)</td><td><span class="badge-impl">신규 완료</span></td></tr>
-            <tr><td>ICC (ICC1/ICC2/ICC3, Koo&amp;Mae 해석)</td><td><span class="badge-impl">신규 완료</span></td></tr>
+            <tr><td>ICC (ICC1/ICC2/ICC3, Koo&amp;Mae 해석)</td><td><span class="badge-impl">완료</span></td></tr>
+            <tr><td>t-tests Compare Means 카테고리 registry 등록</td><td><span class="badge-impl">신규 완료</span></td></tr>
+            <tr><td>Bland-Altman (LoA, bias, 비례 오차)</td><td><span class="badge-impl">신규 완료</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -225,8 +231,8 @@
     <h3>🗺 향후 개선 과제</h3>
     <div class="two-col">
       <div>
-        <div class="warn-item"><strong>단기 (1~2주)</strong><br>① t-tests _ModulePlugin 등록 (Compare Means 카테고리 복원)<br>② Bland-Altman 일치도 분석 구현<br>③ UI 다이얼로그 — 편상관/ROC/Explore/Kappa/ICC 연결</div>
-        <div class="warn-item"><strong>중기 (1개월)</strong><br>① 전체 분석 커버리지 100% 달성 (30/30)<br>② CI/CD 파이프라인 구성<br>③ coverage 측정 (pytest-cov) 80% 이상</div>
+        <div class="warn-item"><strong>단기 (1~2주)</strong><br>① UI 다이얼로그 — 편상관/ROC/Explore/Kappa/ICC/Bland-Altman 연결<br>② sensitivity_specificity를 roc_analysis에 통합 마무리<br>③ pytest-cov coverage 측정 80% 이상 달성</div>
+        <div class="warn-item"><strong>중기 (1개월)</strong><br>① CI/CD 파이프라인 구성 (GitHub Actions)<br>② 분석 결과 자연어 해석문 생성 (Claude API 연동)<br>③ SPSS .sav 내보내기 호환성 완성도 향상</div>
       </div>
       <div>
         <div class="note-item"><strong>UI/UX 개선</strong><br>① SettingsManager 테스트 추가 (QSettings)<br>② 신뢰도 분석 다이얼로그(reliability_dialog.py) 연결<br>③ Variable View 셀 편집 UX 개선</div>

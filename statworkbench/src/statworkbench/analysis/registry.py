@@ -397,6 +397,7 @@ class _ModulePlugin:
         category: str,
         description: str,
         module_path: str,
+        function_name: str = "run_analysis",
     ) -> None:
         self.id = plugin_id
         self.name = name
@@ -405,6 +406,7 @@ class _ModulePlugin:
         self.implemented = True
         self.variable_requirements: list[dict] = _VARIABLE_REQ_TEMPLATES.get(plugin_id, [])
         self._module_path = module_path
+        self._function_name = function_name
         self._module = None
 
     def _load(self) -> None:
@@ -421,9 +423,10 @@ class _ModulePlugin:
         return errors
 
     def run(self, dataset: "Dataset", spec: dict) -> "AnalysisResult":
-        """Delegate to the module's run_analysis()."""
+        """Delegate to the module's designated function."""
         self._load()
-        return self._module.run_analysis(dataset, spec)  # type: ignore[union-attr]
+        fn = getattr(self._module, self._function_name)
+        return fn(dataset, spec)  # type: ignore[union-attr]
 
 
 def _register_new_plugins(registry: AnalysisRegistry) -> None:
@@ -516,6 +519,35 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="Agreement",
             description="급내 상관 계수: ICC(1,1)/ICC(2,1)/ICC(3,1), ANOVA 분해, 95% CI, Koo & Mae 해석",
             module_path="statworkbench.analysis.icc",
+        ),
+        _ModulePlugin(
+            plugin_id="independent_t_test",
+            name="Independent-Samples T Test",
+            category="Compare Means",
+            description="독립 표본 t-검정: Levene 검정, Welch 보정, Cohen's d",
+            module_path="statworkbench.analysis.ttests",
+        ),
+        _ModulePlugin(
+            plugin_id="paired_t_test",
+            name="Paired-Samples T Test",
+            category="Compare Means",
+            description="대응 표본 t-검정: 차이 통계량, Cohen's d",
+            module_path="statworkbench.analysis.ttests",
+        ),
+        _ModulePlugin(
+            plugin_id="one_sample_t_test",
+            name="One-Sample T Test",
+            category="Compare Means",
+            description="단일 표본 t-검정: 가설 평균 비교, 95% CI",
+            module_path="statworkbench.analysis.ttests",
+            function_name="run_one_sample_analysis",
+        ),
+        _ModulePlugin(
+            plugin_id="bland_altman",
+            name="Bland-Altman",
+            category="Agreement",
+            description="Bland-Altman 일치도 분석: bias, LoA, 95% CI, 비례 오차 감지",
+            module_path="statworkbench.analysis.bland_altman",
         ),
     ]
 
