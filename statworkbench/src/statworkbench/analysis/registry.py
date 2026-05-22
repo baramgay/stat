@@ -496,6 +496,27 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             description="탐색적 분석: 기술통계, Shapiro-Wilk, 백분위수, 극단값, 그룹별 분석",
             module_path="statworkbench.analysis.explore",
         ),
+        _ModulePlugin(
+            plugin_id="chi_square_gof",
+            name="Chi-Square Goodness-of-Fit",
+            category="Nonparametric Tests",
+            description="카이제곱 적합도 검정: 관찰/기대 빈도 비교, 균등분포 및 비율 지정",
+            module_path="statworkbench.analysis.chi_square_gof",
+        ),
+        _ModulePlugin(
+            plugin_id="cohens_kappa",
+            name="Cohen's Kappa",
+            category="Agreement",
+            description="Cohen's Kappa 평가자 간 일치도: Po, Pe, SE, 95% CI, Landis-Koch 등급",
+            module_path="statworkbench.analysis.cohens_kappa",
+        ),
+        _ModulePlugin(
+            plugin_id="icc",
+            name="ICC",
+            category="Agreement",
+            description="급내 상관 계수: ICC(1,1)/ICC(2,1)/ICC(3,1), ANOVA 분해, 95% CI, Koo & Mae 해석",
+            module_path="statworkbench.analysis.icc",
+        ),
     ]
 
     for plugin in new_plugins:
