@@ -64,6 +64,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     do_sphericity: bool = options.get("sphericity", True)
     do_post_hoc: bool = options.get("post_hoc", True)
     do_effect_size: bool = options.get("effect_size", True)
+    do_profile_plot: bool = options.get("profile_plot", True)
 
     result = AnalysisResult(id="mixed_anova", title="혼합 분산분석 (Mixed ANOVA)")
 
@@ -233,6 +234,16 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         _bonferroni_between(result, data, between_var, groups, within_vars, ms_s_within, df_s_within, k, confidence_level, alpha)
         if k >= 3:
             _bonferroni_within(result, Y, within_vars, within_name, ms_error_within=ss_error_within / df_error_within if df_error_within > 0 else np.nan, df_error=df_error_within, N=N, confidence_level=confidence_level, alpha=alpha)
+
+    # ── 프로파일 플롯 ────────────────────────────────────────────
+    if do_profile_plot:
+        plot_bytes = _profile_plot_mixed(data, between_var, within_vars, within_name)
+        if plot_bytes:
+            result.add_table(ResultTable(
+                title="프로파일 플롯 (집단 × 시점)",
+                dataframe=pd.DataFrame([{"image_bytes": plot_bytes}]),
+                metadata={"type": "profile_plot"},
+            ))
 
     # ── 해석 메모 ────────────────────────────────────────────────
     if not np.isnan(f_between):
@@ -451,3 +462,41 @@ def _bonferroni_within(
             title=f"Pairwise Comparisons: {within_name} (Bonferroni)",
             dataframe=pd.DataFrame(rows),
         ))
+
+
+def _profile_plot_mixed(
+    data: pd.DataFrame,
+    between_var: str,
+    within_vars: list,
+    within_name: str,
+) -> "bytes | None":
+    """집단 × 시점 상호작용 선 그래프 생성."""
+    try:
+        import io
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        groups = sorted(data[between_var].unique(), key=str)
+        colors = plt.cm.tab10.colors
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        for i, g in enumerate(groups):
+            sub = data[data[between_var] == g][within_vars]
+            means = sub.mean().values
+            ax.plot(within_vars, means, marker="o", label=str(g), color=colors[i % len(colors)])
+
+        ax.set_xlabel(within_name)
+        ax.set_ylabel("평균")
+        ax.set_title(f"프로파일 플롯: {between_var} × {within_name}")
+        ax.legend(title=between_var)
+        plt.tight_layout()
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=100)
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Mixed ANOVA 프로파일 플롯 실패: %s", e)
+        return None

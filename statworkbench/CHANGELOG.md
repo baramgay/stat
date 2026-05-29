@@ -5,6 +5,37 @@
 
 ---
 
+## [v3.3.0] - 2026-05-29
+
+### 추가
+
+- **MANOVA** (`manova.py`): 다변량 분산분석
+  - Pillai's Trace / Wilks' Lambda / Hotelling-Lawley Trace / Roy's Largest Root
+  - 단변량 후속 검정 (각 종속변수별 F, 편 η²)
+  - Bonferroni / Tukey HSD 사후 검정
+  - 대화상자 (`manova_dialog.py`), GLM 메뉴 등록
+- **텍스트 마이닝** (`text_mining.py`): 워드클라우드 포함 텍스트 분석
+  - 단어 빈도 Top-N (불용어 처리, 최소 길이 필터)
+  - 바이그램 / 트라이그램 N-gram 분석
+  - TF-IDF 상위 단어 분석
+  - 워드클라우드 이미지 (malgun.ttf 자동 탐지)
+  - 대화상자 (`text_mining_dialog.py`), 텍스트 마이닝 메뉴 추가
+- **프로파일 플롯**: Two-Way ANOVA · Mixed ANOVA에 상호작용 선 그래프 추가
+  - `options.profile_plot: True` (기본값)
+  - 집단 × 요인 수준별 셀 평균 시각화 (PNG bytes, metadata type="profile_plot")
+- **회귀 진단 강화** (`regression.py`)
+  - Cook's D + 레버리지 + 표준화 잔차 → 영향력 케이스 진단 표
+  - Stepwise / Forward / Backward 변수 선택 (`options.selection_method`)
+  - 각 단계별 입력/제거 변수와 p-값 요약 표
+
+### 테스트
+
+- `test_manova.py` 신규 (37개): 구조·다변량 검정·단변량·사후 검정·옵션·입력 검증·결측
+- `test_text_mining.py` 신규 (30개): 구조·빈도·N-gram·TF-IDF·옵션·입력 검증·토크나이저
+- 전체 테스트: **3,856+ 통과** (예상)
+
+---
+
 ## [v3.2.0] - 2026-05-29
 
 ### 추가

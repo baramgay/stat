@@ -127,6 +127,8 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "repeated_measures_anova", "name": "Repeated Measures ANOVA", "category": "General Linear Model", "description": "반복측정 ANOVA: Mauchly 구형성 검정, GG/HF 보정, 본페로니 쌍 비교", "implemented": True},
     {"id": "ancova", "name": "ANCOVA", "category": "General Linear Model", "description": "공분산분석: 공변량 조정 요인 효과, EMM, Bonferroni 사후 검정, η²", "implemented": True},
     {"id": "mixed_anova", "name": "Mixed ANOVA", "category": "General Linear Model", "description": "혼합 분산분석: 집단 간 × 집단 내 혼합 설계, Mauchly 구형성 검정, GG/HF 보정, 편 η², Bonferroni", "implemented": True},
+    {"id": "manova", "name": "MANOVA", "category": "General Linear Model", "description": "다변량 분산분석: Pillai/Wilks/Hotelling/Roy 검정, 단변량 후속 검정, 편 η², 사후 검정", "implemented": True},
+    {"id": "text_mining", "name": "Text Mining", "category": "Text Analysis", "description": "텍스트 마이닝: 단어 빈도, N-gram, TF-IDF, 워드클라우드", "implemented": True},
 ]
 
 
@@ -592,6 +594,20 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="General Linear Model",
             description="혼합 분산분석: 집단 간 × 집단 내 혼합 설계, Mauchly 구형성 검정, GG/HF 보정, 편 η², Bonferroni",
             module_path="statworkbench.analysis.mixed_anova",
+        ),
+        _ModulePlugin(
+            plugin_id="manova",
+            name="MANOVA",
+            category="General Linear Model",
+            description="다변량 분산분석: Pillai/Wilks/Hotelling/Roy 검정, 단변량 후속 검정, 편 η², 사후 검정",
+            module_path="statworkbench.analysis.manova",
+        ),
+        _ModulePlugin(
+            plugin_id="text_mining",
+            name="Text Mining",
+            category="Text Analysis",
+            description="텍스트 마이닝: 단어 빈도, N-gram, TF-IDF, 워드클라우드",
+            module_path="statworkbench.analysis.text_mining",
         ),
     ]
 

@@ -423,6 +423,9 @@ class MainWindow(QMainWindow):
         mixed_anova_action = QAction("🔀 혼합 분산분석(Mixed ANOVA)...", self)
         mixed_anova_action.triggered.connect(self._run_mixed_anova)
         glm_menu.addAction(mixed_anova_action)
+        manova_action = QAction("📊 MANOVA(다변량 분산분석)...", self)
+        manova_action.triggered.connect(self._run_manova)
+        glm_menu.addAction(manova_action)
 
         # 상관/회귀
         correlate_menu = analyze_menu.addMenu("🔗 상관(&C)")
@@ -512,6 +515,12 @@ class MainWindow(QMainWindow):
         reliability_action = QAction("🔁 신뢰도 분석(Cronbach α)...", self)
         reliability_action.triggered.connect(self._run_reliability)
         scale_menu.addAction(reliability_action)
+
+        # 텍스트 마이닝
+        text_menu = analyze_menu.addMenu("📝 텍스트 마이닝(&X)")
+        text_mining_action = QAction("📝 텍스트 마이닝(워드클라우드)...", self)
+        text_mining_action.triggered.connect(self._run_text_mining)
+        text_menu.addAction(text_mining_action)
 
         analyze_menu.addSeparator()
 
@@ -1346,6 +1355,26 @@ class MainWindow(QMainWindow):
             return
         from statworkbench.ui.dialogs.mixed_anova_dialog import MixedAnovaDialog
         dialog = MixedAnovaDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_manova(self) -> None:
+        """MANOVA 다변량 분산분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.manova_dialog import ManovaDialog
+        dialog = ManovaDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_text_mining(self) -> None:
+        """텍스트 마이닝 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.text_mining_dialog import TextMiningDialog
+        dialog = TextMiningDialog(self.current_dataset, self)
         dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 

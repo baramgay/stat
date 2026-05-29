@@ -63,6 +63,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     do_post_hoc: bool = options.get("post_hoc", True)
     post_hoc_method: str = options.get("post_hoc_method", "tukey").lower()  # tukey | scheffe | bonferroni | lsd
     do_effect_size: bool = options.get("effect_size", True)
+    do_profile_plot: bool = options.get("profile_plot", True)
 
     result = AnalysisResult(id="two_way_anova", title="Two-Way ANOVA")
 
@@ -302,6 +303,16 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             except Exception as exc:
                 result.warnings.append(f"사후 검정 ({factor}) 오류: {exc}")
 
+    # ── 프로파일 플롯 (상호작용 그래프) ──────────────────────────────
+    if do_profile_plot:
+        plot_bytes = _profile_plot_two_way(data, dep_var, factor_a, factor_b)
+        if plot_bytes:
+            result.add_table(ResultTable(
+                title="프로파일 플롯 (상호작용 그래프)",
+                dataframe=pd.DataFrame([{"image_bytes": plot_bytes}]),
+                metadata={"type": "profile_plot"},
+            ))
+
     # ── 해석 메모 ─────────────────────────────────────────────────
     for src_key, src_label in source_map.items():
         if src_key not in anova_tbl.index or src_key == "Residual":
@@ -404,3 +415,49 @@ def _run_post_hoc(
             title=f"Post-Hoc: {label} — {factor}",
             dataframe=pd.DataFrame(rows),
         ))
+
+
+def _profile_plot_two_way(
+    df: pd.DataFrame,
+    dep_var: str,
+    factor_a: str,
+    factor_b: str,
+) -> bytes | None:
+    """Factor A × Factor B 셀 평균 상호작용 선 그래프 생성 후 PNG bytes 반환."""
+    try:
+        import io
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        cell_means = (
+            df.groupby([factor_a, factor_b])[dep_var]
+            .mean()
+            .reset_index()
+        )
+        levels_b = sorted(cell_means[factor_b].unique(), key=str)
+        levels_a = sorted(cell_means[factor_a].unique(), key=str)
+
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        colors = plt.cm.tab10.colors
+        for i, lvl_b in enumerate(levels_b):
+            sub = cell_means[cell_means[factor_b] == lvl_b].set_index(factor_a)
+            y_vals = [float(sub.loc[la, dep_var]) if la in sub.index else float("nan") for la in levels_a]
+            ax.plot([str(la) for la in levels_a], y_vals, marker="o",
+                    label=str(lvl_b), color=colors[i % len(colors)])
+
+        ax.set_xlabel(factor_a)
+        ax.set_ylabel(dep_var)
+        ax.set_title(f"프로파일 플롯: {dep_var}")
+        ax.legend(title=factor_b)
+        plt.tight_layout()
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=100)
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("프로파일 플롯 생성 실패: %s", e)
+        return None
