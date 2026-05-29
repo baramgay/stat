@@ -5,19 +5,19 @@ load data, define variable properties, and run statistical analyses through a
 menu-driven interface without writing code.
 """
 
-__version__ = "0.1.0"
+__version__ = "3.1.0"
 __author__ = "Hermes Agent"
 
 # Re-export key types for convenience
-from statworkbench.core.typing import (
-    StorageType,
-    MeasureType,
-    Role,
-    MissingPolicy,
-)
-from statworkbench.core.variable import VariableMeta
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.exceptions import StatWorkbenchError
+from statworkbench.core.typing import (
+    MeasureType,
+    MissingPolicy,
+    Role,
+    StorageType,
+)
+from statworkbench.core.variable import VariableMeta
 
 __all__ = [
     "__version__",

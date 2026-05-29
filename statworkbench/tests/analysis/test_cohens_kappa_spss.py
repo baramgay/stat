@@ -441,14 +441,14 @@ class TestMissingDataHandling:
     def test_excluded_count_positive(self, missing_dataset):
         result = run_analysis(missing_dataset, _make_spec("r1", "r2"))
         cps = next(t for t in result.tables if t.title == "Case Processing Summary")
-        excluded = int(cps.dataframe[cps.dataframe["구분"] == "결측"]["N"].iloc[0])
+        excluded = int(cps.dataframe[cps.dataframe["구분"] == "제외됨"]["N"].iloc[0])
         assert excluded > 0
 
     def test_total_equals_valid_plus_excluded(self, missing_dataset):
         result = run_analysis(missing_dataset, _make_spec("r1", "r2"))
         cps = next(t for t in result.tables if t.title == "Case Processing Summary")
         valid = int(cps.dataframe[cps.dataframe["구분"] == "유효"]["N"].iloc[0])
-        excluded = int(cps.dataframe[cps.dataframe["구분"] == "결측"]["N"].iloc[0])
+        excluded = int(cps.dataframe[cps.dataframe["구분"] == "제외됨"]["N"].iloc[0])
         total = int(cps.dataframe[cps.dataframe["구분"] == "합계"]["N"].iloc[0])
         assert valid + excluded == total
 

@@ -316,7 +316,7 @@ class TestRunAnalysisTableStructure:
         """Table 2: 'Area Under the Curve' 제목 및 필수 컬럼."""
         t = result.tables[1]
         assert t.title == "Area Under the Curve"
-        required_cols = {"변수", "AUC", "표준오차", "95% CI 하한", "95% CI 상한", "p값"}
+        required_cols = {"변수", "AUC", "표준오차", "95% CI 하한", "95% CI 상한", "p-value"}
         assert required_cols.issubset(set(t.dataframe.columns))
 
     def test_table_2_one_row_per_test_variable(self, result):

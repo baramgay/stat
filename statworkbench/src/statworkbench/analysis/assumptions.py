@@ -10,16 +10,14 @@ Provides:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.core.typing import MeasureType, MissingPolicy
 from statworkbench.analysis.result import ResultTable
-
+from statworkbench.core.dataset import Dataset
+from statworkbench.core.typing import MissingPolicy
 
 # ---------------------------------------------------------------------------
 # Prepared analysis frame
@@ -156,9 +154,6 @@ def prepare_analysis_frame(
     elif missing_policy == MissingPolicy.EXCLUDE_USER_MISSING_ONLY:
         # Only exclude user-defined missing, keep system missing
         clean = subset
-    elif missing_policy == MissingPolicy.EXCLUDE_SYSTEM_MISSING_ONLY:
-        # Only exclude NaN, keep user-defined missing
-        clean = subset.dropna()
     else:
         clean = subset.dropna()
 
@@ -183,7 +178,7 @@ def get_case_processing_summary(
     n_total: int,
     n_valid: int,
     n_excluded: int,
-    excluded_pct: Optional[float] = None,
+    excluded_pct: float | None = None,
 ) -> ResultTable:
     """Build a *Case Processing Summary* result table.
 
@@ -219,6 +214,37 @@ def get_case_processing_summary(
         footnotes=[
             "Missing values were excluded listwise."
         ],
+    )
+
+
+def get_cps_table_kr(
+    n_total: int,
+    n_valid: int,
+    n_excluded: int,
+) -> ResultTable:
+    """한글 Case Processing Summary 테이블 생성.
+
+    Parameters
+    ----------
+    n_total : int
+        전체 케이스 수.
+    n_valid : int
+        유효 케이스 수.
+    n_excluded : int
+        제외된 케이스 수.
+    """
+    valid_pct = round(n_valid / n_total * 100, 1) if n_total > 0 else 0.0
+    excl_pct = round(n_excluded / n_total * 100, 1) if n_total > 0 else 0.0
+
+    df = pd.DataFrame({
+        "구분": ["유효", "제외됨", "합계"],
+        "N": [n_valid, n_excluded, n_total],
+        "%": [valid_pct, excl_pct, 100.0],
+    })
+    return ResultTable(
+        title="Case Processing Summary",
+        dataframe=df,
+        footnotes=["결측값은 listwise 방식으로 제외됩니다."],
     )
 
 
@@ -297,7 +323,7 @@ def check_normality(
 # ---------------------------------------------------------------------------
 
 def check_homogeneity_of_variance(
-    *groups: Union[pd.Series, np.ndarray, list],
+    *groups: pd.Series | np.ndarray | list,
     alpha: float = 0.05,
     center: str = "median",
 ) -> dict:
@@ -400,7 +426,7 @@ def check_homogeneity_of_variance_from_groups(
 # ---------------------------------------------------------------------------
 
 def levene_test(
-    *groups: Union[np.ndarray, list, pd.Series],
+    *groups: np.ndarray | list | pd.Series,
     center: str = "median",
 ) -> tuple[float, float]:
     """Simple Levene test returning (statistic, p_value).
@@ -421,7 +447,7 @@ def levene_test(
     return result["statistic"], result["p_value"]
 
 
-def shapiro_test(data: Union[np.ndarray, list, pd.Series]) -> tuple[float, float]:
+def shapiro_test(data: np.ndarray | list | pd.Series) -> tuple[float, float]:
     """Simple Shapiro-Wilk test returning (statistic, p_value).
 
     Parameters

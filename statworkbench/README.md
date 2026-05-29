@@ -1,6 +1,10 @@
 # StatWorkbench
 
-> Menu-based desktop statistical package — an alternative to SPSS/MedCalc
+> Menu-based desktop statistical package — SPSS/MedCalc alternative
+
+[![Tests](https://img.shields.io/badge/tests-3613%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-98%25-green)](tests/)
+[![Version](https://img.shields.io/badge/version-3.1.0-blue)](pyproject.toml)
 
 ## Overview
 
@@ -10,34 +14,82 @@
 
 Unlike spreadsheet tools, StatWorkbench is **variable-centric**. Each column carries rich metadata (measurement scale, value labels, missing rules, role) that enables the system to recommend appropriate analyses and prevent statistical mistakes.
 
-## Features (MVP)
+## Features (v3.0.0 — 37 Analysis Modules)
 
-- **Data Import**: CSV, TXT, TSV, Excel (.xlsx), Clipboard
-- **Variable Management**: SPSS-style Variable View with full metadata
-- **Spreadsheet UI**: Data View with cell editing, sort, filter
-- **Statistical Analysis**:
-  - Descriptive Statistics & Frequencies
-  - Normality Tests (Shapiro-Wilk)
-  - Crosstabulation with Chi-square
-  - Independent & Paired t-tests
-  - One-way ANOVA
-  - Non-parametric: Mann-Whitney U, Wilcoxon, Kruskal-Wallis, Friedman
-  - Correlation: Pearson, Spearman, Kendall
-  - Linear Regression
-- **Result Output**: Structured tables with p-values, CIs, effect sizes
-- **Syntax Log**: Reproducible command log for every analysis
+### Data Management
+- **Data Import**: CSV, TXT, TSV, Excel (.xlsx), SPSS (.sav), Clipboard
+- **Variable Management**: SPSS-style Variable View with full metadata (scale, value labels, missing rules)
+- **Spreadsheet UI**: Data View with cell editing, sort, filter, Formula Bar
+- **Data Transformation**: Compute Variable, Recode, Visual Binning, Rank Cases
+- **Data Operations**: Select Cases, Weight Cases, Sort, Merge Files, Pivot Tables
+
+### Statistical Analysis
+
+**Descriptive Statistics**
+- Frequencies: frequency, percent, valid percent, cumulative percent
+- Descriptives: mean, SD, min, max, skewness, kurtosis, SEM
+- Explore: Shapiro-Wilk, Levene's test, stem-and-leaf, box plot, Q-Q plot
+- Crosstabulation: chi-square, Fisher's exact, Phi, Cramer's V
+
+**Mean Comparison**
+- One-Sample T-Test
+- Independent-Samples T-Test (Levene's test, Cohen's d)
+- Paired-Samples T-Test
+- One-Way ANOVA (Tukey HSD, Bonferroni, Scheffe post hoc)
+
+**Correlation & Regression**
+- Bivariate Correlation: Pearson, Spearman, Kendall
+- Partial Correlation: controlling for covariates
+- Linear Regression: R², VIF, standardized coefficients
+- Logistic Regression: binary & multinomial, Odds Ratio, Hosmer-Lemeshow, AUC
+
+**Nonparametric Tests**
+- Mann-Whitney U, Wilcoxon Signed-Rank
+- Kruskal-Wallis H, Friedman test
+- Normality: Shapiro-Wilk, Kolmogorov-Smirnov
+- Chi-Square Goodness of Fit
+
+**Advanced Analysis**
+- Factor Analysis (EFA/PCA): Varimax/Oblimin rotation, KMO, Bartlett's test
+- Cluster Analysis: K-Means (elbow, silhouette), Hierarchical (dendrogram)
+- Discriminant Analysis (LDA): Wilks' Lambda, canonical coefficients
+- Survival Analysis: Kaplan-Meier, Log-rank, Cox proportional hazards
+
+**Diagnostic & Agreement**
+- ROC Analysis: AUC, optimal cutoff, 95% CI
+- Sensitivity & Specificity: confusion matrix, PPV, NPV, likelihood ratios
+- Cohen's Kappa: inter-rater agreement for categorical data
+- ICC (Intraclass Correlation Coefficient): inter-rater reliability for continuous data
+- Bland-Altman Plot: limits of agreement, method comparison
+
+**Scale & Reliability**
+- Reliability Analysis: Cronbach's α, item-total correlation, alpha-if-deleted
+
+**Machine Learning**
+- Logistic Regression, Decision Tree, Random Forest, SVM
+- Train/test split, k-fold cross-validation, variable importance, confusion matrix
+
+### Output & Utilities
+- **Result Output**: Structured tables with p-values, CIs, effect sizes, footnotes
+- **Chart Builder**: 7 chart types, real-time preview, 300 DPI PNG export
+- **Advanced Visualization**: heatmap, scatter matrix, violin plot, forest plot
+- **Syntax Log**: reproducible command log for every analysis
 - **Project Save/Load**: `.swb` bundle format (ZIP + Parquet + JSON)
+- **HTML Export**: full output to single HTML file
+- **Data Quality Diagnosis**: missing patterns, outlier detection, duplicate records
 
 ## Tech Stack
 
 | Area | Technology |
 |------|------------|
-| GUI | PySide6 |
+| GUI | PySide6 6.6+ |
 | Data | pandas, numpy |
 | Statistics | scipy, statsmodels |
+| ML | scikit-learn |
+| Survival | lifelines |
 | Excel | openpyxl |
-| Validation | pydantic |
-| Testing | pytest, pytest-qt |
+| Encoding detection | chardet |
+| Testing | pytest 9.0, pytest-cov |
 
 ## Quick Start
 
@@ -48,7 +100,7 @@ pip install -e ".[dev]"
 # Run application
 python -m statworkbench
 
-# Run tests
+# Run tests (2988 tests, ~98% coverage)
 pytest
 ```
 
@@ -56,16 +108,18 @@ pytest
 
 ```
 statworkbench/
-├── HERMES.md           # Project specification (authoritative)
 ├── src/statworkbench/
-│   ├── core/           # Dataset, VariableMeta, enums
-│   ├── io/             # Import/export, project storage
-│   ├── analysis/       # Statistical analysis engine
-│   ├── ui/             # PySide6 GUI components
-│   ├── syntax/         # Syntax logging
+│   ├── core/           # Dataset, VariableMeta, enums, validation
+│   ├── io/             # CSV/Excel/SPSS import, project storage
+│   ├── analysis/       # 37 statistical analysis modules
+│   ├── ui/             # PySide6 GUI (43 dialogs, main window)
+│   ├── syntax/         # Syntax logging and execution
 │   └── viz_bridge/     # Visualization bridge
-├── tests/              # Test suite
-└── examples/           # Sample datasets
+├── tests/
+│   ├── analysis/       # 70+ unit test files
+│   └── integration/    # Data entry & analysis integration tests
+└── docs/
+    └── user_manual.md  # Full Korean user manual (v3.0.0)
 ```
 
 ## License

@@ -5,13 +5,17 @@ SPSS: Analyze > Nonparametric Tests > Legacy Dialogs > Chi-Square 대응 모듈.
 
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy.stats import chisquare
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.analysis.result import AnalysisResult, ResultTable
+from statworkbench.analysis.assumptions import get_cps_table_kr
 from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
+from statworkbench.core.dataset import Dataset
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
@@ -60,16 +64,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     n_excluded = n_before - n_after
 
     # ── Case Processing Summary 테이블 ───────────────────────────
-    cps_df = pd.DataFrame({
-        "구분": ["유효", "결측", "합계"],
-        "N": [n_after, n_excluded, n_before],
-        "%": [
-            round(n_after / n_before * 100, 1) if n_before > 0 else 0.0,
-            round(n_excluded / n_before * 100, 1) if n_before > 0 else 0.0,
-            100.0,
-        ],
-    })
-    result.tables.append(ResultTable(title="Case Processing Summary", dataframe=cps_df))
+    result.tables.append(get_cps_table_kr(n_before, n_after, n_excluded))
 
     if n_after == 0:
         result.warnings.append("유효한 케이스가 없습니다.")
@@ -81,6 +76,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     resid_rows: list[dict] = []
 
     for var in target_vars:
+      try:
         series = data[var]
         observed_counts = series.value_counts().sort_index()
         categories = observed_counts.index.tolist()
@@ -150,6 +146,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 "잔차": format_number(resid_val, 2),
                 "표준화 잔차": format_number(std_resid, 3),
             })
+      except Exception as exc:
+        result.warnings.append(f"변수 '{var}' 검정 오류: {exc}")
+        continue
 
     # ── 테이블 생성 ──────────────────────────────────────────────
     if freq_rows:

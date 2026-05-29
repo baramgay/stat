@@ -500,7 +500,7 @@ class TestMissingData:
         if len(result.warnings) > 0:
             pytest.skip("유효 케이스 부족으로 경고 반환")
         cps = next(t for t in result.tables if t.title == "Case Processing Summary")
-        missing_row = cps.dataframe[cps.dataframe["구분"] == "결측"]
+        missing_row = cps.dataframe[cps.dataframe["구분"] == "제외됨"]
         assert missing_row["N"].iloc[0] >= 0  # 결측 건수는 0 이상
 
     def test_valid_cases_reduced_by_missing(self, missing_dataset):

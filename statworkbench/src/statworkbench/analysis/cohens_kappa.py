@@ -13,14 +13,17 @@ SPSS: Analyze > Descriptive Statistics > Crosstabs > Statistics > Kappa 대응 �
 
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.analysis.result import AnalysisResult, ResultTable
+from statworkbench.analysis.assumptions import get_cps_table_kr
 from statworkbench.analysis.formatting import format_number, format_pvalue
-
+from statworkbench.analysis.result import AnalysisResult, ResultTable
+from statworkbench.core.dataset import Dataset
 
 # ---------------------------------------------------------------------------
 # Landis-Koch 해석 등급
@@ -195,28 +198,28 @@ def run_analysis(dataset: Dataset, spec: object | dict) -> AnalysisResult:
     # 단일 범주 검사
     unique1 = df[rater1_var].nunique()
     unique2 = df[rater2_var].nunique()
-    if unique1 < 2 and unique2 < 2:
+    if unique1 < 2 or unique2 < 2:
+        which = []
+        if unique1 < 2:
+            which.append(rater1_var)
+        if unique2 < 2:
+            which.append(rater2_var)
         result.warnings.append(
-            "두 변수 모두 단일 범주입니다. Kappa를 계산할 수 없습니다."
+            f"단일 범주 변수가 있습니다: {which}. Kappa를 계산할 수 없습니다."
         )
         return result
 
     # Kappa 계산
-    stats_dict = _compute_kappa(df[rater1_var].tolist(), df[rater2_var].tolist())
+    try:
+        stats_dict = _compute_kappa(df[rater1_var].tolist(), df[rater2_var].tolist())
+    except Exception as exc:
+        result.add_warning(f"Cohen's Kappa 계산 오류: {exc}")
+        return result
     kappa = stats_dict["kappa"]
     categories = stats_dict["categories"]
 
     # ── 테이블 1: Case Processing Summary ────────────────────────
-    cps_df = pd.DataFrame({
-        "구분": ["유효", "결측", "합계"],
-        "N": [n_after, n_excluded, n_before],
-        "%": [
-            round(n_after / n_before * 100, 1),
-            round(n_excluded / n_before * 100, 1),
-            100.0,
-        ],
-    })
-    result.tables.append(ResultTable(title="Case Processing Summary", dataframe=cps_df))
+    result.tables.append(get_cps_table_kr(n_before, n_after, n_excluded))
 
     # ── 테이블 2: Crosstabulation ─────────────────────────────────
     ct = pd.crosstab(

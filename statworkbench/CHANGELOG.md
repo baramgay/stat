@@ -5,6 +5,100 @@
 
 ---
 
+## [v3.1.0] - 2026-05-29
+
+### 추가
+
+- **이원분산분석** (`two_way_anova.py`): 주 효과 및 상호작용 효과 검정, 기술통계, 개체-간 효과 테이블, Tukey HSD 사후 검정 포함
+- **반복측정 ANOVA** (`repeated_measures_anova.py`): 구형성 검정(Mauchly's W), Greenhouse-Geisser / Huynh-Feldt 보정, 일원/이원 반복측정 지원
+
+### 개선
+
+**수치 정확성 — R 4.6.0 대비 전항목 검증 완료**
+- 20개 분석 모듈, 121개 수치 항목 R 4.6.0 출력과 ±0.5% 이내 일치 확인
+- 검증 스크립트 `validation/run_validation.py` 및 R 기준 스크립트 `validation/r_reference.R` 추가
+
+**케이스 처리 요약(CPS) 표준화**
+- `get_cps_table_kr()` 전 모듈 통합: `"결측됨"` → `"제외됨"` 컬럼 값 통일
+- reliability, cohens_kappa, partial_correlation, icc, chi_square_gof 모듈 임포트 누락 수정
+
+**테스트 suite**
+- 3,613 통과 (이전 2,988 → +625건)
+- CPS 관련 4개 테스트 파일 `"제외됨"` 표준 반영
+
+---
+
+## [v3.0.0] - 2026-05-27
+
+### 추가
+
+**신규 분석 모듈 8종**
+
+- **편상관 분석** (`partial_correlation.py`)
+  - 제3 변수(통제 변수)를 제거한 순수 상관계수 산출
+  - Pearson / Spearman 방법 선택 지원
+  - 편상관 행렬 및 유의확률 일괄 출력
+- **신뢰도 분석** (`reliability.py`)
+  - Cronbach's α 계수 및 95% 신뢰 구간
+  - 항목 제거 시 α(Alpha-if-deleted), 항목-전체 상관 일괄 출력
+  - Split-half 신뢰도, Guttman λ6 지원
+- **카이제곱 적합도 검정** (`chi_square_gof.py`)
+  - 관찰 빈도 vs. 균등·사용자 정의 기대 빈도 비교
+  - χ² 통계량, 자유도, p값, 잔차 출력
+- **ROC 분석** (`roc_analysis.py`)
+  - AUC와 95% 신뢰 구간(DeLong 방법)
+  - 최적 절단점 자동 탐색 (Youden Index)
+  - ROC 곡선 시각화 및 민감도·특이도 테이블
+- **민감도·특이도 분석** (`sensitivity_specificity.py`)
+  - 혼동 행렬(Confusion Matrix) 전체 지표 산출
+  - 양성·음성 우도비(Likelihood Ratio) 포함
+  - 95% 신뢰 구간(Clopper-Pearson) 자동 산출
+- **Cohen's Kappa** (`cohens_kappa.py`)
+  - 범주형 평가자 간 일치도(κ) 및 가중 Kappa
+  - 교차표 기반 관찰 일치율·기대 일치율 분해 출력
+- **급내상관계수 (ICC)** (`icc.py`)
+  - ICC(1,1), ICC(2,1), ICC(3,1) 유형 선택
+  - 95% 신뢰 구간 및 F 검정 포함
+- **블랜드-알트만 도표** (`bland_altman.py`)
+  - 평균 차이(Bias) 및 ±1.96 SD 일치 한계 산출
+  - 비례 편향(Proportional Bias) 회귀선 옵션
+
+**Engine 래퍼 클래스 6종 추가**
+
+- `TtestEngine`, `DescriptiveEngine`, `AnovaEngine`, `CorrelationEngine`, `RegressionEngine`, `FrequenciesEngine`
+- `AnalysisPlugin` 프로토콜을 완전히 준수하는 구조체 클래스
+- 분석 레지스트리 통합 완료
+
+### 개선
+
+**코드 품질**
+
+- ruff 정적 분석 위반 0건 달성 (F401, F841, E731, E741, W293 전수 수정)
+- `# pragma: no cover` 마킹으로 GUI 진입점 및 도달 불가 코드 명시 처리
+- `pyproject.toml` ruff 설정 `[tool.ruff.lint]` 섹션으로 마이그레이션
+
+**테스트 품질**
+
+- pytest 통과 건수: 2,988개 (이전 대비 +200건 이상)
+- 코드 커버리지: 98% 달성
+- 통합 테스트(`tests/integration/`) 신규 10개 분석 모듈 추가
+
+**문서**
+
+- 사용자 매뉴얼 v3.0.0: 편상관, 신뢰도, ROC, 민감도/특이도, Kappa, ICC, 블랜드-알트만, 기계학습, 탐색, 데이터 품질 진단 섹션 추가
+- README.md: MVP 16개 → 37개 분석 모듈 전체 목록으로 업데이트
+- 부록 B(FAQ) 신규 추가
+
+### 수정
+
+- `explore.py`: `MissingPolicy` 미사용 임포트 및 `missing_policy` 미사용 변수 블록 제거
+- `survival_analysis.py`: `alpha`, `sf`, `ci` 미사용 변수 제거
+- `logistic_regression.py`: 미사용 Wald p값 계산 블록 제거
+- `factor_analysis.py`: `total_var` 미사용 변수 제거
+- `discriminant_analysis.py`: E741 루프 변수명 충돌 수정
+
+---
+
 ## [v2.0.0] - 2026-05-19
 
 ### 추가

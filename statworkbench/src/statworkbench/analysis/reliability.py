@@ -5,13 +5,16 @@ SPSS Scale > Reliability Analysis 대응 모듈.
 
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
-from scipy import stats
 
-from statworkbench.core.dataset import Dataset
+from statworkbench.analysis.assumptions import get_cps_table_kr
+from statworkbench.analysis.formatting import format_number
 from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.core.dataset import Dataset
 
 
 def _cronbach_alpha(data: pd.DataFrame) -> float:
@@ -26,7 +29,7 @@ def _cronbach_alpha(data: pd.DataFrame) -> float:
     total_var = data.sum(axis=1).var(ddof=1)
     if total_var == 0:
         return np.nan
-    return (k / (k - 1)) * (1 - item_vars.sum() / total_var)
+    return float((k / (k - 1)) * (1 - item_vars.sum() / total_var))
 
 
 def _alpha_if_deleted(data: pd.DataFrame) -> pd.Series:
@@ -86,19 +89,14 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         return result
 
     k = data.shape[1]
-    alpha = _cronbach_alpha(data)
+    try:
+        alpha = _cronbach_alpha(data)
+    except Exception as exc:
+        result.add_warning(f"Cronbach's Alpha 계산 오류: {exc}")
+        return result
 
     # ── Case Processing Summary ──────────────────────────────
-    cps_df = pd.DataFrame({
-        "구분": ["유효", "제외됨", "합계"],
-        "N": [n_after, n_excluded, n_before],
-        "%": [
-            round(n_after / n_before * 100, 1),
-            round(n_excluded / n_before * 100, 1),
-            100.0,
-        ],
-    })
-    result.tables.append(ResultTable(title="Case Processing Summary", dataframe=cps_df))
+    result.tables.append(get_cps_table_kr(n_before, n_after, n_excluded))
 
     # ── Reliability Statistics ───────────────────────────────
     rel_df = pd.DataFrame({

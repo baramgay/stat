@@ -273,7 +273,7 @@ class TestResultTableStructure:
         assert len(cps.dataframe) == 3
         labels = cps.dataframe["구분"].tolist()
         assert "유효" in labels
-        assert "결측" in labels
+        assert "제외됨" in labels
         assert "합계" in labels
 
     def test_frequencies_columns(self, dice_dataset):
@@ -370,25 +370,25 @@ class TestMissingValues:
         result = run_analysis(missing_dataset, _spec(["cat"], listwise=True))
         cps = next(t for t in result.tables if t.title == "Case Processing Summary")
         valid_n = int(cps.dataframe.loc[cps.dataframe["구분"] == "유효", "N"].iloc[0])
-        excluded_n = int(cps.dataframe.loc[cps.dataframe["구분"] == "결측", "N"].iloc[0])
-        assert valid_n == 5   # 7 - 2개 결측
+        excluded_n = int(cps.dataframe.loc[cps.dataframe["구분"] == "제외됨", "N"].iloc[0])
+        assert valid_n == 5   # 7 - 2개 제외됨
         assert excluded_n == 2
 
     def test_case_processing_total(self, missing_dataset):
-        """합계 N = 유효 + 결측."""
+        """합계 N = 유효 + 제외됨."""
         result = run_analysis(missing_dataset, _spec(["cat"], listwise=True))
         cps = next(t for t in result.tables if t.title == "Case Processing Summary")
         valid_n = int(cps.dataframe.loc[cps.dataframe["구분"] == "유효", "N"].iloc[0])
-        excluded_n = int(cps.dataframe.loc[cps.dataframe["구분"] == "결측", "N"].iloc[0])
+        excluded_n = int(cps.dataframe.loc[cps.dataframe["구분"] == "제외됨", "N"].iloc[0])
         total_n = int(cps.dataframe.loc[cps.dataframe["구분"] == "합계", "N"].iloc[0])
         assert total_n == valid_n + excluded_n
 
     def test_percentage_sums_100(self, missing_dataset):
-        """유효% + 결측% = 100.0."""
+        """유효% + 제외됨% = 100.0."""
         result = run_analysis(missing_dataset, _spec(["cat"], listwise=True))
         cps = next(t for t in result.tables if t.title == "Case Processing Summary")
         pct_sum = cps.dataframe.loc[
-            cps.dataframe["구분"].isin(["유효", "결측"]), "%"
+            cps.dataframe["구분"].isin(["유효", "제외됨"]), "%"
         ].sum()
         assert abs(pct_sum - 100.0) < 0.1
 

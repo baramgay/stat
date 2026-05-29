@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.core.typing import MeasureType
 from statworkbench.analysis.base import AnalysisPlugin
-
+from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 
 # ---------------------------------------------------------------------------
 # Default variable-requirement templates
@@ -71,6 +70,10 @@ _VARIABLE_REQ_TEMPLATES: dict[str, list[dict]] = {
     "friedman": [
         {"role": "variables", "measure_types": ["ordinal", "scale"], "min_count": 3, "required": True},
     ],
+    "sensitivity_specificity": [
+        {"role": "outcome", "measure_types": ["binary", "nominal"], "min_count": 1, "max_count": 1, "required": True},
+        {"role": "predictor", "measure_types": ["binary", "nominal"], "min_count": 1, "max_count": 1, "required": True},
+    ],
     "pearson_correlation": [
         {"role": "variables", "measure_types": ["scale"], "min_count": 2, "required": True},
     ],
@@ -91,7 +94,7 @@ _VARIABLE_REQ_TEMPLATES: dict[str, list[dict]] = {
 _BUILTIN_ANALYSES: list[dict] = [
     {"id": "frequencies", "name": "Frequencies", "category": "Descriptive Statistics", "description": "Frequency tables for categorical variables.", "implemented": True},
     {"id": "descriptives", "name": "Descriptives", "category": "Descriptive Statistics", "description": "Descriptive statistics for scale variables.", "implemented": True},
-    {"id": "explore", "name": "Explore", "category": "Descriptive Statistics", "description": "Detailed examination of variables.", "implemented": False},
+    {"id": "explore", "name": "Explore", "category": "Descriptive Statistics", "description": "Detailed examination of variables.", "implemented": True},
     {"id": "crosstab", "name": "Crosstabs", "category": "Descriptive Statistics", "description": "Cross-tabulation and chi-square test.", "implemented": True},
     {"id": "one_sample_t_test", "name": "One-Sample T Test", "category": "Compare Means", "description": "Compare a sample mean to a known value.", "implemented": True},
     {"id": "independent_t_test", "name": "Independent-Samples T Test", "category": "Compare Means", "description": "Compare means of two independent groups.", "implemented": True},
@@ -101,10 +104,10 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "wilcoxon", "name": "Wilcoxon Signed-Rank", "category": "Nonparametric Tests", "description": "Non-parametric test for paired samples.", "implemented": True},
     {"id": "kruskal_wallis", "name": "Kruskal-Wallis", "category": "Nonparametric Tests", "description": "Non-parametric alternative to one-way ANOVA.", "implemented": True},
     {"id": "friedman", "name": "Friedman", "category": "Nonparametric Tests", "description": "Non-parametric test for repeated measures.", "implemented": True},
-    {"id": "chi_square_gof", "name": "Chi-Square Goodness-of-Fit", "category": "Nonparametric Tests", "description": "Test whether observed frequencies match expected.", "implemented": False},
+    {"id": "chi_square_gof", "name": "Chi-Square Goodness-of-Fit", "category": "Nonparametric Tests", "description": "Test whether observed frequencies match expected.", "implemented": True},
     {"id": "pearson_correlation", "name": "Bivariate (Pearson)", "category": "Correlate", "description": "Pearson correlation matrix.", "implemented": True},
     {"id": "spearman_correlation", "name": "Bivariate (Spearman)", "category": "Correlate", "description": "Spearman rank correlation matrix.", "implemented": True},
-    {"id": "partial_correlation", "name": "Partial", "category": "Correlate", "description": "Partial correlation.", "implemented": False},
+    {"id": "partial_correlation", "name": "Partial", "category": "Correlate", "description": "Partial correlation.", "implemented": True},
     {"id": "linear_regression", "name": "Linear", "category": "Regression", "description": "Linear regression analysis.", "implemented": True},
     {"id": "logistic_regression", "name": "Logistic", "category": "Regression", "description": "Binary and multinomial logistic regression with OR, CI, Hosmer-Lemeshow, ROC AUC.", "implemented": True},
     {"id": "factor_analysis", "name": "Factor Analysis / PCA", "category": "Dimension Reduction", "description": "Exploratory Factor Analysis and PCA with Varimax rotation, KMO, Bartlett's test.", "implemented": True},
@@ -112,14 +115,16 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "survival_analysis", "name": "Survival Analysis", "category": "Survival", "description": "Kaplan-Meier estimator, log-rank test, and Cox proportional hazards regression.", "implemented": True},
     {"id": "discriminant_analysis", "name": "Discriminant Analysis", "category": "Classification", "description": "Linear Discriminant Analysis with Wilks Lambda, classification matrix, structure matrix.", "implemented": True},
     {"id": "reliability", "name": "Reliability Analysis", "category": "Scale", "description": "Cronbach's alpha and reliability statistics.", "implemented": True},
-    {"id": "roc_analysis", "name": "ROC Analysis", "category": "Diagnostic Tests", "description": "Receiver operating characteristic analysis.", "implemented": False},
-    {"id": "sensitivity_specificity", "name": "Sensitivity/Specificity", "category": "Diagnostic Tests", "description": "Diagnostic accuracy measures.", "implemented": False},
+    {"id": "roc_analysis", "name": "ROC Analysis", "category": "Diagnostic Tests", "description": "Receiver operating characteristic analysis.", "implemented": True},
+    {"id": "sensitivity_specificity", "name": "Sensitivity/Specificity", "category": "Diagnostic Tests", "description": "Diagnostic accuracy measures.", "implemented": True},
     {"id": "kaplan_meier", "name": "Kaplan-Meier", "category": "Survival", "description": "Survival analysis with Kaplan-Meier estimator (use survival_analysis).", "implemented": False},
     {"id": "cox_regression", "name": "Cox Regression", "category": "Survival", "description": "Cox proportional hazards regression (use survival_analysis).", "implemented": False},
-    {"id": "cohens_kappa", "name": "Cohen's Kappa", "category": "Agreement", "description": "Measure of inter-rater agreement.", "implemented": False},
-    {"id": "icc", "name": "ICC", "category": "Agreement", "description": "Intraclass correlation coefficient.", "implemented": False},
-    {"id": "bland_altman", "name": "Bland-Altman", "category": "Agreement", "description": "Bland-Altman agreement analysis.", "implemented": False},
+    {"id": "cohens_kappa", "name": "Cohen's Kappa", "category": "Agreement", "description": "Measure of inter-rater agreement.", "implemented": True},
+    {"id": "icc", "name": "ICC", "category": "Agreement", "description": "Intraclass correlation coefficient.", "implemented": True},
+    {"id": "bland_altman", "name": "Bland-Altman", "category": "Agreement", "description": "Bland-Altman agreement analysis.", "implemented": True},
     {"id": "normality", "name": "Normality Tests", "category": "Descriptive Statistics", "description": "Shapiro-Wilk normality test.", "implemented": True},
+    {"id": "two_way_anova", "name": "Two-Way ANOVA", "category": "General Linear Model", "description": "이원분산분석: 주 효과·상호작용, 기술통계, Levene, η², Tukey HSD", "implemented": True},
+    {"id": "repeated_measures_anova", "name": "Repeated Measures ANOVA", "category": "General Linear Model", "description": "반복측정 ANOVA: Mauchly 구형성 검정, GG/HF 보정, 본페로니 쌍 비교", "implemented": True},
 ]
 
 
@@ -178,6 +183,8 @@ class AnalysisRegistry:
                     category=info["category"],
                     description=info["description"],
                 )
+        # Replace stubs with actual implementations for all known modules
+        _register_new_plugins(self)
 
     # ------------------------------------------------------------------
     # Registration
@@ -301,7 +308,7 @@ class AnalysisRegistry:
             return []
 
         # Gather measure types for selected variables
-        var_measures: dict[str, Optional[str]] = {}
+        var_measures: dict[str, str | None] = {}
         for v in var_names:
             meta = dataset.variables.get(v)
             if meta is not None:
@@ -325,7 +332,7 @@ class AnalysisRegistry:
     def _match_requirements(
         reqs: list[dict],
         var_names: list[str],
-        var_measures: dict[str, Optional[str]],
+        var_measures: dict[str, str | None],
     ) -> bool:
         """Check whether selected variables satisfy plugin requirements.
 
@@ -407,14 +414,14 @@ class _ModulePlugin:
         self.variable_requirements: list[dict] = _VARIABLE_REQ_TEMPLATES.get(plugin_id, [])
         self._module_path = module_path
         self._function_name = function_name
-        self._module = None
+        self._module: Any = None
 
     def _load(self) -> None:
         if self._module is None:
             import importlib
             self._module = importlib.import_module(self._module_path)
 
-    def validate(self, dataset: "Dataset", spec: dict) -> list[str]:
+    def validate(self, dataset: Dataset, spec: dict) -> list[str]:
         """Basic validation — returns empty list if variables are present."""
         errors: list[str] = []
         variables = spec.get("variables", {})
@@ -422,7 +429,7 @@ class _ModulePlugin:
             errors.append("분석 변수가 지정되지 않았습니다.")
         return errors
 
-    def run(self, dataset: "Dataset", spec: dict) -> "AnalysisResult":
+    def run(self, dataset: Dataset, spec: dict) -> AnalysisResult:
         """Delegate to the module's designated function."""
         self._load()
         fn = getattr(self._module, self._function_name)
@@ -548,6 +555,27 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="Agreement",
             description="Bland-Altman 일치도 분석: bias, LoA, 95% CI, 비례 오차 감지",
             module_path="statworkbench.analysis.bland_altman",
+        ),
+        _ModulePlugin(
+            plugin_id="sensitivity_specificity",
+            name="Sensitivity/Specificity",
+            category="Diagnostic Tests",
+            description="민감도/특이도/PPV/NPV/정확도/F1/LR+/LR-/Youden J/MCC/Kappa",
+            module_path="statworkbench.analysis.sensitivity_specificity",
+        ),
+        _ModulePlugin(
+            plugin_id="two_way_anova",
+            name="Two-Way ANOVA",
+            category="General Linear Model",
+            description="이원분산분석: 주 효과·상호작용 검정, 기술통계, Levene, η², Tukey HSD",
+            module_path="statworkbench.analysis.two_way_anova",
+        ),
+        _ModulePlugin(
+            plugin_id="repeated_measures_anova",
+            name="Repeated Measures ANOVA",
+            category="General Linear Model",
+            description="반복측정 ANOVA: Mauchly 구형성 검정, GG/HF 보정, 본페로니 쌍 비교",
+            module_path="statworkbench.analysis.repeated_measures_anova",
         ),
     ]
 

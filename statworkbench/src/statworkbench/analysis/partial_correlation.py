@@ -9,14 +9,17 @@ SPSS Analyze > Correlate > Partial 대응 모듈.
 
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from statworkbench.core.dataset import Dataset
+from statworkbench.analysis.assumptions import get_cps_table_kr
+from statworkbench.analysis.formatting import format_number
 from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_number, format_pvalue
-
+from statworkbench.core.dataset import Dataset
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 헬퍼 함수
@@ -84,8 +87,6 @@ def _calc_pvalue(r: float, df: int) -> float:
         return np.nan
     r_clipped = np.clip(r, -1.0 + 1e-12, 1.0 - 1e-12)
     denom = np.sqrt(1.0 - r_clipped ** 2)
-    if denom == 0:
-        return 0.0
     t_stat = r_clipped * np.sqrt(df) / denom
     return float(2.0 * stats.t.sf(abs(t_stat), df))
 
@@ -133,10 +134,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     # ── 데이터 준비 ──────────────────────────────────────────────
     data = dataset.data[all_needed].copy()
-    try:
-        data = data.apply(pd.to_numeric, errors="coerce")
-    except Exception:
-        pass
+    data = data.apply(pd.to_numeric, errors="coerce")
 
     n_before = len(data)
 
@@ -157,23 +155,24 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     k = len(controlling)          # 통제변수 수
     df_val = n_after - 2 - k     # 자유도
 
+    if df_val <= 0:
+        result.warnings.append(
+            f"자유도가 {df_val}입니다 (n={n_after}, 통제변수={k}개). "
+            "유효 케이스 수를 늘리거나 통제변수 수를 줄이세요. 유의확률은 NaN으로 표시됩니다."
+        )
+
     # ── 1. Case Processing Summary ───────────────────────────────
-    cps_df = pd.DataFrame({
-        "구분": ["유효", "제외됨", "합계"],
-        "N": [n_after, n_excluded, n_before],
-        "%": [
-            round(n_after / n_before * 100, 1),
-            round(n_excluded / n_before * 100, 1),
-            100.0,
-        ],
-    })
-    result.tables.append(ResultTable(title="Case Processing Summary", dataframe=cps_df))
+    result.tables.append(get_cps_table_kr(n_before, n_after, n_excluded))
 
     # ── 편상관행렬 계산 ──────────────────────────────────────────
-    partial_mat = _partial_corr_matrix(data_clean, target_vars, controlling)
+    try:
+        partial_mat = _partial_corr_matrix(data_clean, target_vars, controlling)
+        zero_mat = data_clean[target_vars].corr(method="pearson")
+    except Exception as exc:
+        result.add_warning(f"편상관 계산 오류: {exc}")
+        return result
 
     # ── 0차 상관행렬 (Pearson, 통제 전) ─────────────────────────
-    zero_mat = data_clean[target_vars].corr(method="pearson")
     zero_mat = zero_mat.reindex(index=target_vars, columns=target_vars)
 
     # ── 2. Partial Correlation 테이블 ────────────────────────────

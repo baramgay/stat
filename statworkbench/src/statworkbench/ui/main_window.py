@@ -1,4 +1,4 @@
-"""Main application window for StatWorkbench.
+﻿"""Main application window for StatWorkbench.
 
 SPSS 스타일 메뉴 구조:
 파일, 편집, 보기, 데이터, 변환, 분석, 차트, 유틸리티, 창, 도움말
@@ -9,42 +9,36 @@ SPSS 스타일 메뉴 구조:
 - 결과: 독립 창 (누적 출력)
 """
 
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QSplitter,
-    QTabWidget,
-    QLabel,
-    QStatusBar,
-    QToolBar,
-    QMenuBar,
-    QMenu,
-    QFileDialog,
-    QMessageBox,
     QApplication,
     QDialog,
-    QProgressDialog,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QSplitter,
+    QStatusBar,
+    QTabWidget,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QSettings, QTimer, QSize
-from PySide6.QtGui import QAction, QKeySequence, QFont, QFontDatabase
-from typing import Optional
 
-from statworkbench.core.project import Project
 from statworkbench.core.dataset import Dataset
+from statworkbench.core.project import Project
 from statworkbench.core.settings import SettingsManager
+from statworkbench.io.csv_reader import read_csv
+from statworkbench.io.excel_reader import read_excel
+from statworkbench.io.project_store import load_project, save_project
+from statworkbench.io.spss_reader import read_sav
 from statworkbench.ui.data_view import DataView
-from statworkbench.ui.variable_view import VariableView
 from statworkbench.ui.output_window import OutputWindow
 from statworkbench.ui.syntax_editor import SyntaxEditor
 from statworkbench.ui.theme import ThemeManager, ThemeMode, get_application_stylesheet
-from statworkbench.ui.icons import Icons
-from statworkbench.ui.dialogs.manual_data_dialog import ManualDataDialog
-from statworkbench.io.csv_reader import read_csv
-from statworkbench.io.excel_reader import read_excel
-from statworkbench.io.spss_reader import read_sav
-from statworkbench.io.project_store import save_project, load_project
+from statworkbench.ui.variable_view import VariableView
 
 
 class MainWindow(QMainWindow):
@@ -57,8 +51,8 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
 
         # 프로젝트 상태
-        self.project: Optional[Project] = None
-        self.current_dataset: Optional[Dataset] = None
+        self.project: Project | None = None
+        self.current_dataset: Dataset | None = None
 
         # 테마 설정
         self._theme_manager = ThemeManager()
@@ -68,7 +62,7 @@ class MainWindow(QMainWindow):
         self._settings = SettingsManager()
 
         # 결과 창 (단일 인스턴스)
-        self._output_window: Optional[OutputWindow] = None
+        self._output_window: OutputWindow | None = None
 
         self._setup_ui()
         self._setup_menus()
@@ -383,6 +377,7 @@ class MainWindow(QMainWindow):
         desc_menu.addAction(desc_action)
 
         explore_action = QAction("🔍 탐색...", self)
+        explore_action.triggered.connect(self._run_explore)
         desc_menu.addAction(explore_action)
 
         crosstab_action = QAction("📊 교차분석...", self)
@@ -413,6 +408,15 @@ class MainWindow(QMainWindow):
         anova_action.triggered.connect(self._run_anova)
         compare_menu.addAction(anova_action)
 
+        # GLM 서브메뉴 (이원분산분석, 반복측정)
+        glm_menu = analyze_menu.addMenu("📊 일반선형모형(&G)")
+        two_way_action = QAction("📊 이원분산분석(Univariate)...", self)
+        two_way_action.triggered.connect(self._run_two_way_anova)
+        glm_menu.addAction(two_way_action)
+        rm_action = QAction("🔄 반복측정...", self)
+        rm_action.triggered.connect(self._run_repeated_measures_anova)
+        glm_menu.addAction(rm_action)
+
         # 상관/회귀
         correlate_menu = analyze_menu.addMenu("🔗 상관(&C)")
 
@@ -421,6 +425,7 @@ class MainWindow(QMainWindow):
         correlate_menu.addAction(bivariate_corr_action)
 
         partial_corr_action = QAction("🔗 편상관...", self)
+        partial_corr_action.triggered.connect(self._run_partial_correlation)
         correlate_menu.addAction(partial_corr_action)
 
         regression_menu = analyze_menu.addMenu("📈 회귀(&R)")
@@ -467,6 +472,39 @@ class MainWindow(QMainWindow):
         nonparam_action = QAction("🧪 비모수 검정...", self)
         nonparam_action.triggered.connect(self._run_nonparametric)
         nonparam_menu.addAction(nonparam_action)
+
+        chi_gof_action = QAction("🧮 카이제곱 적합도...", self)
+        chi_gof_action.triggered.connect(self._run_chi_square_gof)
+        nonparam_menu.addAction(chi_gof_action)
+
+        # 진단 검정
+        diagnostic_menu = analyze_menu.addMenu("🔬 진단 검정(&T)")
+
+        roc_action = QAction("📈 ROC 분석...", self)
+        roc_action.triggered.connect(self._run_roc_analysis)
+        diagnostic_menu.addAction(roc_action)
+
+        # 일치도 분석
+        agreement_menu = analyze_menu.addMenu("✅ 일치도 분석(&G)")
+
+        kappa_action = QAction("κ Cohen's Kappa...", self)
+        kappa_action.triggered.connect(self._run_cohens_kappa)
+        agreement_menu.addAction(kappa_action)
+
+        icc_action = QAction("📊 급내 상관계수(ICC)...", self)
+        icc_action.triggered.connect(self._run_icc)
+        agreement_menu.addAction(icc_action)
+
+        ba_action = QAction("📉 Bland-Altman...", self)
+        ba_action.triggered.connect(self._run_bland_altman)
+        agreement_menu.addAction(ba_action)
+
+        # 척도 분석
+        scale_menu = analyze_menu.addMenu("📐 척도 분석(&S)")
+
+        reliability_action = QAction("🔁 신뢰도 분석(Cronbach α)...", self)
+        reliability_action.triggered.connect(self._run_reliability)
+        scale_menu.addAction(reliability_action)
 
         analyze_menu.addSeparator()
 
@@ -529,7 +567,7 @@ class MainWindow(QMainWindow):
         utilities_menu.addAction(define_sets_action)
 
         # 9. 창 메뉴
-        window_menu = menubar.addMenu("창(&W)")
+        menubar.addMenu("창(&W)")
 
         # 10. 도움말 메뉴
         help_menu = menubar.addMenu("도움말(&H)")
@@ -598,8 +636,13 @@ class MainWindow(QMainWindow):
         # 상태 메시지
         self.statusbar.showMessage("준비됨")
 
-        # 데이터셋 정보
-        self.dataset_info_label = QLabel("데이터셋: 없음")
+        # 마지막 분석 이름 (오른쪽 끝)
+        self._last_analysis_label = QLabel("")
+        self._last_analysis_label.setStyleSheet("color: gray; margin-right: 8px;")
+        self.statusbar.addPermanentWidget(self._last_analysis_label)
+
+        # 데이터셋 정보 (N=행 변수=열 형식)
+        self.dataset_info_label = QLabel("N=0  변수=0")
         self.statusbar.addPermanentWidget(self.dataset_info_label)
 
     def _update_statusbar(self) -> None:
@@ -607,12 +650,9 @@ class MainWindow(QMainWindow):
         if self.current_dataset:
             rows = len(self.current_dataset.data)
             cols = len(self.current_dataset.data.columns)
-            self.dataset_info_label.setText(
-                f"데이터셋: {self.current_dataset.name}  |  "
-                f"행: {rows:,}  |  열: {cols}"
-            )
+            self.dataset_info_label.setText(f"N={rows:,}  변수={cols}")
         else:
-            self.dataset_info_label.setText("데이터셋: 없음")
+            self.dataset_info_label.setText("N=0  변수=0")
 
     def _apply_theme(self) -> None:
         """테마 적용."""
@@ -1109,7 +1149,6 @@ class MainWindow(QMainWindow):
     def _on_bins_created(self, source_var: str, target_var: str, cut_points: list, labels: list) -> None:
         """구간화 완료 시."""
         import pandas as pd
-        import numpy as np
         try:
             series = self.current_dataset.data[source_var]
             binned = pd.cut(series, bins=cut_points, labels=labels, include_lowest=True)
@@ -1211,6 +1250,9 @@ class MainWindow(QMainWindow):
             self._output_window.add_output(result.to_html(), "analysis")
         except Exception:
             self._output_window.add_output(str(result), "analysis")
+        analysis_name = getattr(result, "title", "")
+        if analysis_name:
+            self._last_analysis_label.setText(f"최근 분석: {analysis_name}")
         self.statusbar.showMessage("분석 완료")
 
     def _on_legacy_analysis_completed(self, spec: dict) -> None:
@@ -1224,6 +1266,7 @@ class MainWindow(QMainWindow):
             import json
             displayable = {k: v for k, v in spec.items() if k not in ("correlation_matrix",)}
             self._output_window.add_output(f"<pre>{json.dumps(displayable, ensure_ascii=False, indent=2)}</pre>", "analysis")
+        self._last_analysis_label.setText(f"최근 분석: {analysis_type}")
         self.statusbar.showMessage(f"분석 완료: {analysis_type}")
 
     def _on_crosstab_completed(self, spec: dict) -> None:
@@ -1257,6 +1300,26 @@ class MainWindow(QMainWindow):
         from statworkbench.ui.dialogs.anova_dialog import ANOVADialog
         dialog = ANOVADialog(self.current_dataset, self)
         dialog.analysis_completed.connect(self._on_legacy_analysis_completed)
+        dialog.exec()
+
+    def _run_two_way_anova(self) -> None:
+        """이원분산분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.two_way_anova_dialog import TwoWayAnovaDialog
+        dialog = TwoWayAnovaDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_repeated_measures_anova(self) -> None:
+        """반복측정 ANOVA 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.repeated_measures_dialog import RepeatedMeasuresDialog
+        dialog = RepeatedMeasuresDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _run_correlation(self) -> None:
@@ -1426,6 +1489,7 @@ class MainWindow(QMainWindow):
             output = self._get_output()
             output.add_output(result.to_html(), "analysis")
 
+            self._last_analysis_label.setText(f"최근 분석: {analysis_type}")
             self.statusbar.showMessage(f"분석 완료: {analysis_type}")
         except Exception as exc:
             QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
@@ -1496,3 +1560,91 @@ class MainWindow(QMainWindow):
             "<p>SPSS 스타일 통계 분석 패키지</p>"
             "<p>Python + PySide6 기반</p>"
         )
+
+    def _run_explore(self) -> None:
+        """탐색 분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.explore_dialog import ExploreDialog
+        dialog = ExploreDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_partial_correlation(self) -> None:
+        """편상관 분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.partial_correlation_dialog import PartialCorrelationDialog
+        dialog = PartialCorrelationDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_chi_square_gof(self) -> None:
+        """카이제곱 적합도 검정 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.chi_square_gof_dialog import ChiSquareGOFDialog
+        dialog = ChiSquareGOFDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_roc_analysis(self) -> None:
+        """ROC 분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.roc_dialog import ROCDialog
+        dialog = ROCDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_cohens_kappa(self) -> None:
+        """Cohen's Kappa 분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.agreement_dialog import KappaDialog
+        dialog = KappaDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_icc(self) -> None:
+        """급내 상관계수(ICC) 분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.agreement_dialog import ICCDialog
+        dialog = ICCDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_bland_altman(self) -> None:
+        """Bland-Altman 분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.agreement_dialog import BlandAltmanDialog
+        dialog = BlandAltmanDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_reliability(self) -> None:
+        """신뢰도 분석(Cronbach α) 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.reliability_dialog import ReliabilityDialog
+        dialog = ReliabilityDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
