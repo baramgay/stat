@@ -129,6 +129,8 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "mixed_anova", "name": "Mixed ANOVA", "category": "General Linear Model", "description": "혼합 분산분석: 집단 간 × 집단 내 혼합 설계, Mauchly 구형성 검정, GG/HF 보정, 편 η², Bonferroni", "implemented": True},
     {"id": "manova", "name": "MANOVA", "category": "General Linear Model", "description": "다변량 분산분석: Pillai/Wilks/Hotelling/Roy 검정, 단변량 후속 검정, 편 η², 사후 검정", "implemented": True},
     {"id": "text_mining", "name": "Text Mining", "category": "Text Analysis", "description": "텍스트 마이닝: 단어 빈도, N-gram, TF-IDF, 워드클라우드", "implemented": True},
+    {"id": "pca", "name": "PCA (주성분분석)", "category": "Dimension Reduction", "description": "주성분분석: KMO/Bartlett, 공통성, 설명 분산, Varimax/Promax 회전, 스크리 플롯", "implemented": True},
+    {"id": "multinomial_logistic", "name": "Multinomial Logistic Regression", "category": "Regression", "description": "다항 로지스틱 회귀: 기준 범주 선택, Pseudo R², 모수 추정값, 분류표", "implemented": True},
 ]
 
 
@@ -608,6 +610,20 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="Text Analysis",
             description="텍스트 마이닝: 단어 빈도, N-gram, TF-IDF, 워드클라우드",
             module_path="statworkbench.analysis.text_mining",
+        ),
+        _ModulePlugin(
+            plugin_id="pca",
+            name="PCA (주성분분석)",
+            category="Dimension Reduction",
+            description="주성분분석: KMO/Bartlett, 공통성, 설명 분산, Varimax/Promax 회전, 스크리 플롯",
+            module_path="statworkbench.analysis.pca",
+        ),
+        _ModulePlugin(
+            plugin_id="multinomial_logistic",
+            name="Multinomial Logistic Regression",
+            category="Regression",
+            description="다항 로지스틱 회귀: 기준 범주 선택, Pseudo R², 모수 추정값, 분류표",
+            module_path="statworkbench.analysis.multinomial_logistic",
         ),
     ]
 

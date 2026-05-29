@@ -449,11 +449,18 @@ class MainWindow(QMainWindow):
         logistic_action.triggered.connect(self._run_logistic_regression)
         regression_menu.addAction(logistic_action)
 
+        multinomial_action = QAction("📊 다항 로지스틱...", self)
+        multinomial_action.triggered.connect(self._run_multinomial_logistic)
+        regression_menu.addAction(multinomial_action)
+
         # 차원 축소
         dim_reduce_menu = analyze_menu.addMenu("📉 차원 축소(&D)")
         factor_action = QAction("📉 요인분석...", self)
         factor_action.triggered.connect(self._run_factor_analysis)
         dim_reduce_menu.addAction(factor_action)
+        pca_action = QAction("📉 주성분분석 (PCA)...", self)
+        pca_action.triggered.connect(self._run_pca)
+        dim_reduce_menu.addAction(pca_action)
 
         # 군집
         cluster_menu = analyze_menu.addMenu("🔵 군집(&K)")
@@ -1355,6 +1362,26 @@ class MainWindow(QMainWindow):
             return
         from statworkbench.ui.dialogs.mixed_anova_dialog import MixedAnovaDialog
         dialog = MixedAnovaDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_pca(self) -> None:
+        """주성분분석(PCA) 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.pca_dialog import PcaDialog
+        dialog = PcaDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_multinomial_logistic(self) -> None:
+        """다항 로지스틱 회귀 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.multinomial_logistic_dialog import MultinomialLogisticDialog
+        dialog = MultinomialLogisticDialog(self.current_dataset, self)
         dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
@@ -34,6 +35,7 @@ class ResultTable(BaseModel):
     footnotes: list[str] = []
     format_rules: dict = {}
     export_options: dict = {}
+    metadata: dict = {}
 
     @field_serializer("dataframe")
     def serialize_dataframe(self, df: pd.DataFrame) -> dict[str, Any]:
@@ -46,9 +48,26 @@ class ResultTable(BaseModel):
 
     def to_html(self) -> str:
         """Render the table as HTML."""
-        html = f'<table class="result-table">\n'
+        img_type = self.metadata.get("type", "") if self.metadata else ""
+        if img_type in ("profile_plot", "wordcloud_image"):
+            try:
+                img_bytes = self.dataframe.iloc[0]["image_bytes"]
+                if img_bytes:
+                    b64 = base64.b64encode(bytes(img_bytes)).decode("utf-8")
+                    return (
+                        f'<div style="margin:8px 0;">'
+                        f'<h4 style="margin:4px 0;font-size:13px;">{self.title}</h4>'
+                        f'<img src="data:image/png;base64,{b64}" '
+                        f'style="max-width:100%;border:1px solid #ddd;border-radius:4px;"/>'
+                        f'</div>'
+                    )
+            except Exception:
+                pass  # 이미지 렌더링 실패 시 빈 내용 반환
+            return f'<p><em>[이미지: {self.title}]</em></p>'
+
+        html = '<table class="result-table">\n'
         html += f"<caption>{self.title}</caption>\n"
-        html += self.dataframe.to_html(index=True, border=0)
+        html += self.dataframe.to_html(index=True, border=0) or ""
         if self.footnotes:
             html += '<tfoot>\n'
             for note in self.footnotes:
@@ -61,7 +80,7 @@ class ResultTable(BaseModel):
     def to_markdown(self) -> str:
         """Render the table as Markdown."""
         md = f"### {self.title}\n\n"
-        md += self.dataframe.to_markdown(index=True)
+        md += self.dataframe.to_markdown(index=True) or ""
         if self.footnotes:
             md += "\n\n"
             for note in self.footnotes:
@@ -73,7 +92,7 @@ class ResultTable(BaseModel):
         opts = {"index": False}
         opts.update(self.export_options)
         opts.update(kwargs)
-        return self.dataframe.to_csv(**opts)
+        return self.dataframe.to_csv(**opts) or ""
 
 
 class AnalysisResult(BaseModel):
@@ -125,30 +144,42 @@ class AnalysisResult(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def add_table(self, table: ResultTable) -> "AnalysisResult":
+    def add_table(self, table: ResultTable) -> AnalysisResult:
         """Append a result table and return *self* for chaining."""
         self.tables.append(table)
         return self
 
-    def add_warning(self, message: str) -> "AnalysisResult":
+    def add_warning(self, message: str) -> AnalysisResult:
         """Append a warning and return *self* for chaining."""
         self.warnings.append(message)
         return self
 
-    def add_note(self, message: str) -> "AnalysisResult":
+    def add_note(self, message: str) -> AnalysisResult:
         """Append a note and return *self* for chaining."""
         self.notes.append(message)
         return self
 
-    def add_assumption(self, table: ResultTable) -> "AnalysisResult":
+    def add_assumption(self, table: ResultTable) -> AnalysisResult:
         """Append an assumption-check table and return *self*."""
         self.assumptions.append(table)
         return self
 
-    def add_diagnostic(self, table: ResultTable) -> "AnalysisResult":
+    def add_diagnostic(self, table: ResultTable) -> AnalysisResult:
         """Append a diagnostic table and return *self*."""
         self.diagnostics.append(table)
         return self
+
+    def to_html(self) -> str:
+        """Render all tables as concatenated HTML."""
+        parts = []
+        for table in self.tables:
+            parts.append(table.to_html())
+        for table in self.assumptions:
+            parts.append(table.to_html())
+        if self.warnings:
+            warn_html = "<ul>" + "".join(f"<li>{w}</li>" for w in self.warnings) + "</ul>"
+            parts.append(f"<div class='warnings'>{warn_html}</div>")
+        return "\n".join(parts)
 
     def summary(self) -> str:
         """Return a short text summary of the result."""
