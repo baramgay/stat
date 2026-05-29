@@ -220,6 +220,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     N = len(data)
     ss_total = float(data[dep_var].var(ddof=1) * (N - 1))
+    ss_error = float(anova_tbl.loc["Residual", "sum_sq"]) if "Residual" in anova_tbl.index else np.nan
 
     anova_rows = []
     source_map = {
@@ -248,7 +249,6 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 "p-value": "",
             }
         else:
-            eta2 = ss / ss_total if do_effect_size else None
             anova_row = {
                 "소스": src_label,
                 "SS": format_number(ss, 4),
@@ -258,7 +258,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 "p-value": format_pvalue(float(p_val)),
             }
             if do_effect_size:
-                anova_row["η²"] = format_number(eta2, 4)  # type: ignore[assignment]
+                # SPSS GLM은 편 η² (Partial Eta Squared)를 기본 출력
+                partial_eta2 = ss / (ss + ss_error) if (not np.isnan(ss_error) and ss_error > 0) else ss / ss_total
+                anova_row["편 η²"] = format_number(partial_eta2, 4)
 
         anova_rows.append(anova_row)
 
@@ -270,12 +272,13 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         "MS": "",
         "F": "",
         "p-value": "",
-        **({"η²": ""} if do_effect_size else {}),
+        **({"편 η²": ""} if do_effect_size else {}),
     })
 
     result.tables.append(ResultTable(
         title="Tests of Between-Subjects Effects",
         dataframe=pd.DataFrame(anova_rows),
+        footnotes=["편 η² (Partial Eta Squared) = SS_효과 / (SS_효과 + SS_오차). SPSS GLM 기본 출력과 동일."],
     ))
 
     # ── Table 5: Tukey HSD 사후 검정 (요인별) ────────────────────

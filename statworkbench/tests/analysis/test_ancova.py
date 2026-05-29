@@ -192,13 +192,13 @@ class TestANCovaStructure:
         ds = _make_standard()
         res = run_analysis(ds, _make_spec())
         tbl = _get_table(res, "Between-Subjects")
-        assert "η²" in tbl.dataframe.columns
+        assert "편 η²" in tbl.dataframe.columns
 
     def test_eta_squared_between_0_and_1(self):
         ds = _make_standard()
         res = run_analysis(ds, _make_spec())
         tbl = _get_table(res, "Between-Subjects")
-        for val in tbl.dataframe["η²"]:
+        for val in tbl.dataframe["편 η²"]:
             if str(val).strip() not in ("", "-"):
                 f = _float_val(val)
                 if not np.isnan(f):
@@ -323,7 +323,7 @@ class TestANCOVAOptions:
         ds = _make_standard()
         res = run_analysis(ds, spec)
         tbl = _get_table(res, "Between-Subjects")
-        assert "η²" not in tbl.dataframe.columns
+        assert "편 η²" not in tbl.dataframe.columns
 
     def test_no_posthoc_for_two_levels(self):
         """수준 2개이면 사후 검정 테이블 없음 (n_pairs=1, Bonferroni 불필요)."""

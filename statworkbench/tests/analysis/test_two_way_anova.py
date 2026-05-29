@@ -174,12 +174,20 @@ class TestTwoWayAnovaStatistics:
 
     def test_eta_squared_present(self):
         row = self._row("fb")
-        assert "η²" in row, "η² 열이 없음"
+        assert "편 η²" in row, "η² 열이 없음"
 
     def test_eta_squared_range(self):
         row = self._row("fb")
-        eta2 = _float_val(row["η²"])
+        eta2 = _float_val(row["편 η²"])
         assert 0 < eta2 <= 1.0
+
+    def test_partial_eta_squared_is_not_global_eta(self):
+        """편 η²_B = SS_B/(SS_B+SS_err) != SS_B/SS_total."""
+        row_b = self._row("fb")
+        partial = _float_val(row_b["편 η²"])
+        # SS_B=500, SS_err≈60, SS_total≈747.5
+        # global η² = 500/747.5 ≈ 0.669, partial η² = 500/560 ≈ 0.893
+        assert partial > 0.85, f"편 η² 값이 전체 η²에 가까움: {partial}"
 
     def test_corrected_total_df(self):
         row = self._row("수정 합계")
@@ -278,18 +286,18 @@ class TestEffectSize:
         spec["options"]["effect_size"] = False
         result = run_analysis(_additive_dataset(), spec)
         anova_tbl = next(t for t in result.tables if "Between-Subjects" in (t.title or ""))
-        assert "η²" not in anova_tbl.dataframe.columns
+        assert "편 η²" not in anova_tbl.dataframe.columns
 
-    def test_eta_squared_sum_le_1(self):
+    def test_each_partial_eta_between_0_and_1(self):
+        """편 η²는 각 효과별로 [0,1] 범위여야 함 (합계는 1 초과 가능)."""
         result = run_analysis(_additive_dataset(), _default_spec())
         anova_tbl = next(t for t in result.tables if "Between-Subjects" in (t.title or ""))
-        if "η²" in anova_tbl.dataframe.columns:
-            eta_vals = [
-                _float_val(v)
-                for v in anova_tbl.dataframe["η²"]
-                if str(v) not in ("", "-", "nan")
-            ]
-            assert sum(eta_vals) <= 1.0 + 1e-6
+        if "편 η²" in anova_tbl.dataframe.columns:
+            for v in anova_tbl.dataframe["편 η²"]:
+                if str(v) not in ("", "-", "nan"):
+                    val = _float_val(v)
+                    if not (val != val):  # not NaN
+                        assert 0.0 <= val <= 1.0, f"편 η² 범위 초과: {val}"
 
 
 # ── 빈 셀 경고 ───────────────────────────────────────────────────────────────

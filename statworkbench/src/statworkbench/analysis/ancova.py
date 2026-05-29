@@ -210,6 +210,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     N = len(dm)
     ss_total = float(dm[dep_s].var(ddof=1) * (N - 1))
+    ss_error = float(at.loc["Residual", "sum_sq"]) if "Residual" in at.index else np.nan
     df_err_val = int(at.loc["Residual", "df"]) if "Residual" in at.index else N - len(levels) - len(covariates) - 1
 
     ancova_rows = []
@@ -241,7 +242,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             "p-value": format_pvalue(float(p_val)) if not np.isnan(p_val) else "",
         }
         if do_effect_size and not np.isnan(f_val):
-            arow["η²"] = format_number(ss / ss_total, 4)
+            # SPSS GLM은 편 η² (Partial Eta Squared)를 기본 출력
+            partial_eta2 = ss / (ss + ss_error) if (not np.isnan(ss_error) and ss_error > 0) else ss / ss_total
+            arow["편 η²"] = format_number(partial_eta2, 4)
         ancova_rows.append(arow)
 
     ancova_rows.append({
@@ -251,11 +254,12 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         "MS": "",
         "F": "",
         "p-value": "",
-        **({"η²": ""} if do_effect_size else {}),
+        **({"편 η²": ""} if do_effect_size else {}),
     })
     result.tables.append(ResultTable(
         title="Tests of Between-Subjects Effects",
         dataframe=pd.DataFrame(ancova_rows),
+        footnotes=["편 η² (Partial Eta Squared) = SS_효과 / (SS_효과 + SS_오차). SPSS GLM 기본 출력과 동일."],
     ))
 
     # ── Table 6: 조정된 주변 평균 (EMM) ─────────────────────────
