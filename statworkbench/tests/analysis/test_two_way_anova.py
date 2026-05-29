@@ -276,6 +276,36 @@ class TestTukeyHSD:
         result = run_analysis(_additive_dataset(), spec)
         assert not any("Tukey" in (t.title or "") for t in result.tables)
 
+    def test_scheffe_produces_table(self):
+        spec = _default_spec()
+        spec["options"]["post_hoc_method"] = "scheffe"
+        result = run_analysis(_additive_dataset(), spec)
+        scheffe_tbls = [t for t in result.tables if "Scheffe" in (t.title or "")]
+        assert any("fb" in (t.title or "") for t in scheffe_tbls)
+
+    def test_bonferroni_produces_table(self):
+        spec = _default_spec()
+        spec["options"]["post_hoc_method"] = "bonferroni"
+        result = run_analysis(_additive_dataset(), spec)
+        bonf_tbls = [t for t in result.tables if "Bonferroni" in (t.title or "")]
+        assert any("fb" in (t.title or "") for t in bonf_tbls)
+
+    def test_lsd_produces_table(self):
+        spec = _default_spec()
+        spec["options"]["post_hoc_method"] = "lsd"
+        result = run_analysis(_additive_dataset(), spec)
+        lsd_tbls = [t for t in result.tables if "LSD" in (t.title or "")]
+        assert any("fb" in (t.title or "") for t in lsd_tbls)
+
+    def test_scheffe_pairwise_count(self):
+        """Scheffe도 3수준 → C(3,2)=3 쌍."""
+        spec = _default_spec()
+        spec["options"]["post_hoc_method"] = "scheffe"
+        result = run_analysis(_additive_dataset(), spec)
+        scheffe_fb = next((t for t in result.tables if "Scheffe" in (t.title or "") and "fb" in (t.title or "")), None)
+        assert scheffe_fb is not None
+        assert len(scheffe_fb.dataframe) == 3
+
 
 # ── 효과 크기 ─────────────────────────────────────────────────────────────────
 

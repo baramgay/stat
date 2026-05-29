@@ -5,6 +5,74 @@
 
 ---
 
+## [v3.2.0] - 2026-05-29
+
+### 추가
+
+- **Mixed ANOVA** (`mixed_anova.py`): 집단 간 × 집단 내 혼합 설계 분산분석
+  - 집단 간 효과, 집단 내(시점) 효과, 상호작용 효과 검정
+  - Mauchly 구형성 검정 + Greenhouse-Geisser / Huynh-Feldt 보정 (재사용)
+  - 편 η² (Partial Eta Squared)
+  - Bonferroni 사후 검정 (집단 간 ≥ 3, 시점 간 ≥ 3)
+  - GLM 메뉴 "혼합 분산분석(Mixed ANOVA)..." 추가
+- **Two-Way ANOVA 사후 검정 확장**: Tukey HSD 외 Scheffe / Bonferroni / LSD 선택 가능
+  - 대화상자에 사후 검정 방법 콤보박스 추가
+- **정규성 검정 메뉴** (`normality_dialog.py`): 기술통계 메뉴에 Shapiro-Wilk 접근 추가
+
+### SPSS 호환성 수정
+
+- **편 η² (Partial Eta Squared)**: Two-Way ANOVA, ANCOVA에서 전체 η² → 편 η²로 수정
+  - `편 η² = SS_효과 / (SS_효과 + SS_오차)` — SPSS GLM 기본 출력과 동일
+- **`discriminant_analysis.py`**: `dropna()` 후 인덱스 불일치 크래시 수정
+- **`logistic_regression.py`**: `"(상수)"` → `"(Constant)"` 일관성 수정
+
+### 테스트
+
+- Scheffe/Bonferroni/LSD 사후 검정 테스트 5개 추가 (`test_two_way_anova.py`)
+- 전체 테스트: **3,482+ 통과**
+
+---
+
+## [v3.1.3] - 2026-05-29
+
+### 추가
+
+- **정규성 검정 메뉴** (`normality_dialog.py`): Shapiro-Wilk 검정 대화상자 신규 작성, 기술통계 메뉴에 추가
+
+### 버그 수정 / 호환성
+
+- **`two_way_anova.py`, `ancova.py` η² → 편 η² (Partial Eta Squared)**
+  - SPSS GLM은 `편 η² = SS_효과/(SS_효과+SS_오차)`를 기본 출력 — 전체 η²에서 수정
+  - 테이블 컬럼명 `η²` → `편 η²`, 각주 추가
+- **`discriminant_analysis.py`**: `dropna()` 후 `y_encoded` 인덱스 불일치 크래시 수정 (길이 불일치 boolean indexing 오류 제거)
+- **`logistic_regression.py`**: `"(상수)"` → `"(Constant)"` (regression.py 와 일관성)
+- 연결 없는 `"평균..."` 메뉴 항목 제거
+
+### 분석 모듈 추가
+
+- **ANCOVA** (`ancova.py`): 공분산분석 — 공변량 조정 후 요인 효과 검정, Type III SS(Sum coding), EMM, Bonferroni 사후 검정, 편 η²
+- ANCOVA 대화상자 (`ancova_dialog.py`), GLM 메뉴 등록, 테스트 38개
+
+### 테스트
+
+- `test_ancova.py` 신규 (38개): 구조·통계·옵션·다중 공변량·입력 검증·결측 처리
+- 편 η² 변경으로 `test_two_way_anova.py` 테스트 개선 (합계≤1 → 개별 [0,1] 범위 검증)
+- 전체 테스트: **3,482 통과**
+
+---
+
+## [v3.1.2] - 2026-05-29
+
+### 추가 / 수정 (v3.1.1 이후)
+
+- `ancova.py`: ANCOVA 분석 모듈
+- `ancova_dialog.py`: ANCOVA 대화상자
+- `discriminant_analysis.py` 인덱스 버그 수정
+- `factor_analysis.py` 설명 분산 % 계산 오류 (`len` → `sum`)
+- `registry.py` ANCOVA 등록
+
+---
+
 ## [v3.1.1] - 2026-05-29
 
 ### 버그 수정

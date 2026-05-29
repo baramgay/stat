@@ -82,11 +82,18 @@ class TwoWayAnovaDialog(QDialog):
         opt_group = QGroupBox("옵션")
         opt_layout = QVBoxLayout(opt_group)
 
-        self.chk_post_hoc = QCheckBox("사후검정 (Tukey HSD) — 수준 ≥ 3인 요인에만 적용")
+        post_hoc_row = QHBoxLayout()
+        self.chk_post_hoc = QCheckBox("사후검정 — 수준 ≥ 3인 요인에만 적용:")
         self.chk_post_hoc.setChecked(True)
-        opt_layout.addWidget(self.chk_post_hoc)
+        post_hoc_row.addWidget(self.chk_post_hoc)
+        self.post_hoc_combo = QComboBox()
+        self.post_hoc_combo.addItems(["Tukey HSD", "Scheffe", "Bonferroni", "LSD"])
+        self.post_hoc_combo.setFixedWidth(120)
+        post_hoc_row.addWidget(self.post_hoc_combo)
+        post_hoc_row.addStretch()
+        opt_layout.addLayout(post_hoc_row)
 
-        self.chk_effect = QCheckBox("효과 크기 (η² Eta-squared)")
+        self.chk_effect = QCheckBox("효과 크기 (편 η² Partial Eta Squared)")
         self.chk_effect.setChecked(True)
         opt_layout.addWidget(self.chk_effect)
 
@@ -130,6 +137,7 @@ class TwoWayAnovaDialog(QDialog):
                 },
                 "options": {
                     "post_hoc": self.chk_post_hoc.isChecked(),
+                    "post_hoc_method": self.post_hoc_combo.currentText().lower().replace(" hsd", "").replace(" ", ""),
                     "effect_size": self.chk_effect.isChecked(),
                 },
                 "confidence_level": self.ci_spin.value(),

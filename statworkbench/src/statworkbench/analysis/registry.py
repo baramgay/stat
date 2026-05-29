@@ -126,6 +126,7 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "two_way_anova", "name": "Two-Way ANOVA", "category": "General Linear Model", "description": "이원분산분석: 주 효과·상호작용, 기술통계, Levene, η², Tukey HSD", "implemented": True},
     {"id": "repeated_measures_anova", "name": "Repeated Measures ANOVA", "category": "General Linear Model", "description": "반복측정 ANOVA: Mauchly 구형성 검정, GG/HF 보정, 본페로니 쌍 비교", "implemented": True},
     {"id": "ancova", "name": "ANCOVA", "category": "General Linear Model", "description": "공분산분석: 공변량 조정 요인 효과, EMM, Bonferroni 사후 검정, η²", "implemented": True},
+    {"id": "mixed_anova", "name": "Mixed ANOVA", "category": "General Linear Model", "description": "혼합 분산분석: 집단 간 × 집단 내 혼합 설계, Mauchly 구형성 검정, GG/HF 보정, 편 η², Bonferroni", "implemented": True},
 ]
 
 
@@ -584,6 +585,13 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="General Linear Model",
             description="공분산분석: 공변량 조정 후 요인 효과 검정, 조정된 주변 평균(EMM), Bonferroni 사후 검정, η²",
             module_path="statworkbench.analysis.ancova",
+        ),
+        _ModulePlugin(
+            plugin_id="mixed_anova",
+            name="Mixed ANOVA",
+            category="General Linear Model",
+            description="혼합 분산분석: 집단 간 × 집단 내 혼합 설계, Mauchly 구형성 검정, GG/HF 보정, 편 η², Bonferroni",
+            module_path="statworkbench.analysis.mixed_anova",
         ),
     ]
 

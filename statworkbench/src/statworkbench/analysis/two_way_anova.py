@@ -61,6 +61,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     factor_a: str = variables.get("factor_a", "")
     factor_b: str = variables.get("factor_b", "")
     do_post_hoc: bool = options.get("post_hoc", True)
+    post_hoc_method: str = options.get("post_hoc_method", "tukey").lower()  # tukey | scheffe | bonferroni | lsd
     do_effect_size: bool = options.get("effect_size", True)
 
     result = AnalysisResult(id="two_way_anova", title="Two-Way ANOVA")
@@ -281,33 +282,27 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         footnotes=["편 η² (Partial Eta Squared) = SS_효과 / (SS_효과 + SS_오차). SPSS GLM 기본 출력과 동일."],
     ))
 
-    # ── Table 5: Tukey HSD 사후 검정 (요인별) ────────────────────
+    # ── Table 5: 사후 검정 (요인별) ──────────────────────────────
     if do_post_hoc:
         for factor, levels in [(factor_a, levels_a), (factor_b, levels_b)]:
             if len(levels) < 3:
                 continue
             try:
-                tukey = pairwise_tukeyhsd(
-                    endog=data[dep_var].values,
-                    groups=data[factor].values,
-                    alpha=1 - confidence_level,
+                _run_post_hoc(
+                    result=result,
+                    data=data,
+                    dep_var=dep_var,
+                    factor=factor,
+                    levels=levels,
+                    method=post_hoc_method,
+                    confidence_level=confidence_level,
+                    ss_error=ss_error,
+                    df_error=int(anova_tbl.loc["Residual", "df"]) if "Residual" in anova_tbl.index else None,
                 )
-                tukey_df = pd.DataFrame(
-                    data=tukey._results_table.data[1:],
-                    columns=tukey._results_table.data[0],
-                )
-                tukey_df.columns = ["집단1", "집단2", "평균차", "p-adj", "CI 하한", "CI 상한", "유의"]
-                for col in ["평균차", "CI 하한", "CI 상한"]:
-                    tukey_df[col] = tukey_df[col].apply(lambda v: format_number(float(v), 4))
-                tukey_df["p-adj"] = tukey_df["p-adj"].apply(lambda v: format_pvalue(float(v)))
-                result.tables.append(ResultTable(
-                    title=f"Post-Hoc: Tukey HSD — {factor}",
-                    dataframe=tukey_df,
-                ))
             except Exception as exc:
-                result.warnings.append(f"Tukey HSD ({factor}) 오류: {exc}")
+                result.warnings.append(f"사후 검정 ({factor}) 오류: {exc}")
 
-    # ── 해석 메모 ────────────────────────────────────────────────
+    # ── 해석 메모 ─────────────────────────────────────────────────
     for src_key, src_label in source_map.items():
         if src_key not in anova_tbl.index or src_key == "Residual":
             continue
@@ -321,3 +316,91 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             )
 
     return result
+
+
+def _run_post_hoc(
+    result: AnalysisResult,
+    data: pd.DataFrame,
+    dep_var: str,
+    factor: str,
+    levels: list,
+    method: str,
+    confidence_level: float,
+    ss_error: float,
+    df_error: int | None,
+) -> None:
+    """요인별 사후 검정을 수행하고 ResultTable을 result에 추가합니다.
+
+    method: "tukey" | "scheffe" | "bonferroni" | "lsd"
+    """
+    from itertools import combinations
+
+    alpha = 1 - confidence_level
+    n_pairs = len(levels) * (len(levels) - 1) // 2
+    ms_error = ss_error / df_error if (df_error and df_error > 0) else np.nan
+
+    if method == "tukey":
+        tukey = pairwise_tukeyhsd(
+            endog=data[dep_var].values,
+            groups=data[factor].values,
+            alpha=alpha,
+        )
+        tukey_df = pd.DataFrame(
+            data=tukey._results_table.data[1:],
+            columns=tukey._results_table.data[0],
+        )
+        tukey_df.columns = ["집단1", "집단2", "평균차", "p-adj", "CI 하한", "CI 상한", "유의"]
+        for col in ["평균차", "CI 하한", "CI 상한"]:
+            tukey_df[col] = tukey_df[col].apply(lambda v: format_number(float(v), 4))
+        tukey_df["p-adj"] = tukey_df["p-adj"].apply(lambda v: format_pvalue(float(v)))
+        result.tables.append(ResultTable(
+            title=f"Post-Hoc: Tukey HSD — {factor}",
+            dataframe=tukey_df,
+            footnotes=["Tukey HSD: 집단 간 등분산 가정. p-adj는 Tukey 분포 기반 보정값."],
+        ))
+        return
+
+    # Scheffe / Bonferroni / LSD (공통 프레임워크)
+    rows = []
+    label = {"scheffe": "Scheffe", "bonferroni": "Bonferroni", "lsd": "LSD"}.get(method, method)
+    for la, lb in combinations(levels, 2):
+        grp_a = data[data[factor] == la][dep_var].dropna()
+        grp_b = data[data[factor] == lb][dep_var].dropna()
+        na, nb = len(grp_a), len(grp_b)
+        if na < 1 or nb < 1 or np.isnan(ms_error):
+            continue
+        mean_diff = float(grp_a.mean() - grp_b.mean())
+        se = np.sqrt(ms_error * (1 / na + 1 / nb))
+        t_stat = mean_diff / se if se > 0 else np.nan
+
+        if method == "scheffe":
+            k = len(levels)
+            f_stat = (t_stat ** 2) / (k - 1) if not np.isnan(t_stat) else np.nan
+            p_raw = float(1 - stats.f.cdf(f_stat, dfn=k - 1, dfd=df_error)) if not np.isnan(f_stat) else np.nan
+            f_crit = stats.f.ppf(1 - alpha, dfn=k - 1, dfd=df_error)
+            ci_half = np.sqrt((k - 1) * f_crit * ms_error * (1 / na + 1 / nb))
+        elif method == "bonferroni":
+            p_raw = float(2 * (1 - stats.t.cdf(abs(t_stat), df=df_error))) if not np.isnan(t_stat) else np.nan
+            p_raw = min(p_raw * n_pairs, 1.0) if not np.isnan(p_raw) else np.nan
+            t_crit = stats.t.ppf(1 - alpha / (2 * n_pairs), df=df_error)
+            ci_half = t_crit * se
+        else:  # lsd
+            p_raw = float(2 * (1 - stats.t.cdf(abs(t_stat), df=df_error))) if not np.isnan(t_stat) else np.nan
+            t_crit = stats.t.ppf(1 - alpha / 2, df=df_error)
+            ci_half = t_crit * se
+
+        rows.append({
+            "집단1": la,
+            "집단2": lb,
+            "평균차 (I-J)": format_number(mean_diff, 4),
+            "표준오차": format_number(se, 4),
+            "p-value": format_pvalue(p_raw) if not np.isnan(p_raw) else "-",
+            f"CI 하한 ({int(confidence_level*100)}%)": format_number(mean_diff - ci_half, 4),
+            f"CI 상한 ({int(confidence_level*100)}%)": format_number(mean_diff + ci_half, 4),
+        })
+
+    if rows:
+        result.tables.append(ResultTable(
+            title=f"Post-Hoc: {label} — {factor}",
+            dataframe=pd.DataFrame(rows),
+        ))

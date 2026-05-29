@@ -420,6 +420,9 @@ class MainWindow(QMainWindow):
         ancova_action = QAction("📊 ANCOVA(공분산분석)...", self)
         ancova_action.triggered.connect(self._run_ancova)
         glm_menu.addAction(ancova_action)
+        mixed_anova_action = QAction("🔀 혼합 분산분석(Mixed ANOVA)...", self)
+        mixed_anova_action.triggered.connect(self._run_mixed_anova)
+        glm_menu.addAction(mixed_anova_action)
 
         # 상관/회귀
         correlate_menu = analyze_menu.addMenu("🔗 상관(&C)")
@@ -1333,6 +1336,16 @@ class MainWindow(QMainWindow):
             return
         from statworkbench.ui.dialogs.repeated_measures_dialog import RepeatedMeasuresDialog
         dialog = RepeatedMeasuresDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_mixed_anova(self) -> None:
+        """혼합 분산분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.mixed_anova_dialog import MixedAnovaDialog
+        dialog = MixedAnovaDialog(self.current_dataset, self)
         dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
