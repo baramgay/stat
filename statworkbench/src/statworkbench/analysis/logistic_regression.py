@@ -11,24 +11,25 @@ Supports binary and multinomial logistic regression with:
 
 from __future__ import annotations
 
-from typing import Optional
-
+import logging
 import numpy as np
 import pandas as pd
-from scipy import stats
 import statsmodels.api as sm
+from scipy import stats
+
+logger = logging.getLogger(__name__)
 
 try:
-    from sklearn.metrics import roc_auc_score, confusion_matrix
+    from sklearn.metrics import confusion_matrix, roc_auc_score  # noqa: F401
     _SKLEARN_AVAILABLE = True
 except ImportError:
     _SKLEARN_AVAILABLE = False
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.core.typing import MissingPolicy, MeasureType
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_number, format_pvalue
 from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
+from statworkbench.core.dataset import Dataset
+from statworkbench.core.typing import MeasureType, MissingPolicy
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
@@ -65,7 +66,12 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     )
 
     all_vars = [dep_var] + predictors
-    prepared = prepare_analysis_frame(dataset, variables=all_vars, missing_policy=missing_policy)
+    try:
+        prepared = prepare_analysis_frame(dataset, variables=all_vars, missing_policy=missing_policy)
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
+
     df = prepared.data
 
     # Case Processing Summary
@@ -93,17 +99,20 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         result.warnings.append("예측변수 행렬을 구성할 수 없습니다.")
         return result
 
-    X = sm.add_constant(X_df.values.astype(float))
-    col_names = ["(상수)"] + list(X_df.columns)
+    try:
+        X = sm.add_constant(X_df.values.astype(float))
+        col_names = ["(Constant)"] + list(X_df.columns)
 
-    if n_classes == 2 or method == "binary":
-        _run_binary_logistic(
-            result, X, y_codes, y, col_names, confidence_level, class_labels
-        )
-    else:
-        _run_multinomial_logistic(
-            result, X, y_codes, y, col_names, confidence_level, class_labels
-        )
+        if n_classes == 2 or method == "binary":
+            _run_binary_logistic(
+                result, X, y_codes, y, col_names, confidence_level, class_labels
+            )
+        else:
+            _run_multinomial_logistic(
+                result, X, y_codes, y, col_names, confidence_level, class_labels
+            )
+    except Exception as exc:
+        result.add_warning(f"로지스틱 회귀 계산 오류: {exc}")
 
     return result
 
@@ -191,7 +200,6 @@ def _run_binary_logistic(
         b = fitted.params[i]
         se = fitted.bse[i]
         wald = (b / se) ** 2 if se > 0 else np.nan
-        wald_p = 1 - stats.chi2.cdf(wald, df=1) if not np.isnan(wald) else np.nan
         p = fitted.pvalues[i]
         or_val = np.exp(b)
         ci_lo = np.exp(conf_int.iloc[i, 0]) if hasattr(conf_int, "iloc") else np.exp(conf_int[i, 0])
@@ -204,8 +212,8 @@ def _run_binary_logistic(
             "df": "1",
             "p-value": format_pvalue(p),
             "OR (Exp(B))": format_number(or_val, 3),
-            f"95% CI 하한": format_number(ci_lo, 3),
-            f"95% CI 상한": format_number(ci_hi, 3),
+            "95% CI 하한": format_number(ci_lo, 3),
+            "95% CI 상한": format_number(ci_hi, 3),
         })
     result.add_table(ResultTable(
         title="계수표 (Coefficients)",
@@ -219,30 +227,27 @@ def _run_binary_logistic(
     labels = [str(class_labels[i]) for i in range(len(class_labels))]
 
     if _SKLEARN_AVAILABLE:
-        from sklearn.metrics import roc_auc_score as _roc_auc, confusion_matrix as _cm
+        from sklearn.metrics import confusion_matrix as _cm
+        from sklearn.metrics import roc_auc_score as _roc_auc
         cm = _cm(y_codes, pred_class)
-        if cm.shape == (2, 2):
-            tn, fp, fn, tp = cm.ravel()
-            accuracy = (tp + tn) / n * 100
-            sensitivity = tp / (tp + fn) * 100 if (tp + fn) > 0 else np.nan
-            specificity = tn / (tn + fp) * 100 if (tn + fp) > 0 else np.nan
-            class_rows = [
-                {"구분": f"실제 {labels[0] if labels else '0'}", "예측 0": tn, "예측 1": fp, "정확도(행)": f"{tn/(tn+fp)*100:.1f}%" if (tn+fp) > 0 else ""},
-                {"구분": f"실제 {labels[1] if len(labels) > 1 else '1'}", "예측 0": fn, "예측 1": tp, "정확도(행)": f"{tp/(fn+tp)*100:.1f}%" if (fn+tp) > 0 else ""},
-                {"구분": "전체 정확도", "예측 0": "", "예측 1": "", "정확도(행)": f"{accuracy:.1f}%"},
-            ]
-            result.add_table(ResultTable(
-                title="분류표 (Classification Table)",
-                dataframe=pd.DataFrame(class_rows),
-                footnotes=[
-                    f"민감도(Sensitivity): {format_number(sensitivity, 1)}%",
-                    f"특이도(Specificity): {format_number(specificity, 1)}%",
-                    "분류 기준값 = 0.5",
-                ],
-            ))
-        else:
-            cm_df = pd.DataFrame(cm, index=[f"실제 {l}" for l in labels], columns=[f"예측 {l}" for l in labels])
-            result.add_table(ResultTable(title="분류표 (Classification Table)", dataframe=cm_df))
+        tn, fp, fn, tp = cm.ravel()
+        accuracy = (tp + tn) / n * 100
+        sensitivity = tp / (tp + fn) * 100 if (tp + fn) > 0 else np.nan
+        specificity = tn / (tn + fp) * 100 if (tn + fp) > 0 else np.nan
+        class_rows = [
+            {"구분": f"실제 {labels[0] if labels else '0'}", "예측 0": tn, "예측 1": fp, "정확도(행)": f"{tn/(tn+fp)*100:.1f}%" if (tn+fp) > 0 else ""},
+            {"구분": f"실제 {labels[1] if len(labels) > 1 else '1'}", "예측 0": fn, "예측 1": tp, "정확도(행)": f"{tp/(fn+tp)*100:.1f}%" if (fn+tp) > 0 else ""},
+            {"구분": "전체 정확도", "예측 0": "", "예측 1": "", "정확도(행)": f"{accuracy:.1f}%"},
+        ]
+        result.add_table(ResultTable(
+            title="분류표 (Classification Table)",
+            dataframe=pd.DataFrame(class_rows),
+            footnotes=[
+                f"민감도(Sensitivity): {format_number(sensitivity, 1)}%",
+                f"특이도(Specificity): {format_number(specificity, 1)}%",
+                "분류 기준값 = 0.5",
+            ],
+        ))
 
         # ROC AUC
         try:
@@ -258,8 +263,8 @@ def _run_binary_logistic(
                     dataframe=auc_df,
                     footnotes=["AUC > 0.8: 우수, 0.7-0.8: 양호, 0.6-0.7: 보통"],
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("ROC/분류표 계산 실패: %s", exc)
     else:
         # Manual classification table without sklearn
         _manual_classification_table(result, y_codes, pred_class, pred_prob, labels, n)
@@ -310,15 +315,15 @@ def _manual_classification_table(
                     fpr_list.append(fp / neg)
                 tpr_list.append(1.0)
                 fpr_list.append(1.0)
-                auc = float(np.trapz(tpr_list, fpr_list))
+                auc = float(np.trapezoid(tpr_list, fpr_list))
                 auc_df = pd.DataFrame([{
                     "통계량": "ROC AUC (근사)",
                     "값": format_number(abs(auc), 3),
                     "해석": "우수" if abs(auc) >= 0.8 else ("양호" if abs(auc) >= 0.7 else "보통"),
                 }])
                 result.add_table(ResultTable(title="ROC 분석 (근사)", dataframe=auc_df))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("ROC 근사 계산 실패: %s", exc)
 
 
 def _hosmer_lemeshow_test(
@@ -329,7 +334,6 @@ def _hosmer_lemeshow_test(
 ) -> None:
     """Compute Hosmer-Lemeshow goodness-of-fit test."""
     try:
-        n = len(y_true)
         df_hl = pd.DataFrame({"y": y_true, "prob": pred_prob})
         df_hl["decile"] = pd.qcut(df_hl["prob"], q=n_groups, duplicates="drop", labels=False)
 
@@ -375,7 +379,6 @@ def _run_multinomial_logistic(
     class_labels: np.ndarray,
 ) -> None:
     """Fit multinomial logistic regression."""
-    alpha = 1 - confidence_level
     try:
         model = sm.MNLogit(y_codes, X)
         fitted = model.fit(disp=False, maxiter=200)

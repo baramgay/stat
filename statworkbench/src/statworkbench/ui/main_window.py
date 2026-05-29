@@ -200,8 +200,8 @@ class MainWindow(QMainWindow):
         import_clipboard_action.triggered.connect(self._import_clipboard)
         import_menu.addAction(import_clipboard_action)
 
-        # 납비 서브메뉴
-        export_menu = file_menu.addMenu("📤 납비(&X)")
+        # 내보내기 서브메뉴
+        export_menu = file_menu.addMenu("📤 내보내기(&X)")
 
         export_csv_action = QAction("📄 CSV 파일...", self)
         export_csv_action.triggered.connect(self._export_csv)
@@ -372,7 +372,7 @@ class MainWindow(QMainWindow):
         desc_menu.addAction(freq_action)
 
         desc_action = QAction("📈 기술통계량...", self)
-        desc_action.setShortcut("Ctrl+Shift+D")
+        desc_action.setShortcut("Ctrl+Shift+U")
         desc_action.triggered.connect(self._run_descriptives)
         desc_menu.addAction(desc_action)
 
@@ -416,6 +416,9 @@ class MainWindow(QMainWindow):
         rm_action = QAction("🔄 반복측정...", self)
         rm_action.triggered.connect(self._run_repeated_measures_anova)
         glm_menu.addAction(rm_action)
+        ancova_action = QAction("📊 ANCOVA(공분산분석)...", self)
+        ancova_action.triggered.connect(self._run_ancova)
+        glm_menu.addAction(ancova_action)
 
         # 상관/회귀
         correlate_menu = analyze_menu.addMenu("🔗 상관(&C)")
@@ -760,9 +763,9 @@ class MainWindow(QMainWindow):
         output.add_output("🔀 데이터 정렬이 적용되었습니다.", "success")
 
     def _export_sav(self) -> None:
-        """SPSS .sav 납비."""
+        """SPSS .sav 내보내기."""
         if self.current_dataset is None:
-            QMessageBox.warning(self, "경고", "납비 데이터가 없습니다.")
+            QMessageBox.warning(self, "경고", "내보내기 데이터가 없습니다.")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -883,7 +886,7 @@ class MainWindow(QMainWindow):
         """구문 실행 완료 시."""
         self.statusbar.showMessage("구문이 실행되었습니다.")
 
-    # ── 파일 가져오기/납비 ────────────────────────────────────────────────
+    # ── 파일 가져오기/내보내기 ────────────────────────────────────────────────
 
     def _import_csv(self) -> None:
         """CSV 가져오기."""
@@ -947,9 +950,9 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "오류", f"클립보드 가져오기 실패:\n{exc}")
 
     def _export_csv(self) -> None:
-        """CSV 납비."""
+        """CSV 내보내기."""
         if self.current_dataset is None:
-            QMessageBox.warning(self, "경고", "납비 데이터가 없습니다.")
+            QMessageBox.warning(self, "경고", "내보내기 데이터가 없습니다.")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -963,9 +966,9 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "오류", f"CSV 저장 실패:\n{exc}")
 
     def _export_excel(self) -> None:
-        """Excel 납비."""
+        """Excel 내보내기."""
         if self.current_dataset is None:
-            QMessageBox.warning(self, "경고", "납비 데이터가 없습니다.")
+            QMessageBox.warning(self, "경고", "내보내기 데이터가 없습니다.")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -1319,6 +1322,16 @@ class MainWindow(QMainWindow):
             return
         from statworkbench.ui.dialogs.repeated_measures_dialog import RepeatedMeasuresDialog
         dialog = RepeatedMeasuresDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_ancova(self) -> None:
+        """ANCOVA 공분산분석 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.ancova_dialog import AncovaDialog
+        dialog = AncovaDialog(self.current_dataset, self)
         dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 

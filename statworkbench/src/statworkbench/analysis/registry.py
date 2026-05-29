@@ -125,6 +125,7 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "normality", "name": "Normality Tests", "category": "Descriptive Statistics", "description": "Shapiro-Wilk normality test.", "implemented": True},
     {"id": "two_way_anova", "name": "Two-Way ANOVA", "category": "General Linear Model", "description": "이원분산분석: 주 효과·상호작용, 기술통계, Levene, η², Tukey HSD", "implemented": True},
     {"id": "repeated_measures_anova", "name": "Repeated Measures ANOVA", "category": "General Linear Model", "description": "반복측정 ANOVA: Mauchly 구형성 검정, GG/HF 보정, 본페로니 쌍 비교", "implemented": True},
+    {"id": "ancova", "name": "ANCOVA", "category": "General Linear Model", "description": "공분산분석: 공변량 조정 요인 효과, EMM, Bonferroni 사후 검정, η²", "implemented": True},
 ]
 
 
@@ -576,6 +577,13 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="General Linear Model",
             description="반복측정 ANOVA: Mauchly 구형성 검정, GG/HF 보정, 본페로니 쌍 비교",
             module_path="statworkbench.analysis.repeated_measures_anova",
+        ),
+        _ModulePlugin(
+            plugin_id="ancova",
+            name="ANCOVA",
+            category="General Linear Model",
+            description="공분산분석: 공변량 조정 후 요인 효과 검정, 조정된 주변 평균(EMM), Bonferroni 사후 검정, η²",
+            module_path="statworkbench.analysis.ancova",
         ),
     ]
 

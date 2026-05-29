@@ -10,11 +10,12 @@ Supports:
 
 from __future__ import annotations
 
-from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
-from scipy import linalg, stats
+from scipy import stats
 
 try:
     from sklearn.decomposition import PCA, FactorAnalysis
@@ -22,11 +23,11 @@ try:
 except ImportError:
     _SKLEARN_AVAILABLE = False
 
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_number, format_pvalue
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
@@ -69,7 +70,12 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         result.warnings.append("요인분석에는 2개 이상의 변수가 필요합니다.")
         return result
 
-    prepared = prepare_analysis_frame(dataset, variables=var_list, missing_policy=missing_policy)
+    try:
+        prepared = prepare_analysis_frame(dataset, variables=var_list, missing_policy=missing_policy)
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
+
     df = prepared.data
 
     result.add_table(get_case_processing_summary(
@@ -80,31 +86,34 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         result.warnings.append("유효 관측치 수가 변수 수보다 작습니다. 분석이 불안정할 수 있습니다.")
         return result
 
-    X = df[var_list].values.astype(float)
-    n_obs, n_vars = X.shape
+    try:
+        X = df[var_list].values.astype(float)
+        n_obs, n_vars = X.shape
 
-    # KMO and Bartlett's test
-    _add_kmo_bartlett(result, X, var_list, n_obs)
+        # KMO and Bartlett's test
+        _add_kmo_bartlett(result, X, var_list, n_obs)
 
-    # Determine number of factors/components
-    if isinstance(n_factors_opt, int):
-        n_factors = min(n_factors_opt, n_vars)
-    else:
-        n_factors = _auto_n_factors(X)
+        # Determine number of factors/components
+        if isinstance(n_factors_opt, int):
+            n_factors = min(n_factors_opt, n_vars)
+        else:
+            n_factors = _auto_n_factors(X)
 
-    n_factors = max(1, min(n_factors, n_vars - 1))
+        n_factors = max(1, min(n_factors, n_vars - 1))
 
-    if not _SKLEARN_AVAILABLE:
-        result.warnings.append(
-            "scikit-learn이 설치되지 않아 PCA/EFA를 실행할 수 없습니다. "
-            "'pip install scikit-learn'을 실행하세요."
-        )
-        return result
+        if not _SKLEARN_AVAILABLE:
+            result.warnings.append(
+                "scikit-learn이 설치되지 않아 PCA/EFA를 실행할 수 없습니다. "
+                "'pip install scikit-learn'을 실행하세요."
+            )
+            return result
 
-    if method == "pca":
-        _run_pca(result, X, var_list, n_factors, rotation)
-    else:
-        _run_efa(result, X, var_list, n_factors, rotation)
+        if method == "pca":
+            _run_pca(result, X, var_list, n_factors, rotation)
+        else:
+            _run_efa(result, X, var_list, n_factors, rotation)
+    except Exception as exc:
+        result.add_warning(f"요인분석 계산 오류: {exc}")
 
     return result
 
@@ -201,8 +210,9 @@ def _run_pca(
 
     scree_rows = []
     cum_pct = 0.0
+    total_ev = float(sum(eigenvalues_all))
     for i, ev in enumerate(eigenvalues_all):
-        pct = ev / len(eigenvalues_all) * 100
+        pct = (ev / total_ev * 100) if total_ev > 0 else 0.0
         cum_pct += pct
         scree_rows.append({
             "성분": i + 1,
@@ -265,8 +275,9 @@ def _run_efa(
 
     scree_rows = []
     cum_pct = 0.0
+    total_ev = float(sum(eigenvalues_all))
     for i, ev in enumerate(eigenvalues_all):
-        pct = ev / len(eigenvalues_all) * 100
+        pct = (ev / total_ev * 100) if total_ev > 0 else 0.0
         cum_pct += pct
         scree_rows.append({
             "요인": i + 1,
@@ -303,7 +314,6 @@ def _run_efa(
 
     # Factor variance contribution
     factor_var_rows = []
-    total_var = float(np.sum(loadings ** 2))
     for j in range(n_factors):
         col_ss = float(np.sum(loadings[:, j] ** 2))
         pct = col_ss / len(var_list) * 100

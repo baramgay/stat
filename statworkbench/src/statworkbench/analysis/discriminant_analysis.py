@@ -10,25 +10,26 @@ Supports:
 
 from __future__ import annotations
 
-from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
-from scipy import linalg, stats
+from scipy import stats
 
 try:
     from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-    from sklearn.metrics import confusion_matrix, accuracy_score
+    from sklearn.metrics import accuracy_score, confusion_matrix
     from sklearn.preprocessing import LabelEncoder
     _SKLEARN_AVAILABLE = True
 except ImportError:
     _SKLEARN_AVAILABLE = False
 
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_number, format_pvalue, format_ci
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
@@ -51,7 +52,6 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     """
     variables = spec.get("variables", {})
     options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
     missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
     if isinstance(missing_policy_str, str):
         missing_policy = MissingPolicy(missing_policy_str)
@@ -80,7 +80,11 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         return result
 
     all_vars = [dep_var] + predictors
-    prepared = prepare_analysis_frame(dataset, variables=all_vars, missing_policy=missing_policy)
+    try:
+        prepared = prepare_analysis_frame(dataset, variables=all_vars, missing_policy=missing_policy)
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
     df = prepared.data
 
     result.add_table(get_case_processing_summary(
@@ -107,9 +111,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     for col in predictors:
         X_df[col] = pd.to_numeric(X_df[col], errors="coerce")
     X_df = X_df.dropna()
-    y_encoded = y_encoded[X_df.index.isin(df.index)]
 
-    # Realign after dropna
+    # Realign y to rows that survived dropna
     idx = X_df.index
     y_encoded_aligned = le.transform(df.loc[idx, dep_var])
     X = X_df.values.astype(float)
@@ -299,7 +302,6 @@ def _add_classification_functions(
     """Compute Fisher's linear classification function coefficients."""
     try:
         # Pooled within-group covariance
-        overall_mean = X.mean(axis=0)
         p = X.shape[1]
         S_W = np.zeros((p, p))
         group_means = []
@@ -355,7 +357,7 @@ def _add_classification_table(
     """Add classification result matrix and overall accuracy."""
     cm = confusion_matrix(y_true, y_pred)
     n = len(y_true)
-    labels_str = [str(l) for l in class_labels]
+    labels_str = [str(lbl) for lbl in class_labels]
 
     cm_data = []
     for i, label in enumerate(labels_str):
