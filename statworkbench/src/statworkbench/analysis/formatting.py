@@ -6,7 +6,7 @@ Implements the p-value display rules from HERMES.md §12.2 and §16.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 # p-value formatting
 # ---------------------------------------------------------------------------
 
-def get_display_decimals(dataset: "Dataset", var: str, extra: int = 0) -> int:
+def get_display_decimals(dataset: Dataset, var: str, extra: int = 0) -> int:
     """Return the number of decimal places for displaying *var*'s statistics.
 
     Uses variable's ``decimals`` metadata if available, capped at minimum 2.
@@ -29,7 +29,7 @@ def get_display_decimals(dataset: "Dataset", var: str, extra: int = 0) -> int:
     return base + extra
 
 
-def format_pvalue(p: Union[float, None]) -> str:
+def format_pvalue(p: float | None) -> str:
     """Format a p-value according to HERMES.md rules.
 
     Rules
@@ -51,12 +51,16 @@ def format_pvalue(p: Union[float, None]) -> str:
     """
     if p is None:
         return ""
-    if isinstance(p, float) and (math.isnan(p) or np.isnan(p)):
+    try:
+        p = float(p)
+    except (TypeError, ValueError):
         return ""
-    p = float(p)
+    if math.isnan(p) or math.isinf(p):
+        return ""
     if p < 0.0:
-        # Guard against numerical underflow reported as negative
         p = 0.0
+    if p > 1.0:
+        p = 1.0
     if p < 0.001:
         return "< .001"
     if p >= 1.0:
@@ -72,7 +76,7 @@ def format_pvalue(p: Union[float, None]) -> str:
 # Number formatting
 # ---------------------------------------------------------------------------
 
-def format_number(x: Union[float, None], decimals: int = 3) -> str:
+def format_number(x: float | None, decimals: int = 3) -> str:
     """Format a number with *decimals* decimal places.
 
     Parameters
@@ -86,20 +90,27 @@ def format_number(x: Union[float, None], decimals: int = 3) -> str:
     -------
     str
         Formatted number, or empty string if *x* is None/NaN.
+        Infinity is rendered as "∞" or "-∞".
     """
     if x is None:
         return ""
-    if isinstance(x, float) and (math.isnan(x) or np.isnan(x)):
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
         return ""
+    if math.isnan(x):
+        return ""
+    if math.isinf(x):
+        return "∞" if x > 0 else "-∞"
     fmt = f"{{:.{decimals}f}}"
     return fmt.format(x)
 
 
 def format_ci(
-    lower: Union[float, None],
-    upper: Union[float, None],
+    lower: float | None,
+    upper: float | None,
     decimals: int = 3,
-    level: Optional[float] = None,
+    level: float | None = None,
 ) -> str:
     """Format a confidence interval as ``[lower, upper]``.
 
@@ -127,7 +138,7 @@ def format_ci(
     return f"[{lo}, {hi}]"
 
 
-def format_percent(x: Union[float, None], decimals: int = 1) -> str:
+def format_percent(x: float | None, decimals: int = 1) -> str:
     """Format a percentage value.
 
     Parameters
@@ -153,7 +164,7 @@ def format_percent(x: Union[float, None], decimals: int = 1) -> str:
 # Significance stars
 # ---------------------------------------------------------------------------
 
-def add_significance_stars(p: Union[float, None]) -> str:
+def add_significance_stars(p: float | None) -> str:
     """Return significance stars for a p-value.
 
     * ``p < .001`` → ``"***"``
@@ -173,9 +184,12 @@ def add_significance_stars(p: Union[float, None]) -> str:
     """
     if p is None:
         return ""
-    if isinstance(p, float) and (math.isnan(p) or np.isnan(p)):
+    try:
+        p = float(p)
+    except (TypeError, ValueError):
         return ""
-    p = float(p)
+    if math.isnan(p) or math.isinf(p):
+        return ""
     if p < 0.001:
         return "***"
     if p < 0.01:
@@ -185,7 +199,7 @@ def add_significance_stars(p: Union[float, None]) -> str:
     return ""
 
 
-def format_pvalue_with_stars(p: Union[float, None]) -> str:
+def format_pvalue_with_stars(p: float | None) -> str:
     """Format p-value with appended significance stars.
 
     Example: ``".042 *"`` for p = 0.042.
@@ -202,7 +216,7 @@ def format_pvalue_with_stars(p: Union[float, None]) -> str:
 # ---------------------------------------------------------------------------
 
 def format_column(
-    values: list[Union[float, None]],
+    values: list[float | None],
     style: str = "number",
     decimals: int = 3,
 ) -> list[str]:

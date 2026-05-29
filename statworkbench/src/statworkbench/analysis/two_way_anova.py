@@ -261,7 +261,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             }
             if do_effect_size:
                 # SPSS GLM은 편 η² (Partial Eta Squared)를 기본 출력
-                partial_eta2 = ss / (ss + ss_error) if (not np.isnan(ss_error) and ss_error > 0) else ss / ss_total
+                denom_eta = ss + ss_error
+                partial_eta2 = float(ss / denom_eta) if (not np.isnan(ss_error) and ss_error > 0 and denom_eta > 0) else (float(ss / ss_total) if ss_total > 0 else float("nan"))
                 anova_row["편 η²"] = format_number(partial_eta2, 4)
 
         anova_rows.append(anova_row)

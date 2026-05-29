@@ -23,7 +23,9 @@ from statworkbench.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
     numeric_vars,
+    populate_list_widget,
     scale_vars,
+    user_friendly_error,
     var_from_display,
 )
 
@@ -54,10 +56,8 @@ class PcaDialog(QDialog):
         self.avail_list = QListWidget()
         self.avail_list.setSelectionMode(QListWidget.ExtendedSelection)
         avail = scale_vars(dataset) or numeric_vars(dataset) or all_vars(dataset)
-        for var in avail:
-            icon = measure_icon(dataset, var)
-            label = display_label(dataset, var)
-            self.avail_list.addItem(f"{icon} {label}" if icon else label)
+        populate_list_widget(self.avail_list, dataset, avail,
+                             "(척도형/수치형 변수 없음)")
         left.addWidget(self.avail_list)
         var_layout.addLayout(left)
 
@@ -166,4 +166,4 @@ class PcaDialog(QDialog):
             self.analysis_run.emit(result)
             self.accept()
         except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))

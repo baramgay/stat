@@ -51,19 +51,22 @@ class ResultTable(BaseModel):
         img_type = self.metadata.get("type", "") if self.metadata else ""
         if img_type in ("profile_plot", "wordcloud_image"):
             try:
+                if self.dataframe.empty or "image_bytes" not in self.dataframe.columns:
+                    return f'<p><em>[이미지 없음: {self.title}]</em></p>'
                 img_bytes = self.dataframe.iloc[0]["image_bytes"]
-                if img_bytes:
-                    b64 = base64.b64encode(bytes(img_bytes)).decode("utf-8")
-                    return (
-                        f'<div style="margin:8px 0;">'
-                        f'<h4 style="margin:4px 0;font-size:13px;">{self.title}</h4>'
-                        f'<img src="data:image/png;base64,{b64}" '
-                        f'style="max-width:100%;border:1px solid #ddd;border-radius:4px;"/>'
-                        f'</div>'
-                    )
+                if not isinstance(img_bytes, (bytes, bytearray)) or len(img_bytes) == 0:
+                    return f'<p><em>[이미지 없음: {self.title}]</em></p>'
+                b64 = base64.b64encode(img_bytes).decode("utf-8")
+                return (
+                    f'<div style="margin:8px 0;">'
+                    f'<h4 style="margin:4px 0;font-size:13px;">{self.title}</h4>'
+                    f'<img src="data:image/png;base64,{b64}" '
+                    f'style="max-width:100%;border:1px solid #ddd;border-radius:4px;"/>'
+                    f'</div>'
+                )
             except Exception:
-                pass  # 이미지 렌더링 실패 시 빈 내용 반환
-            return f'<p><em>[이미지: {self.title}]</em></p>'
+                pass
+            return f'<p><em>[이미지 렌더링 실패: {self.title}]</em></p>'
 
         html = '<table class="result-table">\n'
         html += f"<caption>{self.title}</caption>\n"

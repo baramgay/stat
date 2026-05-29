@@ -9,7 +9,6 @@ from __future__ import annotations
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MeasureType, StorageType
 
-
 # ── 변수 목록 필터 ─────────────────────────────────────────────────────────
 
 
@@ -161,3 +160,40 @@ def measure_icon(dataset: Dataset, var_name: str) -> str:
     if meta:
         return _MEASURE_ICON.get(meta.measure, "")
     return ""
+
+
+# ── UX 공통 유틸리티 ──────────────────────────────────────────────────────────
+
+def populate_list_widget(list_widget, dataset: Dataset, var_list: list[str],
+                         empty_message: str = "(해당 변수 없음)") -> None:
+    """리스트 위젯에 변수 항목을 추가. 변수 없으면 비활성화 안내 항목 표시."""
+    from PySide6.QtWidgets import QListWidgetItem
+    from PySide6.QtCore import Qt
+    if not var_list:
+        item = QListWidgetItem(empty_message)
+        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+        list_widget.addItem(item)
+        return
+    for var in var_list:
+        icon = measure_icon(dataset, var)
+        label = display_label(dataset, var)
+        item = QListWidgetItem(f"{icon} {label}" if icon else label)
+        list_widget.addItem(item)
+
+
+def user_friendly_error(exc: Exception) -> str:
+    """예외를 사용자 친화적인 한국어 메시지로 변환."""
+    msg = str(exc)
+    if "LinAlgError" in type(exc).__name__ or "singular" in msg.lower():
+        return "변수 간 완전 공선성 또는 분산이 0인 변수가 있습니다.\n변수를 확인하세요."
+    if "convergence" in msg.lower() or "converge" in msg.lower():
+        return "모형이 수렴하지 않았습니다.\n변수 수를 줄이거나 데이터를 확인하세요."
+    if "not enough" in msg.lower() or "sample size" in msg.lower():
+        return "케이스 수가 부족합니다. 데이터를 확인하세요."
+    if "KeyError" in type(exc).__name__:
+        return f"변수를 찾을 수 없습니다: {msg}"
+    if "ValueError" in type(exc).__name__:
+        return f"입력값 오류: {msg}"
+    if "MemoryError" in type(exc).__name__:
+        return "메모리 부족입니다. 데이터 크기를 줄여보세요."
+    return f"분석 실패: {msg}"

@@ -24,7 +24,9 @@ from statworkbench.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
     numeric_vars,
+    populate_list_widget,
     scale_vars,
+    user_friendly_error,
     var_from_display,
 )
 
@@ -70,11 +72,8 @@ class ManovaDialog(QDialog):
         left.addWidget(QLabel("사용 가능한 변수:"))
         self.avail_list = QListWidget()
         avail = scale_vars(self._dataset) or numeric_vars(self._dataset) or all_vars(self._dataset)
-        for var in avail:
-            icon = measure_icon(self._dataset, var)
-            label = display_label(self._dataset, var)
-            self.avail_list.addItem(f"{icon} {label}" if icon else label)
         self.avail_list.setSelectionMode(QListWidget.ExtendedSelection)
+        populate_list_widget(self.avail_list, self._dataset, avail, "(척도형 변수 없음)")
         left.addWidget(self.avail_list)
         dep_layout.addLayout(left)
 
@@ -195,4 +194,4 @@ class ManovaDialog(QDialog):
             self.analysis_run.emit(result)
             self.accept()
         except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))

@@ -9,19 +9,18 @@ Supports:
 
 from __future__ import annotations
 
-import warnings
-from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_number, format_pvalue, format_ci
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
-
 
 # ---------------------------------------------------------------------------
 # Availability flags for optional dependency
@@ -29,8 +28,8 @@ from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_
 
 _LIFELINES_AVAILABLE = False
 try:
-    from lifelines import KaplanMeierFitter, CoxPHFitter
-    from lifelines.statistics import logrank_test, multivariate_logrank_test
+    from lifelines import CoxPHFitter, KaplanMeierFitter  # noqa: F401
+    from lifelines.statistics import logrank_test, multivariate_logrank_test  # noqa: F401
     _LIFELINES_AVAILABLE = True
 except ImportError:
     pass
@@ -59,7 +58,6 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     variables = spec.get("variables", {})
     options = spec.get("options", {})
     confidence_level = spec.get("confidence_level", 0.95)
-    alpha = options.get("alpha", 1 - confidence_level)
     missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
     if isinstance(missing_policy_str, str):
         missing_policy = MissingPolicy(missing_policy_str)
@@ -68,7 +66,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     duration_var: str = variables.get("duration", "")
     event_var: str = variables.get("event", "")
-    group_var: Optional[str] = variables.get("group", None)
+    group_var: str | None = variables.get("group", None)
     covariates: list[str] = variables.get("covariates", [])
     method: str = options.get("method", "both")
 
@@ -87,7 +85,11 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         all_vars.append(group_var)
     all_vars += covariates
 
-    prepared = prepare_analysis_frame(dataset, variables=all_vars, missing_policy=missing_policy)
+    try:
+        prepared = prepare_analysis_frame(dataset, variables=all_vars, missing_policy=missing_policy)
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
     df = prepared.data
 
     result.add_table(get_case_processing_summary(
@@ -98,14 +100,19 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         result.warnings.append("결측 제거 후 유효한 관측치가 없습니다.")
         return result
 
-    # Validate event column
-    event_vals = df[event_var].unique()
-    if not set(event_vals).issubset({0, 1, True, False, 0.0, 1.0}):
-        result.warnings.append(f"사건 변수({event_var})는 0(중도절단) 또는 1(사건)이어야 합니다.")
+    # Validate event column (0/1 이진 값만 허용, 정규화 후 확인)
+    event_numeric = pd.to_numeric(df[event_var], errors="coerce")
+    invalid_mask = ~event_numeric.isin([0, 1])
+    if invalid_mask.any():
+        bad_vals = df[event_var][invalid_mask].unique().tolist()
+        result.warnings.append(
+            f"사건 변수({event_var})는 0(중도절단) 또는 1(사건)이어야 합니다. "
+            f"유효하지 않은 값: {bad_vals}"
+        )
         return result
 
     T = df[duration_var].astype(float).values
-    E = df[event_var].astype(int).values
+    E = event_numeric.astype(int).values
 
     if method in ("km", "both"):
         if _LIFELINES_AVAILABLE:
@@ -139,7 +146,7 @@ def _run_km_lifelines(
     E: np.ndarray,
     duration_var: str,
     event_var: str,
-    group_var: Optional[str],
+    group_var: str | None,
     confidence_level: float,
 ) -> None:
     """KM analysis using lifelines library."""
@@ -158,9 +165,6 @@ def _run_km_lifelines(
             kmf = KaplanMeierFitter()
             kmf.fit(t_grp, event_observed=e_grp, label=str(grp), alpha=alpha)
             km_objects[str(grp)] = kmf
-            # Extract KM table
-            sf = kmf.survival_function_
-            ci = kmf.confidence_interval_
             n_events = int(e_grp.sum())
             n_censored = int(len(e_grp) - n_events)
             median_survival = kmf.median_survival_time_
@@ -244,7 +248,7 @@ def _run_km_manual(
     result: AnalysisResult,
     T: np.ndarray,
     E: np.ndarray,
-    group_var: Optional[str],
+    group_var: str | None,
     df: pd.DataFrame,
     confidence_level: float,
 ) -> None:
@@ -265,8 +269,6 @@ def _run_km_manual(
         for ti in unique_times:
             at_risk = int(np.sum(t_sorted >= ti))
             events = int(np.sum((t_sorted == ti) & (e_sorted == 1)))
-            if at_risk == 0:
-                continue
             survival *= (1 - events / at_risk)
             if at_risk > events:
                 log_var += events / (at_risk * (at_risk - events))
@@ -274,12 +276,9 @@ def _run_km_manual(
             # Greenwood's 95% CI on log(-log(S))
             z = stats.norm.ppf(1 - (1 - confidence_level) / 2)
             if survival > 0 and survival < 1:
-                try:
-                    se_log = np.sqrt(log_var)
-                    ci_lo = max(0.0, survival ** np.exp(z * se_log / np.abs(np.log(survival))))
-                    ci_hi = min(1.0, survival ** np.exp(-z * se_log / np.abs(np.log(survival))))
-                except Exception:
-                    ci_lo = ci_hi = np.nan
+                se_log = np.sqrt(log_var)
+                ci_lo = max(0.0, survival ** np.exp(z * se_log / np.abs(np.log(survival))))
+                ci_hi = min(1.0, survival ** np.exp(-z * se_log / np.abs(np.log(survival))))
             else:
                 ci_lo = ci_hi = survival
 
@@ -297,7 +296,14 @@ def _run_km_manual(
                          "생존 확률 S(t)": "1.000", "95% CI 하한": "1.000", "95% CI 상한": "1.000"})
 
         # Median survival: first time S(t) <= 0.5
-        medians = [r["시간"] for r in rows if float(r["생존 확률 S(t)"].replace(" ", "")) <= 0.5]
+        medians = []
+        for r in rows:
+            try:
+                sv = float(str(r["생존 확률 S(t)"]).strip())
+                if sv <= 0.5:
+                    medians.append(r["시간"])
+            except (ValueError, TypeError):
+                continue
         median_t = medians[0] if medians else np.nan
 
         return pd.DataFrame(rows), median_t
@@ -369,8 +375,6 @@ def _log_rank_test(
             d_j = np.array([int(np.sum((arr[0] == ti) & (arr[1] == 1))) for arr in group_arrays.values()])
             n_total = n_j.sum()
             d_total = d_j.sum()
-            if n_total == 0:
-                continue
             E_j = n_j * d_total / n_total
             O_total += d_j
             E_total += E_j
@@ -452,11 +456,20 @@ def _run_cox_lifelines(
             ],
         ))
 
-        # Model fit
+        # Model fit — semi-parametric Cox has no AIC_, use AIC_partial_ as fallback
+        try:
+            aic_val = cph.AIC_
+        except Exception:
+            try:
+                aic_val = cph.AIC_partial_
+            except Exception:
+                aic_val = None
+        aic_str = format_number(aic_val, 3) if aic_val is not None else "N/A"
+
         fit_rows = [
             {"통계량": "log-likelihood", "값": format_number(cph.log_likelihood_, 3)},
             {"통계량": "concordance index", "값": format_number(cph.concordance_index_, 3)},
-            {"통계량": "AIC (부분 우도)", "값": format_number(cph.AIC_, 3)},
+            {"통계량": "AIC (부분 우도)", "값": aic_str},
         ]
         result.add_table(ResultTable(title="Cox 회귀 모형 적합 요약", dataframe=pd.DataFrame(fit_rows)))
 

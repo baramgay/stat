@@ -882,8 +882,10 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
 
-    def _on_dataset_changed(self) -> None:
+    def _on_dataset_changed(self, dataset=None) -> None:
         """데이터셋 변경 시 호출됩니다."""
+        if dataset is not None:
+            self.current_dataset = dataset
         if self.current_dataset is not None:
             # Variable View ↔ Data View 양방향 동기화
             if hasattr(self, 'variable_view') and self.variable_view:

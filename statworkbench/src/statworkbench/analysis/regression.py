@@ -213,7 +213,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             else:
                 x_std = X_df[col_name].std()
                 y_std = np.std(y, ddof=1)
-                beta = float(b * x_std / y_std) if y_std > 0 else 0.0
+                beta = float(b * x_std / y_std) if (x_std > 0 and y_std > 0) else float("nan")
 
             coef_rows.append({
                 "Variable": col_name,

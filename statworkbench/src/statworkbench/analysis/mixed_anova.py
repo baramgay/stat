@@ -201,7 +201,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     # ── Table 5: Tests of Between-Subjects Effects ────────────────
     ms_between = ss_between / df_between if df_between > 0 else np.nan
     ms_s_within = ss_s_within / df_s_within if df_s_within > 0 else np.nan
-    f_between = ms_between / ms_s_within if (ms_s_within and ms_s_within > 0) else np.nan
+    f_between = ms_between / ms_s_within if (not np.isnan(ms_s_within) if isinstance(ms_s_within, float) else True) and ms_s_within > 1e-15 else np.nan
     p_between = float(1 - stats.f.cdf(f_between, dfn=df_between, dfd=df_s_within)) if not np.isnan(f_between) else np.nan
 
     between_rows = [

@@ -25,6 +25,8 @@ from statworkbench.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
     numeric_vars,
+    populate_list_widget,
+    user_friendly_error,
     var_from_display,
 )
 
@@ -75,12 +77,18 @@ class MultinomialLogisticDialog(QDialog):
         self.avail_list = QListWidget()
         self.avail_list.setSelectionMode(QListWidget.ExtendedSelection)
         avail = numeric_vars(self._dataset) or all_vars(self._dataset)
-        for var in avail:
-            icon = measure_icon(self._dataset, var)
-            label = display_label(self._dataset, var)
-            item = QListWidgetItem(f"{icon} {label}" if icon else label)
-            item.setData(0x0100, var)
-            self.avail_list.addItem(item)
+        if avail:
+            for var in avail:
+                icon = measure_icon(self._dataset, var)
+                label = display_label(self._dataset, var)
+                item = QListWidgetItem(f"{icon} {label}" if icon else label)
+                item.setData(0x0100, var)
+                self.avail_list.addItem(item)
+        else:
+            from PySide6.QtCore import Qt
+            placeholder = QListWidgetItem("(수치형 변수 없음)")
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+            self.avail_list.addItem(placeholder)
         left.addWidget(self.avail_list)
         pred_layout.addLayout(left)
 
@@ -191,4 +199,4 @@ class MultinomialLogisticDialog(QDialog):
             self.analysis_run.emit(result)
             self.accept()
         except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))

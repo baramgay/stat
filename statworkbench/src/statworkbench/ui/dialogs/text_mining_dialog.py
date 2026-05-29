@@ -21,6 +21,7 @@ from statworkbench.ui.dialogs._dialog_helpers import (
     all_vars,
     display_label,
     measure_icon,
+    user_friendly_error,
 )
 
 
@@ -160,4 +161,4 @@ class TextMiningDialog(QDialog):
             self.analysis_run.emit(result)
             self.accept()
         except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))
