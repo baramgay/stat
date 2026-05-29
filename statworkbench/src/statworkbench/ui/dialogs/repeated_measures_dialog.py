@@ -121,9 +121,11 @@ class RepeatedMeasuresDialog(QDialog):
         layout.addWidget(btn_box)
 
     def _add_var(self) -> None:
-        items = self.avail_list.selectedItems()
-        for item in items:
-            self.selected_list.addItem(item.text())
+        already = {self.selected_list.item(i).text() for i in range(self.selected_list.count())}
+        for item in self.avail_list.selectedItems():
+            if item.text() not in already:
+                self.selected_list.addItem(item.text())
+                already.add(item.text())
 
     def _remove_var(self) -> None:
         for item in self.selected_list.selectedItems():

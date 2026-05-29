@@ -69,6 +69,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     if not dep_var or not factor_a or not factor_b:
         result.warnings.append("종속변수(dependent), 요인A(factor_a), 요인B(factor_b)를 모두 지정해야 합니다.")
         return result
+    if factor_a == factor_b:
+        result.warnings.append(f"요인 A와 요인 B에 동일한 변수('{factor_a}')가 지정되었습니다. 서로 다른 변수를 선택하세요.")
+        return result
 
     needed = [dep_var, factor_a, factor_b]
     missing_cols = [c for c in needed if c not in dataset.data.columns]
@@ -113,6 +116,26 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     if len(levels_b) < 2:
         result.warnings.append(f"요인 B('{factor_b}')의 수준이 1개뿐입니다. 검정을 수행할 수 없습니다.")
         return result
+
+    # 빈 셀 또는 단일 관측치 셀 경고
+    empty_cells, singleton_cells = [], []
+    for la in levels_a:
+        for lb in levels_b:
+            n_cell = int(((data[factor_a] == la) & (data[factor_b] == lb)).sum())
+            if n_cell == 0:
+                empty_cells.append(f"({la}, {lb})")
+            elif n_cell == 1:
+                singleton_cells.append(f"({la}, {lb})")
+    if empty_cells:
+        result.warnings.append(
+            f"다음 셀에 관측치가 없습니다 (불균형 설계): {', '.join(empty_cells)}. "
+            "Type III SS 결과가 부정확할 수 있습니다."
+        )
+    if singleton_cells:
+        result.warnings.append(
+            f"다음 셀의 관측치가 1건입니다: {', '.join(singleton_cells)}. "
+            "분산 추정 및 등분산 검정이 신뢰할 수 없습니다."
+        )
 
     # ── Table 2: 기술통계 (셀별) ──────────────────────────────────
     desc_rows = []
@@ -183,7 +206,11 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     fb_safe = "factor_b"
     df_model = data.rename(columns={dep_var: dep_safe, factor_a: fa_safe, factor_b: fb_safe})
 
-    formula = f"{dep_safe} ~ C({fa_safe}) + C({fb_safe}) + C({fa_safe}):C({fb_safe})"
+    # Sum contrasts = SPSS-호환 Type III SS (편차 코딩으로 주효과가 올바르게 분해됨)
+    formula = (
+        f"{dep_safe} ~ C({fa_safe}, Sum) + C({fb_safe}, Sum) "
+        f"+ C({fa_safe}, Sum):C({fb_safe}, Sum)"
+    )
     try:
         lm = ols(formula, data=df_model).fit()
         anova_tbl = sm.stats.anova_lm(lm, typ=3)
@@ -196,9 +223,9 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     anova_rows = []
     source_map = {
-        f"C({fa_safe})": factor_a,
-        f"C({fb_safe})": factor_b,
-        f"C({fa_safe}):C({fb_safe})": f"{factor_a} × {factor_b}",
+        f"C({fa_safe}, Sum)": factor_a,
+        f"C({fb_safe}, Sum)": factor_b,
+        f"C({fa_safe}, Sum):C({fb_safe}, Sum)": f"{factor_a} × {factor_b}",
         "Residual": "오차 (Error)",
     }
     for src_key, src_label in source_map.items():

@@ -5,6 +5,28 @@
 
 ---
 
+## [v3.1.1] - 2026-05-29
+
+### 버그 수정
+
+- **`repeated_measures_dialog.py`**: `→` 버튼으로 같은 변수를 여러 번 추가할 수 있던 중복 선택 버그 수정
+- **`repeated_measures_anova.py`**: 공분산 행렬이 특이(singular)할 때 `det(S) < 1e-15` 경우 미처리 → W=1.0(구형성 충족)으로 안전 처리
+- **`two_way_anova.py`**: `factor_a == factor_b` 동일 변수 지정 시 pandas `AttributeError` 크래시 → 사용자 친화적 경고 반환
+
+### 개선
+
+- **`two_way_anova.py` SPSS 호환성**: `C(var)` treatment coding → `C(var, Sum)` deviation coding 변경
+  - Type III SS가 SPSS 출력과 동일해짐 (예: SS_A 62.5 → 187.5, SS 분해 완전 일치)
+- **`two_way_anova.py` 빈 셀 경고**: n=0 셀(불균형 설계) 및 n=1 셀 경고 추가
+
+### 테스트
+
+- `test_two_way_anova.py` 신규 (47개): SS 분해, Tukey HSD, 효과크기, 빈 셀, 결측값 등
+- `test_repeated_measures_anova.py` 신규 (47개): Mauchly W, GG/HF 보정, Bonferroni 쌍 비교 등
+- 전체 테스트: **3,707 통과** (이전 3,613 → +94건)
+
+---
+
 ## [v3.1.0] - 2026-05-29
 
 ### 추가

@@ -64,8 +64,8 @@ def _mauchly_test(data_matrix: np.ndarray) -> dict:
     det_S = np.linalg.det(S)
     tr_S = np.trace(S)
     denom = (tr_S / (k - 1)) ** (k - 1)
-    if denom < 1e-15:
-        # 구형성 자체가 완벽(분산 없음) — 검정 불필요
+    if denom < 1e-15 or det_S < 1e-15:
+        # 공분산 행렬이 특이하거나 분산이 없는 경우 — 구형성 충족으로 처리
         return {
             "W": 1.0, "chi2": 0.0, "df": 0, "p": 1.0,
             "epsilon_gg": 1.0, "epsilon_hf": 1.0, "epsilon_lb": 1.0 / (k - 1),
