@@ -384,11 +384,12 @@ class MainWindow(QMainWindow):
         crosstab_action.triggered.connect(self._run_crosstabs)
         desc_menu.addAction(crosstab_action)
 
+        normality_action = QAction("📐 정규성 검정(Shapiro-Wilk)...", self)
+        normality_action.triggered.connect(self._run_normality)
+        desc_menu.addAction(normality_action)
+
         # 평균 비교
         compare_menu = analyze_menu.addMenu("🔄 평균 비교(&M)")
-
-        means_action = QAction("📊 평균...", self)
-        compare_menu.addAction(means_action)
 
         one_sample_t_action = QAction("1️⃣ 단일표본 T 검정...", self)
         one_sample_t_action.triggered.connect(self._run_one_sample_ttest)
@@ -1228,6 +1229,16 @@ class MainWindow(QMainWindow):
         from statworkbench.ui.dialogs.crosstab_dialog import CrosstabDialog
         dialog = CrosstabDialog(self.current_dataset, self)
         dialog.analysis_completed.connect(self._on_crosstab_completed)
+        dialog.exec()
+
+    def _run_normality(self) -> None:
+        """정규성 검정 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from statworkbench.ui.dialogs.normality_dialog import NormalityDialog
+        dialog = NormalityDialog(self.current_dataset, self)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _run_independent_ttest(self) -> None:
