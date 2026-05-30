@@ -135,6 +135,34 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     return result
 
 
+def run_kaplan_meier(dataset: Dataset, spec: dict) -> AnalysisResult:
+    """Kaplan-Meier 생존분석 전용 진입점.
+
+    spec.variables: duration, event, group (optional)
+    """
+    spec = dict(spec)
+    spec.setdefault("options", {})
+    spec["options"]["method"] = "km"
+    result = run_analysis(dataset, spec)
+    result.id = "kaplan_meier"
+    result.title = "Kaplan-Meier 생존분석"
+    return result
+
+
+def run_cox_regression(dataset: Dataset, spec: dict) -> AnalysisResult:
+    """Cox 비례위험 회귀 전용 진입점.
+
+    spec.variables: duration, event, covariates (list)
+    """
+    spec = dict(spec)
+    spec.setdefault("options", {})
+    spec["options"]["method"] = "cox"
+    result = run_analysis(dataset, spec)
+    result.id = "cox_regression"
+    result.title = "Cox 비례위험 회귀"
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Kaplan-Meier with lifelines
 # ---------------------------------------------------------------------------

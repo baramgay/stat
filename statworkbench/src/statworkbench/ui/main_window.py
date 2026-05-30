@@ -474,8 +474,11 @@ class MainWindow(QMainWindow):
         # 생존
         survival_menu = analyze_menu.addMenu("생존분석(&S)")
         km_action = QAction("📈 Kaplan-Meier...", self)
-        km_action.triggered.connect(self._run_survival_analysis)
+        km_action.triggered.connect(self._run_kaplan_meier)
         survival_menu.addAction(km_action)
+        cox_action = QAction("📉 Cox 비례위험 회귀...", self)
+        cox_action.triggered.connect(self._run_cox_regression)
+        survival_menu.addAction(cox_action)
 
         # 판별
         classify_menu = analyze_menu.addMenu("🔷 판별분석(&I)")
@@ -1540,24 +1543,27 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
 
-    def _run_survival_analysis(self) -> None:
-        """생존분석 실행."""
+    def _run_kaplan_meier(self) -> None:
+        """Kaplan-Meier 생존분석 실행."""
         if self.current_dataset is None:
             QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
             return
 
-        from statworkbench.ui.dialogs.survival_analysis_dialog import SurvivalAnalysisDialog
-        dialog = SurvivalAnalysisDialog(self.current_dataset, parent=self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            spec = dialog.get_spec()
-            try:
-                from statworkbench.analysis import survival_analysis
-                result = survival_analysis.run_analysis(self.current_dataset, spec)
-                self._ensure_output_window()
-                self._output_window.add_output(result.to_html(), "analysis")
-                self.statusbar.showMessage("생존분석 완료")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+        from statworkbench.ui.dialogs.kaplan_meier_dialog import KaplanMeierDialog
+        dialog = KaplanMeierDialog(self.current_dataset, parent=self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
+
+    def _run_cox_regression(self) -> None:
+        """Cox 비례위험 회귀 실행."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from statworkbench.ui.dialogs.cox_regression_dialog import CoxRegressionDialog
+        dialog = CoxRegressionDialog(self.current_dataset, parent=self)
+        dialog.analysis_run.connect(self._on_analysis_result)
+        dialog.exec()
 
     def _run_discriminant_analysis(self) -> None:
         """판별분석 실행."""

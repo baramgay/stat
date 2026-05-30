@@ -117,8 +117,8 @@ _BUILTIN_ANALYSES: list[dict] = [
     {"id": "reliability", "name": "Reliability Analysis", "category": "Scale", "description": "Cronbach's alpha and reliability statistics.", "implemented": True},
     {"id": "roc_analysis", "name": "ROC Analysis", "category": "Diagnostic Tests", "description": "Receiver operating characteristic analysis.", "implemented": True},
     {"id": "sensitivity_specificity", "name": "Sensitivity/Specificity", "category": "Diagnostic Tests", "description": "Diagnostic accuracy measures.", "implemented": True},
-    {"id": "kaplan_meier", "name": "Kaplan-Meier", "category": "Survival", "description": "Survival analysis with Kaplan-Meier estimator (use survival_analysis).", "implemented": False},
-    {"id": "cox_regression", "name": "Cox Regression", "category": "Survival", "description": "Cox proportional hazards regression (use survival_analysis).", "implemented": False},
+    {"id": "kaplan_meier", "name": "Kaplan-Meier", "category": "Survival", "description": "Kaplan-Meier 생존곡선, 로그순위 검정, 중앙생존시간, 95% CI.", "implemented": True},
+    {"id": "cox_regression", "name": "Cox Regression", "category": "Survival", "description": "Cox 비례위험 회귀: HR, 95% CI, Wald 검정, 비례성 가정 진단.", "implemented": True},
     {"id": "cohens_kappa", "name": "Cohen's Kappa", "category": "Agreement", "description": "Measure of inter-rater agreement.", "implemented": True},
     {"id": "icc", "name": "ICC", "category": "Agreement", "description": "Intraclass correlation coefficient.", "implemented": True},
     {"id": "bland_altman", "name": "Bland-Altman", "category": "Agreement", "description": "Bland-Altman agreement analysis.", "implemented": True},
@@ -624,6 +624,22 @@ def _register_new_plugins(registry: AnalysisRegistry) -> None:
             category="Regression",
             description="다항 로지스틱 회귀: 기준 범주 선택, Pseudo R², 모수 추정값, 분류표",
             module_path="statworkbench.analysis.multinomial_logistic",
+        ),
+        _ModulePlugin(
+            plugin_id="kaplan_meier",
+            name="Kaplan-Meier",
+            category="Survival",
+            description="Kaplan-Meier 생존곡선, 로그순위 검정, 중앙생존시간, 95% CI",
+            module_path="statworkbench.analysis.survival_analysis",
+            function_name="run_kaplan_meier",
+        ),
+        _ModulePlugin(
+            plugin_id="cox_regression",
+            name="Cox Regression",
+            category="Survival",
+            description="Cox 비례위험 회귀: HR, 95% CI, Wald 검정, 비례성 가정 진단",
+            module_path="statworkbench.analysis.survival_analysis",
+            function_name="run_cox_regression",
         ),
     ]
 
