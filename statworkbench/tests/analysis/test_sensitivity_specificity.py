@@ -382,11 +382,12 @@ class TestRegistryIntegration:
         planned_ids = [p.id for p in registry.list_planned()]
         assert "sensitivity_specificity" not in planned_ids
 
-    def test_planned_only_kaplan_cox(self):
+    def test_no_planned_analyses(self):
+        """v3.7.0: 모든 분석이 구현됨 — planned 목록 비어 있어야 함."""
         from statworkbench.analysis.registry import AnalysisRegistry
         registry = AnalysisRegistry()
         planned_ids = {p.id for p in registry.list_planned()}
-        assert planned_ids == {"kaplan_meier", "cox_regression"}
+        assert planned_ids == set(), f"미구현 분석이 남아 있음: {planned_ids}"
 
     def test_plugin_category(self):
         from statworkbench.analysis.registry import AnalysisRegistry

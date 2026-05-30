@@ -65,13 +65,13 @@ def basic_result() -> AnalysisResult:
 class _MockPlugin:
     """Generic mock plugin with configurable attributes."""
 
-    def __init__(self, pid: str = "mock_plugin", name: str = "Mock", category: str = "Test") -> None:
+    def __init__(self, pid: str = "mock_plugin", name: str = "Mock", category: str = "Test", implemented: bool = True) -> None:
         self.id = pid
         self.name = name
         self.category = category
         self.description = "A mock plugin."
         self.variable_requirements: list[dict] = []
-        self.implemented = True
+        self.implemented = implemented
 
     def validate(self, dataset: Dataset, spec: dict) -> list[str]:
         return []
@@ -194,16 +194,16 @@ class TestExecute:
         assert isinstance(result, AnalysisResult)
 
     def test_run_planned_plugin_raises_not_implemented(
-        self, fresh_registry: AnalysisRegistry, simple_ds: Dataset
+        self, simple_ds: Dataset
     ) -> None:
-        pa = fresh_registry.get("kaplan_meier")  # truly planned
+        pa = _PlannedAnalysis("planned_stub", "Planned Stub", "Test", "stub")
         with pytest.raises(NotImplementedError):
             pa.run(simple_ds, {})
 
     def test_run_validate_planned_raises_not_implemented(
-        self, fresh_registry: AnalysisRegistry, simple_ds: Dataset
+        self, simple_ds: Dataset
     ) -> None:
-        pa = fresh_registry.get("kaplan_meier")  # truly planned
+        pa = _PlannedAnalysis("planned_stub2", "Planned Stub2", "Test", "stub")
         with pytest.raises(NotImplementedError):
             pa.validate(simple_ds, {})
 

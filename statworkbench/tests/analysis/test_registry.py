@@ -345,13 +345,13 @@ class TestPlannedAnalysis:
             pa.run(scale_dataset, {})
 
     def test_planned_in_list_planned(self, registry: AnalysisRegistry) -> None:
-        """Planned analyses should appear in list_planned."""
+        """Planned analyses should appear in list_planned (all 39 now implemented)."""
         planned = registry.list_planned()
         ids = [p.id for p in planned]
-        # kaplan_meier and cox_regression are truly unimplemented
-        assert "kaplan_meier" in ids
-        assert "cox_regression" in ids
-        # explore, logistic_regression, sensitivity_specificity are now implemented
+        # v3.7.0: kaplan_meier and cox_regression are now implemented
+        assert "kaplan_meier" not in ids
+        assert "cox_regression" not in ids
+        # explore, logistic_regression, sensitivity_specificity are implemented
         assert "logistic_regression" not in ids
         assert "explore" not in ids
         assert "sensitivity_specificity" not in ids
@@ -362,10 +362,10 @@ class TestPlannedAnalysis:
         """Planned analyses should NOT appear in list_implemented."""
         impl = registry.list_implemented()
         ids = [p.id for p in impl]
-        # kaplan_meier and cox_regression are truly unimplemented → not in implemented
-        assert "kaplan_meier" not in ids
-        assert "cox_regression" not in ids
-        # explore, logistic_regression, sensitivity_specificity ARE now implemented
+        # v3.7.0: kaplan_meier and cox_regression are now implemented
+        assert "kaplan_meier" in ids
+        assert "cox_regression" in ids
+        # explore, logistic_regression, sensitivity_specificity ARE implemented
         assert "explore" in ids
         assert "logistic_regression" in ids
         assert "sensitivity_specificity" in ids
