@@ -200,7 +200,10 @@ def _kmo_bartlett(X: np.ndarray, N: int, p: int) -> tuple[float, float, int, flo
     """KMO 표본 적합도와 Bartlett 구형성 검정 계산."""
     try:
         R = np.corrcoef(X.T)
-        R_inv = np.linalg.inv(R)
+        try:
+            R_inv = np.linalg.inv(R)
+        except np.linalg.LinAlgError:
+            return float("nan"), float("nan"), 0, float("nan")
         # KMO
         R_sq = R ** 2
         R_inv_sq = R_inv ** 2

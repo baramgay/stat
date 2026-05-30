@@ -247,7 +247,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     })
     result.tables.append(ResultTable(title="Mauchly's Test of Sphericity", dataframe=mau_df))
 
-    if mau["p"] < alpha:
+    if not np.isnan(mau["p"]) and mau["p"] < alpha:
         result.warnings.append(
             f"구형성 가정이 위반되었습니다 (p = {format_pvalue(mau['p'])}). "
             f"Greenhouse-Geisser 또는 Huynh-Feldt 보정 결과를 사용하세요."

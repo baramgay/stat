@@ -1,16 +1,19 @@
 """Nonparametric test analysis for StatWorkbench."""
 
 from __future__ import annotations
-from typing import Optional
+
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
 
 
 def _rank_biserial_correlation(u: float, n1: int, n2: int) -> float:
@@ -46,9 +49,7 @@ def _kendalls_w(data: np.ndarray) -> float:
     ss_between = n_subjects * np.sum((mean_rank - overall_mean) ** 2)
     ss_total = n_subjects * k_conditions * (k_conditions**2 - 1) / 12
 
-    if ss_total == 0:
-        return 0.0
-    return float(ss_between / ss_total)
+    return float(ss_between / ss_total) if ss_total > 1e-12 else 0.0
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
@@ -67,7 +68,6 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     """
     variables = spec.get("variables", {})
     options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
     missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
     if isinstance(missing_policy_str, str):
         missing_policy = MissingPolicy(missing_policy_str)
@@ -82,17 +82,20 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         spec=spec,
     )
 
-    if test_type == "mann_whitney":
-        return _mann_whitney(dataset, variables, missing_policy, result)
-    elif test_type == "wilcoxon":
-        return _wilcoxon_test(dataset, variables, missing_policy, result)
-    elif test_type == "kruskal_wallis":
-        return _kruskal_wallis(dataset, variables, missing_policy, result)
-    elif test_type == "friedman":
-        return _friedman_test(dataset, variables, missing_policy, result)
-    else:
-        result.warnings.append(f"Unknown test type: {test_type}")
-        return result
+    try:
+        if test_type == "mann_whitney":
+            return _mann_whitney(dataset, variables, missing_policy, result)
+        elif test_type == "wilcoxon":
+            return _wilcoxon_test(dataset, variables, missing_policy, result)
+        elif test_type == "kruskal_wallis":
+            return _kruskal_wallis(dataset, variables, missing_policy, result)
+        elif test_type == "friedman":
+            return _friedman_test(dataset, variables, missing_policy, result)
+        else:
+            result.warnings.append(f"Unknown test type: {test_type}")
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+    return result
 
 
 def _mann_whitney(
@@ -237,11 +240,8 @@ def _wilcoxon_test(
     w_stat, p_value = stats.wilcoxon(x1, x2)
 
     # Effect size r
-    if n > 0:
-        z_score = (w_stat - n * (n + 1) / 4) / np.sqrt(n * (n + 1) * (2 * n + 1) / 24)
-        r = abs(z_score) / np.sqrt(2 * n)
-    else:
-        r = 0.0
+    z_score = (w_stat - n * (n + 1) / 4) / np.sqrt(n * (n + 1) * (2 * n + 1) / 24)
+    r = abs(z_score) / np.sqrt(n) if n > 0 else float("nan")
 
     test_rows = [
         {

@@ -174,7 +174,8 @@ def _run_binary_logistic(
     # Cox-Snell R2
     cox_snell = 1 - np.exp(2 * (ll_null - ll_model) / n)
     # Nagelkerke R2
-    nagelkerke = cox_snell / (1 - np.exp(2 * ll_null / n))
+    _nag_denom = 1 - np.exp(2 * ll_null / n)
+    nagelkerke = cox_snell / _nag_denom if abs(_nag_denom) > 1e-12 else float("nan")
 
     # Model fit summary
     model_rows = [

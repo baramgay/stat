@@ -124,7 +124,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         X_df = df[predictors].copy()
         for col in predictors:
             X_df[col] = pd.to_numeric(X_df[col], errors="coerce")
-        X_df = X_df.fillna(X_df.mean())
+        X_df = X_df.dropna()
+        y_series = y_series.loc[X_df.index]
         X = sm.add_constant(X_df.values.astype(float))
 
         # y를 정수 코드로: 기준=0, 나머지=1,2,...
@@ -148,7 +149,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     n = float(N)
     cox_snell = 1 - np.exp((2 / n) * (ll_null - ll_full))
-    nagelkerke = cox_snell / (1 - np.exp(2 * ll_null / n))
+    _nag_denom = 1 - np.exp(2 * ll_null / n)
+    nagelkerke = cox_snell / _nag_denom if abs(_nag_denom) > 1e-12 else float("nan")
     mcfadden = 1 - ll_full / ll_null if ll_null != 0 else float("nan")
 
     fit_rows = [

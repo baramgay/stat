@@ -1,21 +1,31 @@
 """One-way ANOVA analysis for StatWorkbench."""
 
 from __future__ import annotations
-from typing import Optional
+
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
-from scipy import stats
 import statsmodels.api as sm
+from scipy import stats
 from statsmodels.formula.api import ols
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
+from statworkbench.analysis.assumptions import (
+    get_case_processing_summary,
+    levene_test,
+    prepare_analysis_frame,
+)
+from statworkbench.analysis.formatting import (
+    format_ci,
+    format_number,
+    format_pvalue,
+    get_display_decimals,
+)
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci, get_display_decimals
-from statworkbench.analysis.assumptions import (
-    prepare_analysis_frame, get_case_processing_summary, levene_test
-)
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
@@ -55,9 +65,14 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     all_vars = [dep_var, factor_var]
 
-    prepared = prepare_analysis_frame(
-        dataset, variables=all_vars, missing_policy=missing_policy
-    )
+    try:
+        prepared = prepare_analysis_frame(
+            dataset, variables=all_vars, missing_policy=missing_policy
+        )
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
+
     df = prepared.data
 
     # Case Processing Summary
@@ -68,7 +83,10 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     result.add_table(cps)
 
     # Group-level descriptives
-    groups_list = sorted(df[factor_var].dropna().unique())
+    try:
+        groups_list = sorted(df[factor_var].dropna().unique())
+    except TypeError:
+        groups_list = list(df[factor_var].dropna().unique())
     d = get_display_decimals(dataset, dep_var)
     group_rows = []
     group_data = []
@@ -116,6 +134,19 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         result.warnings.append("ANOVA requires at least 2 groups.")
         return result
 
+    empty_groups = [str(g) for g, arr in zip(groups_list, group_data) if len(arr) == 0]
+    if empty_groups:
+        result.warnings.append(
+            f"다음 그룹에 유효한 관측값이 없습니다: {empty_groups}. "
+            "해당 그룹을 제외하고 진행합니다."
+        )
+        valid_pairs = [(g, arr) for g, arr in zip(groups_list, group_data) if len(arr) > 0]
+        groups_list = [p[0] for p in valid_pairs]
+        group_data = [p[1] for p in valid_pairs]
+        if len(groups_list) < 2:
+            result.warnings.append("유효한 그룹이 2개 미만입니다. ANOVA를 수행할 수 없습니다.")
+            return result
+
     try:
         formula = f"{dep_var} ~ C({factor_var})"
         model = ols(formula, data=clean_df).fit()
@@ -137,7 +168,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         ss_total = anova_table["sum_sq"].sum()
         df_between = anova_table.loc[f"C({factor_var})", "df"]
         df_within = anova_table.loc["Residual", "df"]
-        ms_within = anova_table.loc["Residual", "sum_sq"] / df_within
+        ms_within = anova_table.loc["Residual", "sum_sq"] / df_within if df_within > 0 else float("nan")
         p_val = anova_table.loc[f"C({factor_var})", "PR(>F)"]
 
         if show_effect_size and ss_total > 0:
@@ -270,7 +301,7 @@ def _run_scheffe(
     factor_var: str,
     confidence_level: float,
     result: AnalysisResult,
-    anova_table: "pd.DataFrame",
+    anova_table: pd.DataFrame,
     ms_within: float,
     df_within: float,
 ) -> None:
@@ -365,3 +396,23 @@ def _run_bonferroni(
         ))
     except Exception as e:
         result.warnings.append(f"Bonferroni post-hoc could not be computed: {e}")
+
+
+class AnovaEngine:
+    """AnalysisPlugin wrapper for one-way ANOVA."""
+
+    id = "one_way_anova"
+    name = "일원 분산분석"
+    category = "Compare Means"
+    description = "일원 분산분석 (One-Way ANOVA): Levene, Tukey HSD, Scheffe, Bonferroni"
+    variable_requirements: list[dict] = [
+        {"role": "dependent", "measure_types": ["scale"], "min_count": 1, "max_count": 1, "required": True},
+        {"role": "factor", "measure_types": ["nominal", "ordinal"], "min_count": 1, "max_count": 1, "required": True},
+    ]
+    implemented = True
+
+    def validate(self, dataset: Dataset, spec: dict) -> list[str]:
+        return []
+
+    def run(self, dataset: Dataset, spec: dict) -> AnalysisResult:
+        return run_analysis(dataset, spec)

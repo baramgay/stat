@@ -73,7 +73,10 @@ class MixedAnovaDialog(QDialog):
         for var in avail:
             icon = measure_icon(self._dataset, var)
             label = display_label(self._dataset, var)
-            self.avail_list.addItem(f"{icon} {label}" if icon else label)
+            from PySide6.QtWidgets import QListWidgetItem
+            item = QListWidgetItem(f"{icon} {label}" if icon else label)
+            item.setData(0x0100, var)
+            self.avail_list.addItem(item)
         self.avail_list.setSelectionMode(QListWidget.ExtendedSelection)
         left.addWidget(self.avail_list)
         within_layout.addLayout(left)
@@ -143,11 +146,15 @@ class MixedAnovaDialog(QDialog):
         layout.addWidget(btn_box)
 
     def _add_within(self) -> None:
-        already = {self.within_list.item(i).text() for i in range(self.within_list.count())}
+        from PySide6.QtWidgets import QListWidgetItem
+        already = {self.within_list.item(i).data(0x0100) for i in range(self.within_list.count())}
         for item in self.avail_list.selectedItems():
-            if item.text() not in already:
-                self.within_list.addItem(item.text())
-                already.add(item.text())
+            var = item.data(0x0100)
+            if var not in already:
+                new_item = QListWidgetItem(item.text())
+                new_item.setData(0x0100, var)
+                self.within_list.addItem(new_item)
+                already.add(var)
 
     def _remove_within(self) -> None:
         for item in self.within_list.selectedItems():
@@ -155,8 +162,10 @@ class MixedAnovaDialog(QDialog):
 
     def _run(self) -> None:
         between_var = self.between_combo.currentData() or var_from_display(self.between_combo.currentText())
-        within_labels = [self.within_list.item(i).text() for i in range(self.within_list.count())]
-        within_vars = [var_from_display(s) for s in within_labels]
+        within_vars = [
+            self.within_list.item(i).data(0x0100) or var_from_display(self.within_list.item(i).text())
+            for i in range(self.within_list.count())
+        ]
         within_vars = [v for v in within_vars if v]
 
         if not between_var:

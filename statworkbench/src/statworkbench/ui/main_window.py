@@ -670,7 +670,7 @@ class MainWindow(QMainWindow):
 
     def _update_statusbar(self) -> None:
         """상태 표시줄 업데이트."""
-        if self.current_dataset:
+        if self.current_dataset and self.current_dataset.data is not None:
             rows = len(self.current_dataset.data)
             cols = len(self.current_dataset.data.columns)
             self.dataset_info_label.setText(f"N={rows:,}  변수={cols}")
@@ -748,14 +748,13 @@ class MainWindow(QMainWindow):
 
     def _show_output_window(self) -> None:
         """결과 창 표시 (단일 인스턴스)."""
-        if self._output_window is None or not self._output_window.isVisible():
+        if self._output_window is None:
             self._output_window = OutputWindow(self)
             self._output_window.setWindowTitle("📊 StatWorkbench 결과")
             self._output_window.resize(800, 600)
-            self._output_window.show()
-        else:
-            self._output_window.raise_()
-            self._output_window.activateWindow()
+        self._output_window.show()
+        self._output_window.raise_()
+        self._output_window.activateWindow()
 
     def _get_output(self) -> object:
         """결과 출력 대상 반환."""
@@ -1007,15 +1006,19 @@ class MainWindow(QMainWindow):
 
     def _edit_undo(self) -> None:
         """실행 취소."""
-        current_widget = self.data_area.layout().currentWidget()
-        if current_widget == self.syntax_editor:
+        focused = QApplication.focusWidget()
+        if focused is self.syntax_editor or (hasattr(focused, 'parent') and focused is getattr(self, 'syntax_editor', None)):
             self.syntax_editor.undo()
+        elif hasattr(focused, 'undo'):
+            focused.undo()
 
     def _edit_redo(self) -> None:
         """다시 실행."""
-        current_widget = self.data_area.layout().currentWidget()
-        if current_widget == self.syntax_editor:
+        focused = QApplication.focusWidget()
+        if focused is self.syntax_editor or (hasattr(focused, 'parent') and focused is getattr(self, 'syntax_editor', None)):
             self.syntax_editor.redo()
+        elif hasattr(focused, 'redo'):
+            focused.redo()
 
     def _edit_cut(self) -> None:
         """잘라내기."""
@@ -1037,11 +1040,13 @@ class MainWindow(QMainWindow):
 
     def _edit_select_all(self) -> None:
         """모두 선택."""
-        current_widget = self.data_area.layout().currentWidget()
-        if current_widget == self.data_view:
-            self.data_view.table.selectAll()
-        elif current_widget == self.syntax_editor:
+        focused = QApplication.focusWidget()
+        if focused is self.syntax_editor:
             self.syntax_editor.selectAll()
+        elif hasattr(self, 'data_view') and focused is getattr(self.data_view, 'table', None):
+            self.data_view.table.selectAll()
+        elif hasattr(focused, 'selectAll'):
+            focused.selectAll()
 
     # ── 데이터 메뉴 ─────────────────────────────────────────────────────────
 
@@ -1425,7 +1430,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.correlation_dialog import CorrelationDialog
         dialog = CorrelationDialog(self.current_dataset, self)
-        dialog.analysis_completed.connect(self._on_legacy_analysis_completed)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _run_regression(self) -> None:
