@@ -10,26 +10,27 @@ Supports:
 
 from __future__ import annotations
 
-from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
 from scipy.cluster import hierarchy
-from scipy.spatial.distance import pdist, cdist
+from scipy.spatial.distance import cdist, pdist
 
 try:
     from sklearn.cluster import KMeans
-    from sklearn.metrics import silhouette_score, silhouette_samples
-    from sklearn.preprocessing import StandardScaler
+    from sklearn.metrics import silhouette_samples, silhouette_score
+    from sklearn.preprocessing import StandardScaler  # noqa: F401
     _SKLEARN_AVAILABLE = True
 except ImportError:
     _SKLEARN_AVAILABLE = False
 
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_number
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_number, format_pvalue
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
@@ -75,7 +76,11 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         result.warnings.append("군집분석에는 1개 이상의 변수가 필요합니다.")
         return result
 
-    prepared = prepare_analysis_frame(dataset, variables=var_list, missing_policy=missing_policy)
+    try:
+        prepared = prepare_analysis_frame(dataset, variables=var_list, missing_policy=missing_policy)
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
     df = prepared.data
 
     result.add_table(get_case_processing_summary(
@@ -203,7 +208,6 @@ def _run_hierarchical(
     Z = hierarchy.linkage(dist_matrix, method=linkage_method)
 
     # Dendrogram data
-    dend = hierarchy.dendrogram(Z, no_plot=True)
     dend_rows = []
     for i, (merge_dist, cluster_i, cluster_j) in enumerate(
         zip(Z[:, 2], Z[:, 0].astype(int), Z[:, 1].astype(int))
@@ -264,7 +268,7 @@ def _add_cluster_descriptives(
             vals = df.loc[df.index[mask], var].dropna().values if mask.sum() > 0 else np.array([])
             if len(vals) > 0:
                 row[f"군집{k+1} 평균"] = format_number(float(np.mean(vals)), 3)
-                row[f"군집{k+1} SD"] = format_number(float(np.std(vals, ddof=1)) if len(vals) > 1 else np.nan, 3)
+                row[f"군집{k+1} SD"] = format_number(float(np.std(vals, ddof=1)), 3) if len(vals) > 1 else "-"
             else:
                 row[f"군집{k+1} 평균"] = ""
                 row[f"군집{k+1} SD"] = ""

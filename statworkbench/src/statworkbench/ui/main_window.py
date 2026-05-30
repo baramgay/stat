@@ -1334,7 +1334,7 @@ class MainWindow(QMainWindow):
 
         from statworkbench.ui.dialogs.anova_dialog import ANOVADialog
         dialog = ANOVADialog(self.current_dataset, self)
-        dialog.analysis_completed.connect(self._on_legacy_analysis_completed)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _run_two_way_anova(self) -> None:

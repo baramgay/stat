@@ -180,10 +180,11 @@ class TestMauchlyTest:
         assert res["epsilon_gg"] == pytest.approx(1.0)
 
     def test_w_in_valid_range(self):
-        """Mauchly W 출력값은 항상 [0, 1] 범위이어야 한다."""
+        """Mauchly W 출력값은 [0, 1] 범위이거나 특이행렬의 경우 nan이어야 한다."""
         mat = np.array([T1, T2, T3, T4], dtype=float).T
         res = _mauchly_test(mat)
-        assert 0.0 <= res["W"] <= 1.0
+        import math
+        assert math.isnan(res["W"]) or 0.0 <= res["W"] <= 1.0
         assert 0 < res["epsilon_gg"] <= 1.0
         assert res["epsilon_gg"] <= res["epsilon_hf"]
 
@@ -227,8 +228,9 @@ class TestMauchlyTest:
                         [3, 6, 9, 12]], dtype=float)
         res = _mauchly_test(mat)
         assert res is not None
-        # 특이행렬이면 W=1 (완벽한 구형성으로 처리)
-        assert res["W"] == pytest.approx(1.0)
+        import math
+        # 특이행렬이면 W=nan (검정 불가)
+        assert math.isnan(res["W"])
 
 
 # ── run_analysis: 기본 실행 ───────────────────────────────────────────────────

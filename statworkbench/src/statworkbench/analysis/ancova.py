@@ -319,6 +319,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                         pass
 
             diff = emm_a - emm_b if not (np.isnan(emm_a) or np.isnan(emm_b)) else np.nan
+            if np.isnan(diff) and np.isnan(emm_a) and np.isnan(emm_b):
+                continue
 
             if not np.isnan(se) and se > 0:
                 t_stat = diff / se if not np.isnan(diff) else np.nan

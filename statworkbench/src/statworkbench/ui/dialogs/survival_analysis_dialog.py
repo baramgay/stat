@@ -1,17 +1,33 @@
 """Survival Analysis Dialog — SPSS Kaplan-Meier/Cox 스타일 생존분석 다이얼로그."""
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QListWidget, QListWidgetItem, QGroupBox, QDialogButtonBox,
-    QPushButton, QCheckBox, QSpinBox, QDoubleSpinBox, QFormLayout,
-    QTabWidget, QWidget, QMessageBox
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, categorical_vars, all_vars,
-    display_label, measure_icon
+    all_vars,
+    categorical_vars,
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
 )
 
 
@@ -148,10 +164,10 @@ class SurvivalAnalysisDialog(QDialog):
         # 가운데: 이동 버튼
         btn_vbox = QVBoxLayout()
         btn_vbox.addStretch()
-        btn_add = QPushButton(">")
+        btn_add = QPushButton("→")
         btn_add.setFixedWidth(36)
         btn_add.clicked.connect(self._add_covariates)
-        btn_remove = QPushButton("<")
+        btn_remove = QPushButton("←")
         btn_remove.setFixedWidth(36)
         btn_remove.clicked.connect(self._remove_covariates)
         btn_add_all = QPushButton(">>")
@@ -246,7 +262,6 @@ class SurvivalAnalysisDialog(QDialog):
         ]
 
         # 이벤트 값에 따른 전처리 힌트 포함
-        current_tab = self.tab_widget.currentIndex()
         method = "both" if covariates else "km"
 
         return {

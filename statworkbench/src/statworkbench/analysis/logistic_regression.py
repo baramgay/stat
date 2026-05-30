@@ -17,6 +17,8 @@ import pandas as pd
 import statsmodels.api as sm
 from scipy import stats
 
+_trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -315,7 +317,7 @@ def _manual_classification_table(
                     fpr_list.append(fp / neg)
                 tpr_list.append(1.0)
                 fpr_list.append(1.0)
-                auc = float(np.trapezoid(tpr_list, fpr_list))
+                auc = float(_trapz(tpr_list, fpr_list))
                 auc_df = pd.DataFrame([{
                     "통계량": "ROC AUC (근사)",
                     "값": format_number(abs(auc), 3),
@@ -343,9 +345,9 @@ def _hosmer_lemeshow_test(
             obs_0 = len(grp) - obs_1
             exp_1 = grp["prob"].sum()
             exp_0 = len(grp) - exp_1
-            if exp_1 > 0:
+            if exp_1 >= 1.0:
                 hl_chi2 += (obs_1 - exp_1) ** 2 / exp_1
-            if exp_0 > 0:
+            if exp_0 >= 1.0:
                 hl_chi2 += (obs_0 - exp_0) ** 2 / exp_0
 
         actual_groups = df_hl["decile"].nunique()

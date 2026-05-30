@@ -158,8 +158,9 @@ def _add_kmo_bartlett(
         # Bartlett's test
         corr_full = np.corrcoef(X.T)
         det = np.linalg.det(corr_full)
+        det_safe = max(float(det), 1e-300)
         if det > 0:
-            chi2_stat = -(n_obs - 1 - (2 * n_vars + 5) / 6) * np.log(det)
+            chi2_stat = -(n_obs - 1 - (2 * n_vars + 5) / 6) * np.log(det_safe)
         else:
             chi2_stat = np.nan
         df_bartlett = n_vars * (n_vars - 1) / 2

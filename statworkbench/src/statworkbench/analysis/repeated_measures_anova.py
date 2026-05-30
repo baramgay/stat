@@ -64,11 +64,12 @@ def _mauchly_test(data_matrix: np.ndarray) -> dict:
     det_S = np.linalg.det(S)
     tr_S = np.trace(S)
     denom = (tr_S / (k - 1)) ** (k - 1)
-    if denom < 1e-15 or det_S < 1e-15:
-        # 공분산 행렬이 특이하거나 분산이 없는 경우 — 구형성 충족으로 처리
+    if denom < 1e-15 or det_S <= 0:
+        # 공분산 행렬이 특이하거나 분산이 없는 경우 — 검정 불가 처리
+        _df = int(k * (k - 1) / 2 - 1)
         return {
-            "W": 1.0, "chi2": 0.0, "df": 0, "p": 1.0,
-            "epsilon_gg": 1.0, "epsilon_hf": 1.0, "epsilon_lb": 1.0 / (k - 1),
+            "W": float("nan"), "chi2": float("nan"), "df": _df, "p": float("nan"),
+            "epsilon_gg": 1.0 / (k - 1), "epsilon_hf": 1.0 / (k - 1), "epsilon_lb": 1.0 / (k - 1),
         }
     W = det_S / denom
     W = max(W, 1e-15)

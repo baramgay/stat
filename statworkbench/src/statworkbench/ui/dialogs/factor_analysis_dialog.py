@@ -1,16 +1,31 @@
 """Factor Analysis Dialog — SPSS 스타일 요인분석 다이얼로그."""
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QListWidget, QListWidgetItem, QGroupBox, QDialogButtonBox,
-    QPushButton, QCheckBox, QSpinBox, QDoubleSpinBox, QFormLayout,
-    QRadioButton, QButtonGroup, QWidget, QMessageBox
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QSpinBox,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt, Signal
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, display_label, measure_icon
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
 )
 
 
@@ -58,10 +73,10 @@ class FactorAnalysisDialog(QDialog):
         # 이동 버튼
         move_layout = QVBoxLayout()
         move_layout.addStretch()
-        btn_add = QPushButton(">")
+        btn_add = QPushButton("→")
         btn_add.setFixedWidth(36)
         btn_add.clicked.connect(self._add_vars)
-        btn_remove = QPushButton("<")
+        btn_remove = QPushButton("←")
         btn_remove.setFixedWidth(36)
         btn_remove.clicked.connect(self._remove_vars)
         btn_add_all = QPushButton(">>")
@@ -104,9 +119,9 @@ class FactorAnalysisDialog(QDialog):
         rotation_group = QGroupBox("회전 (Rotation)")
         rotation_layout = QVBoxLayout(rotation_group)
         self.rotation_combo = QComboBox()
-        self.rotation_combo.addItem("없음 (None)", "none")
         self.rotation_combo.addItem("베리맥스 (Varimax)", "varimax")
         self.rotation_combo.addItem("직접 오블리민 (Direct Oblimin)", "oblimin")
+        self.rotation_combo.addItem("없음 (None)", "none")
         rotation_layout.addWidget(self.rotation_combo)
         method_rotation_layout.addWidget(rotation_group)
 

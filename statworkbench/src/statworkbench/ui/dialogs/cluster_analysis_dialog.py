@@ -3,17 +3,32 @@
 K-평균 군집과 계층적 군집을 탭으로 구분하여 제공합니다.
 """
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QListWidget, QListWidgetItem, QGroupBox, QDialogButtonBox,
-    QPushButton, QCheckBox, QSpinBox, QFormLayout, QTabWidget,
-    QWidget, QMessageBox
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, display_label, measure_icon
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
 )
 
 
@@ -59,10 +74,10 @@ class ClusterAnalysisDialog(QDialog):
 
         move_layout = QVBoxLayout()
         move_layout.addStretch()
-        btn_add = QPushButton(">")
+        btn_add = QPushButton("→")
         btn_add.setFixedWidth(36)
         btn_add.clicked.connect(self._add_vars)
-        btn_remove = QPushButton("<")
+        btn_remove = QPushButton("←")
         btn_remove.setFixedWidth(36)
         btn_remove.clicked.connect(self._remove_vars)
         btn_add_all = QPushButton(">>")
