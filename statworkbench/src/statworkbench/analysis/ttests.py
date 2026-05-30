@@ -1,18 +1,30 @@
 """t-Test analysis for StatWorkbench."""
 
 from __future__ import annotations
-from typing import Optional
+
+import logging
+logger = logging.getLogger(__name__)
+
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+from statworkbench.analysis.assumptions import (
+    get_case_processing_summary,
+    levene_test,
+    prepare_analysis_frame,
+)
+from statworkbench.analysis.formatting import (
+    format_ci,
+    format_number,
+    format_pvalue,
+    get_display_decimals,
+)
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci, get_display_decimals
-from statworkbench.analysis.assumptions import (
-    prepare_analysis_frame, get_case_processing_summary, levene_test
-)
 
 
 def _cohens_d(x1: np.ndarray, x2: np.ndarray, pooled: bool = True) -> float:
@@ -22,12 +34,12 @@ def _cohens_d(x1: np.ndarray, x2: np.ndarray, pooled: bool = True) -> float:
     sd2 = np.std(x2, ddof=1)
     if pooled:
         pooled_sd = np.sqrt(((n1 - 1) * sd1**2 + (n2 - 1) * sd2**2) / (n1 + n2 - 2))
-        if pooled_sd == 0:
+        if pooled_sd < 1e-10:
             return 0.0
         return float((np.mean(x1) - np.mean(x2)) / pooled_sd)
     else:
         avg_sd = (sd1 + sd2) / 2
-        if avg_sd == 0:
+        if avg_sd < 1e-10:
             return 0.0
         return float((np.mean(x1) - np.mean(x2)) / avg_sd)
 
@@ -66,21 +78,25 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     dep_var: str = variables.get("dependent", "")
     group_var: str = variables.get("group", "")
 
-    if paired_vars and len(paired_vars) == 2:
-        return _paired_ttest(
-            dataset, paired_vars, confidence_level, missing_policy, result
-        )
-    elif dep_var and group_var:
-        return _independent_ttest(
-            dataset, dep_var, group_var, options, confidence_level,
-            missing_policy, result
-        )
-    else:
-        result.warnings.append(
-            "Invalid variable specification. Need either 'dependent'+'group' "
-            "or 'paired' with two variable names."
-        )
-        return result
+    try:
+        if paired_vars and len(paired_vars) == 2:
+            return _paired_ttest(
+                dataset, paired_vars, confidence_level, missing_policy, result
+            )
+        elif dep_var and group_var:
+            return _independent_ttest(
+                dataset, dep_var, group_var, options, confidence_level,
+                missing_policy, result
+            )
+        else:
+            result.warnings.append(
+                "Invalid variable specification. Need either 'dependent'+'group' "
+                "or 'paired' with two variable names."
+            )
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+
+    return result
 
 
 def _independent_ttest(
@@ -124,17 +140,13 @@ def _independent_ttest(
     sd1 = float(np.std(g1_data, ddof=1))
     sd2 = float(np.std(g2_data, ddof=1))
 
-    def _label(var: str) -> str:
-        meta = dataset.variables.get(var) if dataset.variables else None
-        return meta.label if (meta and meta.label) else var
-
-    def _val_label(var: str, val) -> str:
+    def _val_label(var: str, val: Any) -> str:
         meta = dataset.variables.get(var) if dataset.variables else None
         if meta and meta.value_labels:
             key = int(val) if isinstance(val, float) and val == int(val) else val
             lbl = meta.value_labels.get(key) or meta.value_labels.get(str(key))
             if lbl:
-                return lbl
+                return str(lbl)
         return str(val)
 
     # Group statistics table
@@ -217,7 +229,7 @@ def _independent_ttest(
     se1_sq = sd1**2 / n1
     se2_sq = sd2**2 / n2
     _welch_denom = se1_sq**2 / (n1 - 1) + se2_sq**2 / (n2 - 1)
-    df_uneq = (se1_sq + se2_sq)**2 / _welch_denom if _welch_denom > 0 else float(n1 + n2 - 2)
+    df_uneq = (se1_sq + se2_sq)**2 / _welch_denom if _welch_denom > 1e-10 else float(n1 + n2 - 2)
     se_diff_uneq = np.sqrt(se1_sq + se2_sq)
     t_crit_uneq = stats.t.ppf(1 - alpha / 2, df_uneq)
     ci_low_uneq = mean_diff - t_crit_uneq * se_diff_uneq
@@ -323,7 +335,7 @@ def _paired_ttest(
     ci_high = mean_diff + t_crit * se_diff
 
     # Cohen's dz for paired
-    dz = mean_diff / sd_diff if sd_diff > 0 else 0.0
+    dz = mean_diff / sd_diff if sd_diff > 1e-12 else float("inf") * (1 if mean_diff >= 0 else -1)
 
     test_df = pd.DataFrame([
         {
@@ -454,3 +466,23 @@ def run_one_sample_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         combined.warnings.extend(sub.warnings)
         combined.notes.extend(sub.notes)
     return combined
+
+
+class TtestEngine:
+    """AnalysisPlugin wrapper for t-test analyses."""
+
+    id = "independent_t_test"
+    name = "T 검정"
+    category = "Compare Means"
+    description = "독립표본/대응표본/단일표본 t 검정"
+    variable_requirements: list[dict] = [
+        {"role": "dependent", "measure_types": ["scale"], "min_count": 1, "max_count": 1, "required": True},
+        {"role": "group", "measure_types": ["binary"], "min_count": 0, "max_count": 1, "required": False},
+    ]
+    implemented = True
+
+    def validate(self, dataset: Dataset, spec: dict) -> list[str]:
+        return []
+
+    def run(self, dataset: Dataset, spec: dict) -> AnalysisResult:
+        return run_analysis(dataset, spec)

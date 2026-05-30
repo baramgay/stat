@@ -10,13 +10,17 @@ SPSS에는 직접 메뉴가 없으나 MedCalc·SPSS 매크로로 구현됨.
 
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.analysis.result import AnalysisResult, ResultTable
+from statworkbench.analysis.assumptions import get_cps_table_kr
 from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
+from statworkbench.core.dataset import Dataset
 
 
 def _compute_bland_altman(method1: np.ndarray, method2: np.ndarray) -> dict:
@@ -166,22 +170,14 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     b = data_clean["_m2"].values.astype(float)
 
     # ── 통계 계산 ─────────────────────────────────────────────────
-    r = _compute_bland_altman(a, b)
+    try:
+        r = _compute_bland_altman(a, b)
+    except Exception as exc:
+        result.add_warning(f"Bland-Altman 계산 오류: {exc}")
+        return result
 
     # ── 테이블 1: Case Processing Summary ────────────────────────
-    cps_df = pd.DataFrame({
-        "구분": ["유효", "결측", "합계"],
-        "N": [n_valid, n_missing, n_total],
-        "%": [
-            round(n_valid / n_total * 100, 1),
-            round(n_missing / n_total * 100, 1),
-            100.0,
-        ],
-    })
-    result.tables.append(ResultTable(
-        title="Case Processing Summary",
-        dataframe=cps_df,
-    ))
+    result.tables.append(get_cps_table_kr(n_total, n_valid, n_missing))
 
     # ── 테이블 2: Bland-Altman Statistics ────────────────────────
     bias_flag = " *" if r["proportional_bias_p"] < 0.05 else ""
@@ -250,7 +246,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     diff_arr = a - b
     mean_arr = (a + b) / 2.0
     sd = r["sd_diff"]
-    std_diff_arr = diff_arr / sd if sd > 1e-12 else np.zeros_like(diff_arr)
+    std_diff_arr = diff_arr / sd if sd > 1e-12 else np.full_like(diff_arr, float("nan"))
 
     ind_rows = []
     for i in range(n_valid):

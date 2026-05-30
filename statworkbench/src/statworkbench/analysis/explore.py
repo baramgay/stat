@@ -13,18 +13,17 @@ SPSS 29/30 호환 출력:
 
 from __future__ import annotations
 
-from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
+
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.core.typing import MissingPolicy
 from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_number, format_pvalue
-from statworkbench.analysis.assumptions import prepare_analysis_frame
-
+from statworkbench.core.dataset import Dataset
 
 # ────────────────────────────────────────────────────────────────
 # 내부 계산 함수
@@ -91,9 +90,14 @@ def _compute_explore_stats(arr: np.ndarray) -> dict:
         se_mean = 0.0
         ci_lower = ci_upper = mean
 
-    # Shapiro-Wilk
-    if n >= 3:
+    # Shapiro-Wilk (scipy 한계: N≤5000)
+    if 3 <= n <= 5000:
         shapiro_w, shapiro_p = stats.shapiro(arr)
+        shapiro_w = float(shapiro_w)
+        shapiro_p = float(shapiro_p)
+    elif n > 5000:
+        # N>5000이면 첫 5000개 서브샘플 사용 (경고는 상위에서 처리)
+        shapiro_w, shapiro_p = stats.shapiro(arr[:5000])
         shapiro_w = float(shapiro_w)
         shapiro_p = float(shapiro_p)
     else:
@@ -127,7 +131,7 @@ def _compute_explore_stats(arr: np.ndarray) -> dict:
 def _build_descriptives_rows(
     var_name: str,
     s: dict,
-    group_label: Optional[str] = None,
+    group_label: str | None = None,
 ) -> list[dict]:
     """SPSS Explore > Descriptives 세로형 행 목록 생성.
 
@@ -145,7 +149,7 @@ def _build_descriptives_rows(
     list[dict]
         Descriptives 테이블 행 목록.
     """
-    def _val(v):
+    def _val(v: Any) -> float:
         """NaN이면 빈 문자열, 아니면 원시 float 반환 (포맷은 테이블 출력 시)."""
         if v is None:
             return float("nan")
@@ -183,7 +187,7 @@ def _build_descriptives_rows(
 def _build_extreme_values_rows(
     var_name: str,
     arr: np.ndarray,
-    group_label: Optional[str] = None,
+    group_label: str | None = None,
 ) -> list[dict]:
     """Extreme Values 행 목록 생성 (최솟값 5개 + 최댓값 5개).
 
@@ -201,7 +205,7 @@ def _build_extreme_values_rows(
     list[dict]
         Extreme Values 테이블 행.
     """
-    rows = []
+    rows: list[dict] = []
     if len(arr) == 0:
         return rows
 
@@ -238,7 +242,7 @@ def _build_extreme_values_rows(
 def _build_normality_rows(
     var_name: str,
     s: dict,
-    group_label: Optional[str] = None,
+    group_label: str | None = None,
 ) -> list[dict]:
     """Tests of Normality 행 생성.
 
@@ -270,7 +274,7 @@ def _build_percentile_rows(
     var_name: str,
     arr: np.ndarray,
     percentiles: list[int],
-    group_label: Optional[str] = None,
+    group_label: str | None = None,
 ) -> list[dict]:
     """Percentiles 테이블 행 생성.
 
@@ -393,14 +397,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     """
     variables = spec.get("variables", {})
     options = spec.get("options", {})
-    missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
-    if isinstance(missing_policy_str, str):
-        missing_policy = MissingPolicy(missing_policy_str)
-    else:
-        missing_policy = missing_policy_str
-
     target_vars: list[str] = variables.get("target", [])
-    factor_var: Optional[str] = variables.get("factor", None)
+    factor_var: str | None = variables.get("factor", None)
     percentiles: list[int] = options.get("percentiles", [5, 10, 25, 50, 75, 90, 95])
     include_normality: bool = options.get("normality", True)
 
@@ -411,11 +409,13 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     )
 
     # 변수 존재 확인
-    for var in target_vars:
-        if var not in dataset.data.columns:
-            raise ValueError(f"변수 '{var}'이(가) 데이터셋에 없습니다.")
+    missing_vars = [v for v in target_vars if v not in dataset.data.columns]
+    if missing_vars:
+        result.add_warning(f"변수를 찾을 수 없습니다: {missing_vars}")
+        return result
     if factor_var is not None and factor_var not in dataset.data.columns:
-        raise ValueError(f"factor 변수 '{factor_var}'이(가) 데이터셋에 없습니다.")
+        result.add_warning(f"factor 변수 '{factor_var}'이(가) 데이터셋에 없습니다.")
+        return result
 
     # 결측 처리 전 원본 부분집합 (Case Processing Summary용)
     all_vars = list(target_vars)
@@ -431,13 +431,20 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             result.add_table(ResultTable(title=title, dataframe=pd.DataFrame()))
         return result
 
-    df_full_subset = dataset.data[all_vars].copy()
+    try:
+        df_full_subset = dataset.data[all_vars].copy()
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
 
     # Case Processing Summary (변수별 개별 결측 집계)
-    cps_table = _build_case_processing_summary(
-        dataset, target_vars, df=df_full_subset, df_full=df_full_subset
-    )
-    result.add_table(cps_table)
+    try:
+        cps_table = _build_case_processing_summary(
+            dataset, target_vars, df=df_full_subset, df_full=df_full_subset
+        )
+        result.add_table(cps_table)
+    except Exception as exc:
+        result.add_warning(f"Case Processing Summary 생성 오류: {exc}")
 
     # 그룹별 vs 전체 분석
     desc_rows: list[dict] = []
@@ -445,36 +452,43 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     norm_rows: list[dict] = []
     pct_rows: list[dict] = []
 
-    if factor_var is not None:
-        # 그룹별 분석
-        df_factor = df_full_subset.copy()
-        groups = sorted(df_factor[factor_var].dropna().unique())
-        for grp in groups:
-            grp_mask = df_factor[factor_var] == grp
+    try:
+        if factor_var is not None:
+            # 그룹별 분석
+            df_factor = df_full_subset.copy()
+            try:
+                groups = sorted(df_factor[factor_var].dropna().unique())
+            except TypeError:
+                groups = list(df_factor[factor_var].dropna().unique())
+            for grp in groups:
+                grp_mask = df_factor[factor_var] == grp
+                for var in target_vars:
+                    arr = df_factor.loc[grp_mask, var].dropna().values.astype(float)
+                    if len(arr) == 0:
+                        result.warnings.append(
+                            f"변수 '{var}', 그룹 '{grp}': 유효한 데이터 없음."
+                        )
+                    s = _compute_explore_stats(arr)
+                    desc_rows.extend(_build_descriptives_rows(var, s, group_label=str(grp)))
+                    extreme_rows.extend(_build_extreme_values_rows(var, arr, group_label=str(grp)))
+                    if include_normality:
+                        norm_rows.extend(_build_normality_rows(var, s, group_label=str(grp)))
+                    pct_rows.extend(_build_percentile_rows(var, arr, percentiles, group_label=str(grp)))
+        else:
+            # 전체 분석
             for var in target_vars:
-                arr = df_factor.loc[grp_mask, var].dropna().values.astype(float)
+                arr = df_full_subset[var].dropna().values.astype(float)
                 if len(arr) == 0:
-                    result.warnings.append(
-                        f"변수 '{var}', 그룹 '{grp}': 유효한 데이터 없음."
-                    )
+                    result.warnings.append(f"변수 '{var}': 유효한 데이터가 없습니다.")
                 s = _compute_explore_stats(arr)
-                desc_rows.extend(_build_descriptives_rows(var, s, group_label=str(grp)))
-                extreme_rows.extend(_build_extreme_values_rows(var, arr, group_label=str(grp)))
+                desc_rows.extend(_build_descriptives_rows(var, s))
+                extreme_rows.extend(_build_extreme_values_rows(var, arr))
                 if include_normality:
-                    norm_rows.extend(_build_normality_rows(var, s, group_label=str(grp)))
-                pct_rows.extend(_build_percentile_rows(var, arr, percentiles, group_label=str(grp)))
-    else:
-        # 전체 분석
-        for var in target_vars:
-            arr = df_full_subset[var].dropna().values.astype(float)
-            if len(arr) == 0:
-                result.warnings.append(f"변수 '{var}': 유효한 데이터가 없습니다.")
-            s = _compute_explore_stats(arr)
-            desc_rows.extend(_build_descriptives_rows(var, s))
-            extreme_rows.extend(_build_extreme_values_rows(var, arr))
-            if include_normality:
-                norm_rows.extend(_build_normality_rows(var, s))
-            pct_rows.extend(_build_percentile_rows(var, arr, percentiles))
+                    norm_rows.extend(_build_normality_rows(var, s))
+                pct_rows.extend(_build_percentile_rows(var, arr, percentiles))
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
 
     # ── 테이블 2: Descriptives ──
     desc_df = pd.DataFrame(desc_rows)

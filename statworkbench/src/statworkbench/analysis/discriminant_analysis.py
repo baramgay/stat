@@ -396,8 +396,11 @@ def _add_structure_matrix(
             row: dict = {"변수": var}
             for j in range(n_components):
                 if scores.shape[1] > j:
-                    corr, _ = stats.pearsonr(X[:, i], scores[:, j])
-                    row[f"함수{j+1}"] = format_number(float(corr), 3)
+                    try:
+                        corr, _ = stats.pearsonr(X[:, i], scores[:, j])
+                        row[f"함수{j+1}"] = format_number(float(corr), 3)
+                    except Exception:
+                        row[f"함수{j+1}"] = ""
                 else:
                     row[f"함수{j+1}"] = ""
             struct_rows.append(row)
