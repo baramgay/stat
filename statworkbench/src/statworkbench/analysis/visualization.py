@@ -9,27 +9,26 @@ from __future__ import annotations
 import base64
 import io
 import logging
-from typing import Any, Optional, List, Tuple
+from typing import Any
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.figure import Figure
 from scipy import stats
-
-from statworkbench.core.dataset import Dataset
 
 logger = logging.getLogger(__name__)
 
 # 한글 폰트 설정 (맑은 고딕 우선, 캐시 자동 갱신)
 def _setup_korean_font() -> None:
     """시스템에서 한글 폰트를 찾아 matplotlib에 등록."""
-    import matplotlib.font_manager as _fm
     import platform
+
+    import matplotlib.font_manager as _fm
 
     candidates = ["Malgun Gothic", "NanumGothic", "NanumBarunGothic", "AppleGothic"]
     available = {f.name for f in _fm.fontManager.ttflist}
@@ -40,7 +39,7 @@ def _setup_korean_font() -> None:
             break
     else:
         # 직접 경로 탐색 (Windows)
-        if platform.system() == "Windows":
+        if platform.system() == "Windows":  # pragma: no cover
             win_font = "C:/Windows/Fonts/malgun.ttf"
             import os
             if os.path.exists(win_font):
@@ -49,7 +48,7 @@ def _setup_korean_font() -> None:
                 plt.rcParams["font.family"] = prop.get_name()
             else:
                 plt.rcParams["font.family"] = "DejaVu Sans"
-        else:
+        else:  # pragma: no cover
             plt.rcParams["font.family"] = "DejaVu Sans"
 
     plt.rcParams["axes.unicode_minus"] = False
@@ -57,17 +56,72 @@ def _setup_korean_font() -> None:
 
 _setup_korean_font()
 
-# 기본 스타일
-sns.set_style("whitegrid")
-try:
-    plt.style.use("seaborn-v0_8-whitegrid")
-except OSError:
-    pass
+# seaborn set_theme 이후 폰트가 재설정되므로 폰트명을 먼저 캐싱
+_KOREAN_FONT_FAMILY = plt.rcParams.get("font.family", ["sans-serif"])
+_FONT_NAME = (
+    _KOREAN_FONT_FAMILY[0]
+    if isinstance(_KOREAN_FONT_FAMILY, list)
+    else _KOREAN_FONT_FAMILY
+)
+
+
+# ── 폰트 크기 설정 (사용자 조정 가능) ─────────────────────────────────────
+class VizFontSize:
+    """시각화 폰트 크기 설정.
+
+    직접 수정하거나 런타임에 VisualizationEngine.set_font_scale()로 조정.
+    """
+    TITLE      = 18   # 차트 제목
+    SUBTITLE   = 15   # 서브 제목 (suptitle)
+    AXIS_LABEL = 14   # 축 레이블
+    TICK       = 12   # 축 눈금 레이블
+    LEGEND     = 12   # 범례
+    ANNOTATION = 11   # 차트 내 주석·값 레이블
+    FOOTNOTE   = 10   # 각주·캡션
+
+
+# ── 세련된 기본 테마 ───────────────────────────────────────────────────────
+sns.set_theme(
+    style="ticks",
+    context="notebook",
+    rc={
+        "font.family": _FONT_NAME,
+        "axes.unicode_minus": False,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+        "grid.linestyle": "--",
+        "grid.color": "#d0d0d0",
+        "axes.titlesize": VizFontSize.TITLE,
+        "axes.titleweight": "bold",
+        "axes.titlepad": 18,
+        "axes.labelsize": VizFontSize.AXIS_LABEL,
+        "axes.labelcolor": "#2a2a2a",
+        "axes.edgecolor": "#aaaaaa",
+        "xtick.labelsize": VizFontSize.TICK,
+        "ytick.labelsize": VizFontSize.TICK,
+        "xtick.color": "#555555",
+        "ytick.color": "#555555",
+        "legend.fontsize": VizFontSize.LEGEND,
+        "legend.title_fontsize": VizFontSize.LEGEND,
+        "legend.framealpha": 0.9,
+        "legend.edgecolor": "#dddddd",
+        "figure.facecolor": "white",
+        "axes.facecolor": "#f8f9fa",
+        "figure.dpi": 130,
+        "figure.titlesize": VizFontSize.SUBTITLE,
+        "figure.titleweight": "bold",
+        "patch.linewidth": 0.6,
+    },
+)
+# set_theme 이후 unicode_minus 재설정
+plt.rcParams["axes.unicode_minus"] = False
 
 
 class VisualizationEngine:
     """시각화 엔진.
-    
+
     Features:
     - SPSS 스타일 기본 차트 (막대, 선, 산점도, 히스토그램, 상자 그림)
     - 고급 차트 (히트맵, 페어플롯, 바이올린, KDE)
@@ -75,40 +129,92 @@ class VisualizationEngine:
     - 자동 가독성 최적화 (제목, 레이블, 범례)
     - 결과 검증 (데이터 타입, 결측치 처리)
     """
-    
-    # 기본 색상 팔레트 (색맹 친화적)
-    COLOR_PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-                     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
-    
-    # 차트 기본 크기
+
+    # 색맹 친화적 + 세련된 팔레트 (Wong 2011 컬러 유니버설 디자인 기반)
+    COLOR_PALETTE = [
+        "#0072B2",  # 파랑
+        "#E69F00",  # 주황
+        "#009E73",  # 초록
+        "#D55E00",  # 붉은 주황
+        "#CC79A7",  # 분홍 보라
+        "#56B4E9",  # 하늘
+        "#F0E442",  # 노랑
+        "#999999",  # 회색
+        "#44AA99",  # 청록
+        "#882255",  # 자주
+    ]
+
+    # 차트 기본 크기 (세련된 비율)
     FIGURE_SIZES = {
-        "small": (6, 4),
-        "medium": (10, 6),
-        "large": (14, 8),
-        "wide": (16, 6),
-        "square": (8, 8),
+        "small": (7, 4.5),
+        "medium": (11, 6.5),
+        "large": (15, 8.5),
+        "wide": (16, 5.5),
+        "square": (8.5, 8.5),
     }
-    
+
     def __init__(self) -> None:
         self._figure_count = 0
-    
+        self._labels: dict[str, str] = {}
+
+    def set_labels(self, dataset: Any) -> None:
+        """데이터셋의 변수 label을 차트 표시에 사용하도록 설정한다.
+
+        Args:
+            dataset: Dataset 인스턴스. variables 딕셔너리에서 label을 추출한다.
+        """
+        self._labels = {}
+        if dataset is not None and hasattr(dataset, "variables"):
+            for col, meta in dataset.variables.items():
+                label = getattr(meta, "label", None)
+                if label and label != col:
+                    self._labels[col] = label
+
+    def _lbl(self, col: str) -> str:
+        """컬럼명에 대응하는 표시용 label을 반환한다.
+
+        label이 없거나 같으면 컬럼명을 그대로 반환한다.
+        """
+        return self._labels.get(col, col)
+
+    @staticmethod
+    def set_font_scale(scale: float = 1.0) -> None:
+        """전체 폰트 크기를 비율로 조정한다.
+
+        Args:
+            scale: 1.0이 기본값. 1.2면 모든 폰트 20% 크게, 0.8이면 20% 작게.
+
+        Example::
+
+            VisualizationEngine.set_font_scale(1.3)  # 30% 크게
+        """
+        plt.rcParams.update({
+            "axes.titlesize":  VizFontSize.TITLE      * scale,
+            "axes.labelsize":  VizFontSize.AXIS_LABEL * scale,
+            "xtick.labelsize": VizFontSize.TICK       * scale,
+            "ytick.labelsize": VizFontSize.TICK       * scale,
+            "legend.fontsize": VizFontSize.LEGEND     * scale,
+            "legend.title_fontsize": VizFontSize.LEGEND * scale,
+            "figure.titlesize": VizFontSize.SUBTITLE  * scale,
+        })
+
     # ── 검증 메서드 ────────────────────────────────────────────────────────
-    
-    def _validate_data(self, df: pd.DataFrame, required_cols: List[str]) -> dict[str, Any]:
+
+    def _validate_data(self, df: pd.DataFrame, required_cols: list[str]) -> dict[str, Any]:
         """데이터 검증."""
-        result = {"valid": True, "errors": [], "warnings": []}
-        
+        result: dict[str, Any] = {"valid": True, "errors": [], "warnings": []}
+
         if df is None or df.empty:
             result["valid"] = False
             result["errors"].append("데이터가 비어 있습니다.")
             return result
-        
+
         # 필수 컬럼 확인
         missing = [c for c in required_cols if c not in df.columns]
         if missing:
             result["valid"] = False
             result["errors"].append(f"필수 변수가 없습니다: {missing}")
-        
+
         # 결측치 비율
         for col in required_cols:
             if col in df.columns:
@@ -117,43 +223,43 @@ class VisualizationEngine:
                     result["warnings"].append(f"'{col}'의 결측치가 {na_ratio:.1%}입니다.")
                 elif na_ratio > 0:
                     result["warnings"].append(f"'{col}'의 결측치가 {na_ratio:.1%}입니다.")
-        
+
         return result
-    
+
     def _validate_numeric(self, series: pd.Series, var_name: str) -> dict[str, Any]:
         """숫자형 변수 검증."""
-        result = {"valid": True, "errors": [], "warnings": []}
-        
+        result: dict[str, Any] = {"valid": True, "errors": [], "warnings": []}
+
         if not pd.api.types.is_numeric_dtype(series):
             result["valid"] = False
             result["errors"].append(f"'{var_name}'은(는) 숫자형 변수가 아닙니다.")
             return result
-        
+
         # 무한값, 극단값 검사
         finite = np.isfinite(series.dropna())
         if not finite.all():
             result["warnings"].append(f"'{var_name}'에 무한값 또는 극단값이 포함되어 있습니다.")
-        
+
         # 상수 검사
         if series.nunique() <= 1:
             result["warnings"].append(f"'{var_name}'의 값이 모두 동일합니다.")
-        
+
         return result
-    
+
     # ── 기본 차트 ──────────────────────────────────────────────────────────
-    
+
     def bar_chart(
         self,
         df: pd.DataFrame,
         x: str,
-        y: Optional[str] = None,
-        hue: Optional[str] = None,
+        y: str | None = None,
+        hue: str | None = None,
         title: str = "",
         orientation: str = "vertical",
         size: str = "medium",
     ) -> str:
         """막대 차트.
-        
+
         Returns:
             Base64 인코딩된 PNG 이미지
         """
@@ -164,9 +270,9 @@ class VisualizationEngine:
         validation = self._validate_data(df, required)
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
-        
+
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
-        
+
         try:
             if y:
                 if hue:
@@ -185,21 +291,21 @@ class VisualizationEngine:
                     counts.plot(kind="barh", ax=ax, color=self.COLOR_PALETTE[0])
                 else:
                     counts.plot(kind="bar", ax=ax, color=self.COLOR_PALETTE[0])
-            
+
             # 가독성 최적화
             self._apply_readability(ax, title or f"막대 차트: {x}", x, y or "빈도")
-            
+
             if hue:
                 ax.legend(title=hue, bbox_to_anchor=(1.05, 1), loc="upper left")
-            
+
             plt.tight_layout()
             return self._fig_to_base64(fig)
-            
-        except Exception as exc:
+
+        except Exception as exc:  # pragma: no cover
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
-    
+
     def histogram(
         self,
         df: pd.DataFrame,
@@ -213,39 +319,45 @@ class VisualizationEngine:
         validation = self._validate_data(df, [x])
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
-        
+
         num_check = self._validate_numeric(df[x], x)
         if not num_check["valid"]:
             return self._error_image("\n".join(num_check["errors"]))
-        
+
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
-        
+
         try:
-            sns.histplot(data=df, x=x, bins=bins, kde=kde, ax=ax, color=self.COLOR_PALETTE[0])
-            
-            # 통계 정보 추가
+            sns.histplot(
+                data=df, x=x, bins=bins, kde=kde, ax=ax,
+                color=self.COLOR_PALETTE[0], alpha=0.75,
+                edgecolor="white", linewidth=0.5,
+            )
+
+            # 통계 정보 추가 (세련된 수직선)
             mean = df[x].mean()
             median = df[x].median()
-            ax.axvline(mean, color="red", linestyle="--", linewidth=2, label=f"평균: {mean:.2f}")
-            ax.axvline(median, color="green", linestyle="--", linewidth=2, label=f"중위수: {median:.2f}")
-            ax.legend()
-            
+            ax.axvline(mean, color="#D55E00", linestyle="--", linewidth=1.8,
+                       label=f"평균: {mean:.2f}", alpha=0.9)
+            ax.axvline(median, color="#009E73", linestyle="-.", linewidth=1.8,
+                       label=f"중위수: {median:.2f}", alpha=0.9)
+            ax.legend(frameon=True, framealpha=0.85)
+
             self._apply_readability(ax, title or f"히스토그램: {x}", x, "빈도")
             plt.tight_layout()
             return self._fig_to_base64(fig)
-            
-        except Exception as exc:
+
+        except Exception as exc:  # pragma: no cover
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
-    
+
     def scatter_plot(
         self,
         df: pd.DataFrame,
         x: str,
         y: str,
-        hue: Optional[str] = None,
-        size_var: Optional[str] = None,
+        hue: str | None = None,
+        size_var: str | None = None,
         title: str = "",
         add_regression: bool = False,
         size: str = "medium",
@@ -254,9 +366,9 @@ class VisualizationEngine:
         validation = self._validate_data(df, [x, y])
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
-        
+
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
-        
+
         try:
             if add_regression and hue is None:
                 sns.regplot(data=df, x=x, y=y, ax=ax, color=self.COLOR_PALETTE[0],
@@ -264,30 +376,31 @@ class VisualizationEngine:
             else:
                 sns.scatterplot(data=df, x=x, y=y, hue=hue, size=size_var,
                               ax=ax, palette=self.COLOR_PALETTE, alpha=0.7)
-            
+
             # 상관계수 표시
             if pd.api.types.is_numeric_dtype(df[x]) and pd.api.types.is_numeric_dtype(df[y]):
                 corr = df[[x, y]].corr().iloc[0, 1]
                 ax.text(0.02, 0.98, f"상관계수: {corr:.3f}",
-                       transform=ax.transAxes, fontsize=11,
+                       transform=ax.transAxes, fontsize=VizFontSize.ANNOTATION,
                        verticalalignment="top",
-                       bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
-            
+                       bbox=dict(boxstyle="round,pad=0.4", facecolor="#fff8e7",
+                                 edgecolor="#ddb", alpha=0.85))
+
             self._apply_readability(ax, title or f"산점도: {x} vs {y}", x, y)
             plt.tight_layout()
             return self._fig_to_base64(fig)
-            
-        except Exception as exc:
+
+        except Exception as exc:  # pragma: no cover
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
-    
+
     def box_plot(
         self,
         df: pd.DataFrame,
-        x: Optional[str] = None,
+        x: str | None = None,
         y: str = "",
-        hue: Optional[str] = None,
+        hue: str | None = None,
         title: str = "",
         size: str = "medium",
     ) -> str:
@@ -298,30 +411,30 @@ class VisualizationEngine:
         validation = self._validate_data(df, required)
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
-        
+
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
-        
+
         try:
             if x:
                 sns.boxplot(data=df, x=x, y=y, hue=hue, ax=ax, palette=self.COLOR_PALETTE)
             else:
                 sns.boxplot(data=df, y=y, ax=ax, color=self.COLOR_PALETTE[0])
-            
+
             self._apply_readability(ax, title or f"상자 그림: {y}", x or "", y)
             plt.tight_layout()
             return self._fig_to_base64(fig)
-            
-        except Exception as exc:
+
+        except Exception as exc:  # pragma: no cover
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
-    
+
     def line_chart(
         self,
         df: pd.DataFrame,
         x: str,
         y: str,
-        hue: Optional[str] = None,
+        hue: str | None = None,
         title: str = "",
         marker: bool = True,
         size: str = "medium",
@@ -330,9 +443,9 @@ class VisualizationEngine:
         validation = self._validate_data(df, [x, y])
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
-        
+
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
-        
+
         try:
             if hue:
                 for i, (name, group) in enumerate(df.groupby(hue)):
@@ -349,22 +462,22 @@ class VisualizationEngine:
                        marker="o" if marker else None,
                        color=self.COLOR_PALETTE[0],
                        linewidth=2)
-            
+
             self._apply_readability(ax, title or f"선 차트: {y} by {x}", x, y)
             plt.tight_layout()
             return self._fig_to_base64(fig)
-            
-        except Exception as exc:
+
+        except Exception as exc:  # pragma: no cover
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
-    
+
     # ── 고급 차트 ──────────────────────────────────────────────────────────
-    
+
     def heatmap(
         self,
         df: pd.DataFrame,
-        cols: Optional[List[str]] = None,
+        cols: list[str] | None = None,
         title: str = "",
         annot: bool = True,
         size: str = "square",
@@ -374,36 +487,36 @@ class VisualizationEngine:
             numeric_df = df[cols].select_dtypes(include=[np.number])
         else:
             numeric_df = df.select_dtypes(include=[np.number])
-        
+
         if numeric_df.empty:
             return self._error_image("숫자형 변수가 없습니다.")
-        
+
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (8, 8)))
-        
+
         try:
             corr = numeric_df.corr()
             mask = np.triu(np.ones_like(corr, dtype=bool))
-            
+
             sns.heatmap(corr, mask=mask, annot=annot, fmt=".2f",
                        cmap="RdBu_r", center=0, ax=ax,
                        square=True, linewidths=0.5,
                        cbar_kws={"shrink": 0.8})
-            
+
             self._apply_readability(ax, title or "상관관계 히트맵", "", "")
             plt.tight_layout()
             return self._fig_to_base64(fig)
-            
-        except Exception as exc:
+
+        except Exception as exc:  # pragma: no cover
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
-    
+
     def violin_plot(
         self,
         df: pd.DataFrame,
         x: str,
         y: str,
-        hue: Optional[str] = None,
+        hue: str | None = None,
         title: str = "",
         size: str = "medium",
     ) -> str:
@@ -411,22 +524,22 @@ class VisualizationEngine:
         validation = self._validate_data(df, [x, y])
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
-        
+
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
-        
+
         try:
             sns.violinplot(data=df, x=x, y=y, hue=hue, ax=ax,
                           palette=self.COLOR_PALETTE, split=(hue is not None))
-            
+
             self._apply_readability(ax, title or f"바이올린 플롯: {y} by {x}", x, y)
             plt.tight_layout()
             return self._fig_to_base64(fig)
-            
-        except Exception as exc:
+
+        except Exception as exc:  # pragma: no cover
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
-    
+
     # ── SPSS 수준 추가 차트 ────────────────────────────────────────────────
 
     def plot_histogram(
@@ -473,7 +586,7 @@ class VisualizationEngine:
             x_curve = np.linspace(series.min(), series.max(), 300)
             y_curve = stats.norm.pdf(x_curve, mu, sigma)
             ax.plot(x_curve, y_curve, color="#d62728", linewidth=2.5, label=f"정규 분포 N({mu:.2f}, {sigma:.2f})")
-            ax.legend(fontsize=10)
+            ax.legend(fontsize=VizFontSize.LEGEND)
 
         # 평균 / 중위수 선
         mean_val = series.mean()
@@ -482,7 +595,7 @@ class VisualizationEngine:
                    label=f"평균: {mean_val:.3f}")
         ax.axvline(median_val, color="#2ca02c", linestyle=":", linewidth=1.8,
                    label=f"중위수: {median_val:.3f}")
-        ax.legend(fontsize=10)
+        ax.legend(fontsize=VizFontSize.LEGEND)
 
         # 통계 정보 박스
         skew_val = series.skew()
@@ -495,7 +608,8 @@ class VisualizationEngine:
             f"첨도 = {kurt_val:.3f}"
         )
         ax.text(0.98, 0.97, stats_text, transform=ax.transAxes,
-                fontsize=9, verticalalignment="top", horizontalalignment="right",
+                fontsize=VizFontSize.ANNOTATION, verticalalignment="top",
+                horizontalalignment="right",
                 bbox=dict(boxstyle="round,pad=0.4", facecolor="#f0f4f8", alpha=0.9))
 
         self._apply_readability(ax, f"히스토그램: {variable}", variable,
@@ -507,7 +621,7 @@ class VisualizationEngine:
         self,
         data: pd.DataFrame,
         x_var: str,
-        y_var: Optional[str] = None,
+        y_var: str | None = None,
         by_group: bool = True,
     ) -> Figure:
         """상자 그림 (그룹별 선택).
@@ -547,7 +661,7 @@ class VisualizationEngine:
 
             self._apply_readability(ax, title, xlabel, ylabel)
             fig.tight_layout()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover
             logger.exception("plot_boxplot 오류")
             return self._make_error_figure(str(exc))
 
@@ -558,7 +672,7 @@ class VisualizationEngine:
         data: pd.DataFrame,
         x_var: str,
         y_var: str,
-        color_var: Optional[str] = None,
+        color_var: str | None = None,
         fit_line: bool = True,
     ) -> Figure:
         """산점도 (회귀선 + 상관계수 선택적 표시).
@@ -597,7 +711,7 @@ class VisualizationEngine:
                             ax.plot(xr, m * xr + b,
                                     color=self.COLOR_PALETTE[i % len(self.COLOR_PALETTE)],
                                     linewidth=1.5, alpha=0.8)
-                ax.legend(title=color_var, fontsize=10)
+                ax.legend(title=color_var, fontsize=VizFontSize.LEGEND)
             else:
                 ax.scatter(
                     data[x_var], data[y_var],
@@ -611,7 +725,7 @@ class VisualizationEngine:
                         xr = np.linspace(valid[x_var].min(), valid[x_var].max(), 100)
                         ax.plot(xr, m * xr + b, color="#d62728", linewidth=2.0,
                                 label=f"회귀선: y={m:.3f}x+{b:.3f}")
-                        ax.legend(fontsize=10)
+                        ax.legend(fontsize=VizFontSize.LEGEND)
 
             # 상관계수
             valid2 = data[[x_var, y_var]].dropna()
@@ -619,15 +733,16 @@ class VisualizationEngine:
                     and pd.api.types.is_numeric_dtype(data[y_var])
                     and len(valid2) >= 2):
                 r, p = stats.pearsonr(valid2[x_var], valid2[y_var])
-                p_str = f"p < 0.001" if p < 0.001 else f"p = {p:.3f}"
+                p_str = "p < 0.001" if p < 0.001 else f"p = {p:.3f}"
                 ax.text(0.02, 0.98, f"r = {r:.3f}, {p_str}\nN = {len(valid2):,}",
-                        transform=ax.transAxes, fontsize=10,
+                        transform=ax.transAxes, fontsize=VizFontSize.ANNOTATION,
                         verticalalignment="top",
-                        bbox=dict(boxstyle="round,pad=0.4", facecolor="#ffeeba", alpha=0.9))
+                        bbox=dict(boxstyle="round,pad=0.4", facecolor="#fff8e7",
+                                  edgecolor="#ddb", alpha=0.85))
 
             self._apply_readability(ax, f"산점도: {x_var} vs {y_var}", x_var, y_var)
             fig.tight_layout()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover
             logger.exception("plot_scatter 오류")
             return self._make_error_figure(str(exc))
 
@@ -637,7 +752,7 @@ class VisualizationEngine:
         self,
         data: pd.DataFrame,
         x_var: str,
-        y_var: Optional[str] = None,
+        y_var: str | None = None,
         error_bars: bool = True,
     ) -> Figure:
         """막대 그래프 (오차 막대 선택적 표시).
@@ -677,14 +792,14 @@ class VisualizationEngine:
                 for bar, val in zip(bars, counts.values):
                     ax.text(
                         bar.get_x() + bar.get_width() / 2, bar.get_height() + counts.max() * 0.01,
-                        str(val), ha="center", va="bottom", fontsize=9,
+                        str(val), ha="center", va="bottom", fontsize=VizFontSize.ANNOTATION,
                     )
                 ylabel = "빈도"
                 title = f"막대 그래프: {x_var}"
 
             self._apply_readability(ax, title, x_var, ylabel)
             fig.tight_layout()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover
             logger.exception("plot_bar 오류")
             return self._make_error_figure(str(exc))
 
@@ -695,7 +810,7 @@ class VisualizationEngine:
         data: pd.DataFrame,
         x_var: str,
         y_var: str,
-        by_group: Optional[str] = None,
+        by_group: str | None = None,
     ) -> Figure:
         """선 그래프 (그룹별 선택).
 
@@ -722,7 +837,7 @@ class VisualizationEngine:
                         color=self.COLOR_PALETTE[i % len(self.COLOR_PALETTE)],
                         linewidth=2, label=str(name),
                     )
-                ax.legend(title=by_group, fontsize=10)
+                ax.legend(title=by_group, fontsize=VizFontSize.LEGEND)
             else:
                 df_sorted = data.sort_values(x_var)
                 ax.plot(
@@ -735,7 +850,7 @@ class VisualizationEngine:
                 ax, f"선 그래프: {y_var} by {x_var}", x_var, y_var
             )
             fig.tight_layout()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover
             logger.exception("plot_line 오류")
             return self._make_error_figure(str(exc))
 
@@ -771,7 +886,7 @@ class VisualizationEngine:
         ax_qq.plot([min_x, max_x],
                    [slope * min_x + intercept, slope * max_x + intercept],
                    color="#d62728", linewidth=2.0, label="이론적 정규선")
-        ax_qq.legend(fontsize=10)
+        ax_qq.legend(fontsize=VizFontSize.LEGEND)
         self._apply_readability(ax_qq, f"Q-Q 플롯: {variable}", "이론적 분위수", "관측 분위수")
 
         # 정규성 검정 결과 표시
@@ -785,7 +900,7 @@ class VisualizationEngine:
             f"첨도: {series.kurtosis():.4f}"
         )
         ax_qq.text(0.03, 0.97, info_text, transform=ax_qq.transAxes,
-                   fontsize=9, verticalalignment="top",
+                   fontsize=VizFontSize.ANNOTATION, verticalalignment="top",
                    bbox=dict(boxstyle="round,pad=0.4", facecolor="#f0f4f8", alpha=0.9))
 
         # 히스토그램 + 정규 곡선 (보조)
@@ -795,17 +910,18 @@ class VisualizationEngine:
         x_curve = np.linspace(series.min(), series.max(), 300)
         ax_hist.plot(x_curve, stats.norm.pdf(x_curve, series.mean(), series.std()),
                      color="#d62728", linewidth=2.0, label="정규 분포 곡선")
-        ax_hist.legend(fontsize=10)
+        ax_hist.legend(fontsize=VizFontSize.LEGEND)
         self._apply_readability(ax_hist, f"분포: {variable}", variable, "밀도")
 
-        fig.suptitle(f"정규성 검정: {variable}", fontsize=15, fontweight="bold", y=1.02)
+        fig.suptitle(f"정규성 검정: {variable}", fontsize=VizFontSize.SUBTITLE,
+                     fontweight="bold", y=1.02)
         fig.tight_layout()
         return fig
 
     def plot_correlation_heatmap(
         self,
         data: pd.DataFrame,
-        variables: List[str],
+        variables: list[str],
     ) -> Figure:
         """상관관계 히트맵.
 
@@ -835,7 +951,7 @@ class VisualizationEngine:
         fig, ax = plt.subplots(figsize=(fig_size, fig_size * 0.85))
 
         mask = np.triu(np.ones_like(corr, dtype=bool))
-        hm = sns.heatmap(
+        sns.heatmap(
             corr, mask=mask, annot=True, fmt=".2f",
             cmap="RdBu_r", center=0, ax=ax,
             square=True, linewidths=0.6,
@@ -850,11 +966,11 @@ class VisualizationEngine:
                 star = "***" if p < 0.001 else ("**" if p < 0.01 else ("*" if p < 0.05 else ""))
                 if star:
                     ax.text(j + 0.5, i + 0.75, star,
-                            ha="center", va="center", color="black", fontsize=8,
-                            fontweight="bold")
+                            ha="center", va="center", color="black",
+                            fontsize=VizFontSize.ANNOTATION, fontweight="bold")
 
         ax.set_title("상관관계 히트맵\n* p<0.05  ** p<0.01  *** p<0.001",
-                     fontsize=13, fontweight="bold", pad=15)
+                     fontsize=VizFontSize.TITLE, fontweight="bold", pad=15)
         fig.tight_layout()
         return fig
 
@@ -884,9 +1000,9 @@ class VisualizationEngine:
         ax.scatter([0], [1], color="#d62728", zorder=5, s=80, label="이상적 지점")
 
         ax.fill_between(fpr, tpr, alpha=0.15, color=self.COLOR_PALETTE[0])
-        ax.set_xlim([0.0, 1.0])
-        ax.set_ylim([0.0, 1.05])
-        ax.legend(loc="lower right", fontsize=11)
+        ax.set_xlim((0.0, 1.0))
+        ax.set_ylim((0.0, 1.05))
+        ax.legend(loc="lower right", fontsize=VizFontSize.LEGEND)
         self._apply_readability(ax, "ROC 곡선 (Receiver Operating Characteristic)",
                                 "위양성률 (1 - 특이도)", "민감도 (참양성률)")
         fig.tight_layout()
@@ -896,7 +1012,7 @@ class VisualizationEngine:
         self,
         time: np.ndarray,
         survival_prob: np.ndarray,
-        groups: Optional[dict] = None,
+        groups: dict | None = None,
     ) -> Figure:
         """생존 분석 곡선 (Kaplan-Meier 스타일).
 
@@ -923,8 +1039,8 @@ class VisualizationEngine:
 
         ax.axhline(0.5, color="#7f7f7f", linestyle=":", linewidth=1.5,
                    label="중위 생존 (50%)")
-        ax.set_ylim([0.0, 1.05])
-        ax.legend(fontsize=11)
+        ax.set_ylim((0.0, 1.05))
+        ax.legend(fontsize=VizFontSize.LEGEND)
         self._apply_readability(ax, "생존 분석 곡선 (Kaplan-Meier)",
                                 "시간", "생존 확률")
         fig.tight_layout()
@@ -954,7 +1070,7 @@ class VisualizationEngine:
         sort_idx = np.argsort(fitted)
         smoothed = uniform_filter1d(residuals[sort_idx], size=max(3, len(residuals) // 20))
         ax1.plot(fitted[sort_idx], smoothed, color="#ff7f0e", linewidth=2.0, label="평활선")
-        ax1.legend(fontsize=9)
+        ax1.legend(fontsize=VizFontSize.LEGEND)
         self._apply_readability(ax1, "잔차 vs 적합값", "적합값", "잔차")
 
         # 2. Q-Q 플롯 (잔차 정규성)
@@ -988,10 +1104,10 @@ class VisualizationEngine:
         ax4.plot(x_curve,
                  stats.norm.pdf(x_curve, residuals.mean(), residuals.std()),
                  color="#d62728", linewidth=2.0, label="정규 분포 곡선")
-        ax4.legend(fontsize=9)
+        ax4.legend(fontsize=VizFontSize.LEGEND)
         self._apply_readability(ax4, "잔차 분포", "잔차", "밀도")
 
-        fig.suptitle("회귀 진단 플롯", fontsize=15, fontweight="bold")
+        fig.suptitle("회귀 진단 플롯", fontsize=VizFontSize.SUBTITLE, fontweight="bold")
         fig.tight_layout()
         return fig
 
@@ -1009,14 +1125,14 @@ class VisualizationEngine:
                     bbox_inches="tight", facecolor="white")
         logger.info("Figure 저장 완료: %s", path)
 
-    def fig_to_pixmap(self, fig: Figure):
+    def fig_to_pixmap(self, fig: Figure) -> Any:  # pragma: no cover
         """matplotlib Figure를 PySide6 QPixmap으로 변환.
 
         Returns
         -------
         QPixmap
         """
-        from PySide6.QtGui import QPixmap, QImage
+        from PySide6.QtGui import QImage, QPixmap
 
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
@@ -1031,7 +1147,7 @@ class VisualizationEngine:
         """오류 Figure 생성 (Figure 객체 반환 버전)."""
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.text(0.5, 0.5, f"차트 생성 오류:\n{message}",
-                ha="center", va="center", fontsize=12,
+                ha="center", va="center", fontsize=VizFontSize.AXIS_LABEL,
                 bbox=dict(boxstyle="round", facecolor="#ffcccc", alpha=0.8))
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
@@ -1041,29 +1157,43 @@ class VisualizationEngine:
 
     # ── 유틸리티 ────────────────────────────────────────────────────────────
 
-    def _apply_readability(self, ax, title: str, xlabel: str, ylabel: str) -> None:
-        """가독성 요소 적용."""
+    def _apply_readability(self, ax: Any, title: str, xlabel: str, ylabel: str) -> None:
+        """가독성 요소 적용 — VizFontSize 기반 일관된 스타일."""
+        # 컬럼명을 label로 치환
+        xlabel_disp = self._lbl(xlabel)
+        ylabel_disp = self._lbl(ylabel)
+
         if title:
-            ax.set_title(title, fontsize=14, fontweight="bold", pad=15)
-        if xlabel:
-            ax.set_xlabel(xlabel, fontsize=12)
-        if ylabel:
-            ax.set_ylabel(ylabel, fontsize=12)
-        
+            ax.set_title(title, fontsize=VizFontSize.TITLE, fontweight="bold",
+                         pad=18, color="#1a1a1a")
+        if xlabel_disp:
+            ax.set_xlabel(xlabel_disp, fontsize=VizFontSize.AXIS_LABEL,
+                          color="#333333", labelpad=9)
+        if ylabel_disp:
+            ax.set_ylabel(ylabel_disp, fontsize=VizFontSize.AXIS_LABEL,
+                          color="#333333", labelpad=9)
+
+        # top/right spine 제거
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color("#cccccc")
+        ax.spines["bottom"].set_color("#cccccc")
+
         # 그리드
-        ax.grid(True, alpha=0.3, linestyle="--")
-        
-        # 눈금 레이블 크기
-        ax.tick_params(axis="both", labelsize=10)
-        
-        # 회전 (긴 레이블)
+        ax.grid(True, alpha=0.3, linestyle="--", color="#d0d0d0", zorder=0)
+
+        # 눈금
+        ax.tick_params(axis="both", labelsize=VizFontSize.TICK,
+                       colors="#555555", length=4, width=0.8)
+
+        # 긴 레이블 회전
         if xlabel:
-            x_labels = [str(l) for l in ax.get_xticklabels()]
-            max_len = max((len(l) for l in x_labels), default=0)
+            x_labels = [str(lbl) for lbl in ax.get_xticklabels()]
+            max_len = max((len(lbl) for lbl in x_labels), default=0)
             if max_len > 8:
-                plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
-    
-    def _fig_to_base64(self, fig) -> str:
+                plt.setp(ax.get_xticklabels(), rotation=40, ha="right")
+
+    def _fig_to_base64(self, fig: Figure) -> str:
         """Figure를 Base64 PNG로 변환."""
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
@@ -1071,12 +1201,12 @@ class VisualizationEngine:
         buf.seek(0)
         img_base64 = base64.b64encode(buf.read()).decode("utf-8")
         return f"data:image/png;base64,{img_base64}"
-    
+
     def _error_image(self, message: str) -> str:
         """오류 메시지 이미지 생성."""
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.text(0.5, 0.5, f"차트 생성 오류:\n{message}",
-               ha="center", va="center", fontsize=12,
+               ha="center", va="center", fontsize=VizFontSize.AXIS_LABEL,
                bbox=dict(boxstyle="round", facecolor="#ffcccc", alpha=0.8))
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)

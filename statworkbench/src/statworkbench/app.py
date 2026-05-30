@@ -4,8 +4,8 @@ Provides the StatWorkbenchApp class which initializes and runs
 the main application window.
 """
 
+
 from PySide6.QtWidgets import QApplication
-from typing import Optional
 
 from statworkbench.ui.main_window import MainWindow
 
@@ -19,8 +19,8 @@ class StatWorkbenchApp:
     """
 
     def __init__(self) -> None:
-        self._app: Optional[QApplication] = None
-        self._window: Optional[MainWindow] = None
+        self._app: QApplication | None = None
+        self._window: MainWindow | None = None
 
     def run(self) -> int:
         """Run the application event loop."""
@@ -34,6 +34,6 @@ class StatWorkbenchApp:
 
         return self._app.exec()
 
-    def get_window(self) -> Optional[MainWindow]:
+    def get_window(self) -> MainWindow | None:
         """Return the main window instance."""
         return self._window

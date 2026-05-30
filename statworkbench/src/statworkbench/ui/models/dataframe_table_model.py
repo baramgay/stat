@@ -9,10 +9,9 @@ SPSS 스타일 데이터 편집을 지원합니다.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
-import numpy as np
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 
 logger = logging.getLogger(__name__)
@@ -37,8 +36,8 @@ class DataFrameTableModel(QAbstractTableModel):
 
     def __init__(
         self,
-        dataframe: Optional[pd.DataFrame] = None,
-        parent: Optional[Any] = None,
+        dataframe: pd.DataFrame | None = None,
+        parent: Any | None = None,
     ) -> None:
         super().__init__(parent)
         self._dataframe: pd.DataFrame = dataframe if dataframe is not None else pd.DataFrame()
@@ -134,7 +133,6 @@ class DataFrameTableModel(QAbstractTableModel):
             if col >= len(self._dataframe.columns):
                 return False
 
-        col_name = self._dataframe.columns[col]
         old_value = self._dataframe.iloc[row, col]
 
         # Try to preserve dtype
@@ -192,7 +190,7 @@ class DataFrameTableModel(QAbstractTableModel):
         """자동 변수명으로 열을 추가합니다 (VAR00001)."""
         if count <= 0:
             return
-        
+
         self.beginResetModel()
         for _ in range(count):
             var_name = generate_var_name(self._var_counter)
@@ -200,7 +198,7 @@ class DataFrameTableModel(QAbstractTableModel):
                 self._var_counter += 1
                 var_name = generate_var_name(self._var_counter)
             self._var_counter += 1
-            
+
             # 행이 없으면 빈 DataFrame에 열 추가
             if len(self._dataframe) == 0:
                 self._dataframe = pd.DataFrame({var_name: [pd.NA]})
@@ -237,7 +235,7 @@ class DataFrameTableModel(QAbstractTableModel):
             return self.setData(index, value, Qt.ItemDataRole.EditRole)
         return False
 
-    def add_row(self, values: Optional[dict[str, Any]] = None) -> None:
+    def add_row(self, values: dict[str, Any] | None = None) -> None:
         """새 행을 추가합니다."""
         self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
         new_row = values if values is not None else {}
@@ -259,7 +257,7 @@ class DataFrameTableModel(QAbstractTableModel):
             return True
         return False
 
-    def add_column(self, name: str, values: Optional[list[Any]] = None) -> None:
+    def add_column(self, name: str, values: list[Any] | None = None) -> None:
         """새 열을 추가합니다."""
         self.beginInsertColumns(QModelIndex(), self.columnCount(), self.columnCount())
         if values is not None:

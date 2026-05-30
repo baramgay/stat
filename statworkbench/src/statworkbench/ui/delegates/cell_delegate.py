@@ -1,9 +1,8 @@
 """Cell Editor Delegate — SPSS 스타일 셀 편집기."""
 
-from PySide6.QtWidgets import QStyledItemDelegate, QLineEdit
-from PySide6.QtCore import Qt, QEvent
-from PySide6.QtGui import QKeyEvent
-from typing import Optional
+
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtWidgets import QLineEdit, QStyledItemDelegate
 
 
 class CellDelegate(QStyledItemDelegate):
@@ -18,7 +17,8 @@ class CellDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._initial_text: str = ""
-        self._pending_navigate: Optional[tuple[int, int]] = None
+        self._pending_navigate: tuple[int, int, int, int] | None = None  # (dc, dr, src_row, src_col)
+        self._editor_initialized: bool = False
 
     def set_initial_text(self, text: str) -> None:
         """DataView에서 printable 키 입력 시 호출. 다음 setEditorData에서 사용."""
@@ -27,13 +27,18 @@ class CellDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         editor = QLineEdit(parent)
         editor.setFrame(False)
+        self._editor_initialized = False  # 새 에디터마다 리셋
         return editor
 
     def setEditorData(self, editor: QLineEdit, index):
+        if self._editor_initialized:
+            return  # 동일 에디터에 두 번 호출되는 경우 무시
+        self._editor_initialized = True
+
         if self._initial_text:
-            # printable 키로 편집 시작: 기존값 지우고 첫 글자만
-            editor.setText(self._initial_text)
-            editor.setCursorPosition(len(self._initial_text))
+            # printable 키로 편집 시작: clear() 후 insert()로 선택 문제 없이 입력
+            editor.clear()
+            editor.insert(self._initial_text)
             self._initial_text = ""
         else:
             # F2 또는 더블클릭으로 편집 시작: 기존값 보여주고 전체 선택
@@ -55,51 +60,45 @@ class CellDelegate(QStyledItemDelegate):
         key = event.key()
         modifiers = event.modifiers()
 
-        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        NOHINT = QStyledItemDelegate.EndEditHint.NoHint
+        REVERT = QStyledItemDelegate.EndEditHint.RevertModelCache
+
+        def _commit_and_close(dc: int, dr: int) -> bool:
+            # Save source index BEFORE commitData — setData may trigger beginResetModel
+            # which clears currentIndex() before we can read it
+            table = self.parent()
+            src = table.currentIndex() if table is not None else None
+            src_row = src.row() if src is not None and src.isValid() else -1
+            src_col = src.column() if src is not None and src.isValid() else -1
+            self._pending_navigate = (dc, dr, src_row, src_col)
             self.commitData.emit(editor)
-            self._pending_navigate = (0, 1)   # 아래
-            self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
+            self.closeEditor.emit(editor, NOHINT)
             return True
+
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            return _commit_and_close(0, 1)
 
         if key == Qt.Key.Key_Tab:
-            self.commitData.emit(editor)
             if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                self._pending_navigate = (-1, 0)  # 왼쪽
-            else:
-                self._pending_navigate = (1, 0)   # 오른쪽
-            self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
-            return True
+                return _commit_and_close(-1, 0)
+            return _commit_and_close(1, 0)
 
         if key == Qt.Key.Key_Escape:
-            self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.RevertModelData)
+            self.closeEditor.emit(editor, REVERT)
             return True
 
         if key == Qt.Key.Key_Up:
-            self.commitData.emit(editor)
-            self._pending_navigate = (0, -1)  # 위
-            self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
-            return True
+            return _commit_and_close(0, -1)
 
         if key == Qt.Key.Key_Down:
-            self.commitData.emit(editor)
-            self._pending_navigate = (0, 1)   # 아래
-            self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
-            return True
+            return _commit_and_close(0, 1)
 
-        # 왼쪽: 커서가 맨 앞이면 셀 이동
         if key == Qt.Key.Key_Left and isinstance(editor, QLineEdit):
             if editor.cursorPosition() == 0 and not editor.hasSelectedText():
-                self.commitData.emit(editor)
-                self._pending_navigate = (-1, 0)
-                self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
-                return True
+                return _commit_and_close(-1, 0)
 
-        # 오른쪽: 커서가 맨 뒤면 셀 이동
         if key == Qt.Key.Key_Right and isinstance(editor, QLineEdit):
             if editor.cursorPosition() == len(editor.text()) and not editor.hasSelectedText():
-                self.commitData.emit(editor)
-                self._pending_navigate = (1, 0)
-                self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
-                return True
+                return _commit_and_close(1, 0)
 
         return super().eventFilter(editor, event)

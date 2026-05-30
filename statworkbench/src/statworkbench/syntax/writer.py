@@ -7,11 +7,10 @@ JSON Lines format for reproducibility.
 
 from __future__ import annotations
 
-import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from statworkbench.syntax.command import SyntaxCommand
 
@@ -28,7 +27,7 @@ class SyntaxWriter:
         log_path: Optional default path for saving/loading the syntax log.
     """
 
-    def __init__(self, log_path: Optional[str] = None) -> None:
+    def __init__(self, log_path: str | None = None) -> None:
         """Initialize the SyntaxWriter.
 
         Args:
@@ -57,7 +56,7 @@ class SyntaxWriter:
         self,
         variables: list[str],
         dataset_id: str,
-        options: Optional[dict[str, Any]] = None,
+        options: dict[str, Any] | None = None,
     ) -> SyntaxCommand:
         """Generate FREQUENCIES syntax.
 
@@ -109,7 +108,7 @@ class SyntaxWriter:
         group: str,
         group_values: tuple[Any, Any],
         dataset_id: str,
-        options: Optional[dict[str, Any]] = None,
+        options: dict[str, Any] | None = None,
     ) -> SyntaxCommand:
         """Generate independent-samples TTEST syntax.
 
@@ -161,7 +160,7 @@ class SyntaxWriter:
         self,
         var_pairs: list[tuple[str, str]],
         dataset_id: str,
-        options: Optional[dict[str, Any]] = None,
+        options: dict[str, Any] | None = None,
     ) -> SyntaxCommand:
         """Generate paired-samples TTEST syntax.
 
@@ -215,7 +214,7 @@ class SyntaxWriter:
         dependent: str,
         predictors: list[str],
         dataset_id: str,
-        options: Optional[dict[str, Any]] = None,
+        options: dict[str, Any] | None = None,
     ) -> SyntaxCommand:
         """Generate linear REGRESSION syntax.
 
@@ -269,7 +268,7 @@ class SyntaxWriter:
         self,
         variables: list[str],
         dataset_id: str,
-        options: Optional[dict[str, Any]] = None,
+        options: dict[str, Any] | None = None,
     ) -> SyntaxCommand:
         """Generate DESCRIPTIVES syntax.
 
@@ -316,8 +315,8 @@ class SyntaxWriter:
         row: str,
         col: str,
         dataset_id: str,
-        layer: Optional[str] = None,
-        options: Optional[dict[str, Any]] = None,
+        layer: str | None = None,
+        options: dict[str, Any] | None = None,
     ) -> SyntaxCommand:
         """Generate CROSSTABS syntax.
 
@@ -394,7 +393,7 @@ class SyntaxWriter:
         """
         return "\n\n".join(cmd.raw_text for cmd in self.commands)
 
-    def save(self, path: Optional[str] = None) -> None:
+    def save(self, path: str | None = None) -> None:
         """Save the command log to a JSON Lines file.
 
         Each line is a JSON-serialized SyntaxCommand.
@@ -431,7 +430,7 @@ class SyntaxWriter:
             raise FileNotFoundError(f"Syntax log file not found: {path}")
 
         loaded: list[SyntaxCommand] = []
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             for line_num, line in enumerate(fh, start=1):
                 line = line.strip()
                 if not line:

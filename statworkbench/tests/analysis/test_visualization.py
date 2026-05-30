@@ -103,6 +103,22 @@ class TestVisualizationEngineInit:
     def test_figure_count_starts_zero(self, engine):
         assert engine._figure_count == 0
 
+    def test_set_font_scale_changes_rcparams(self):
+        """set_font_scale이 matplotlib rcParams를 변경한다."""
+        import matplotlib.pyplot as plt
+        from statworkbench.analysis.visualization import VizFontSize
+        VisualizationEngine.set_font_scale(2.0)
+        assert plt.rcParams["axes.titlesize"] == pytest.approx(VizFontSize.TITLE * 2.0)
+        VisualizationEngine.set_font_scale(1.0)
+        assert plt.rcParams["axes.titlesize"] == pytest.approx(VizFontSize.TITLE * 1.0)
+
+    def test_set_font_scale_default(self):
+        """scale=1.0이 기본값이다."""
+        import matplotlib.pyplot as plt
+        from statworkbench.analysis.visualization import VizFontSize
+        VisualizationEngine.set_font_scale()
+        assert plt.rcParams["axes.labelsize"] == pytest.approx(VizFontSize.AXIS_LABEL)
+
 
 # ──────────────────────────────────────────────────────────────
 # 2. 검증 메서드

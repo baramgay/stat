@@ -1,15 +1,25 @@
 """Descriptives Dialog — SPSS 스타일 기술통계 다이얼로그."""
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QGroupBox, QListWidget, QListWidgetItem,
-    QCheckBox, QDialogButtonBox, QLabel
-)
 from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+)
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, display_label, var_from_display, measure_icon
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
+    var_from_display,
 )
 
 

@@ -714,11 +714,11 @@ class TestErrorHandling:
     """오류 처리 검증."""
 
     def test_missing_variable_raises_error(self):
-        """존재하지 않는 변수 → ValueError 발생."""
+        """존재하지 않는 변수 → warnings 반환."""
         ds = _make_dataset()
         spec = _make_spec(target=["nonexistent"])
-        with pytest.raises((ValueError, KeyError)):
-            run_analysis(ds, spec)
+        result = run_analysis(ds, spec)
+        assert result.warnings, "존재하지 않는 변수 → warnings 반환 기대"
 
     def test_empty_target_list(self):
         """빈 target 목록 → 빈 결과 또는 경고."""

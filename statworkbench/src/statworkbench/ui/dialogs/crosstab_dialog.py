@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtWidgets import (
-    QCheckBox,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
     QListWidget,
     QVBoxLayout,
     QWidget,
@@ -17,7 +15,6 @@ from PySide6.QtWidgets import (
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MeasureType
 from statworkbench.ui.dialogs.analysis_dialog_base import AnalysisDialogBase
-
 
 # ── String constants ──────────────────────────────────────────────────────
 
@@ -45,7 +42,7 @@ class CrosstabDialog(AnalysisDialogBase):
     def __init__(
         self,
         dataset: Dataset,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(dataset, STR_DIALOG_TITLE, parent)
         self._filter_available_by_measure([

@@ -1,17 +1,31 @@
 """Discriminant Analysis Dialog — SPSS 스타일 판별분석 다이얼로그."""
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QListWidget, QListWidgetItem, QGroupBox, QDialogButtonBox,
-    QPushButton, QCheckBox, QRadioButton, QButtonGroup,
-    QFormLayout, QWidget, QMessageBox
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, categorical_vars, all_vars,
-    display_label, measure_icon
+    all_vars,
+    categorical_vars,
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
 )
 
 

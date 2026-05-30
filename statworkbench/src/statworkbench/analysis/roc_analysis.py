@@ -12,14 +12,17 @@ p-value: H0: AUC = 0.5 단일 표본 z-검정
 
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 from sklearn.metrics import roc_auc_score, roc_curve
 
-from statworkbench.core.dataset import Dataset
-from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
+from statworkbench.core.dataset import Dataset
 
 # 최대 ROC 좌표 출력 포인트 수 (SPSS 기본값과 동일)
 _MAX_COORD_POINTS = 20
@@ -225,7 +228,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             "표준오차": format_number(roc["se"], 4),
             "95% CI 하한": format_number(roc["ci_lower"], 3),
             "95% CI 상한": format_number(roc["ci_upper"], 3),
-            "p값": format_pvalue(roc["p_value"]),
+            "p-value": format_pvalue(roc["p_value"]),
         })
 
         # 최적 컷오프 테이블 행

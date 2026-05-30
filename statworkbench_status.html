@@ -58,7 +58,7 @@
   <h1>StatWorkbench 개발 현황 대시보드</h1>
   <p>SPSS 29/30 호환 통계 패키지 | Python + PySide6 6.11.1</p>
   <div class="meta">
-    <span class="badge">📅 최종 갱신: 2026-05-21</span>
+    <span class="badge">📅 최종 갱신: 2026-05-23</span>
     <span class="badge">🐍 Python 3.14.5</span>
     <span class="badge">🖥 Windows 11</span>
     <span class="badge">📂 C:\업무\통계패키지\statworkbench</span>
@@ -71,8 +71,8 @@
   <div class="grid-3">
     <div class="card green">
       <h2>전체 테스트</h2>
-      <div class="big">2,066</div>
-      <div class="sub">통과 · 7 skipped · 0 실패</div>
+      <div class="big">2,376</div>
+      <div class="sub">통과 · 7 skipped · 0 실패 (UI 제외)</div>
       <div class="prog-bar"><div class="prog-fill fill-green" style="width:100%"></div></div>
     </div>
     <div class="card blue">
@@ -150,7 +150,7 @@
 
   <!-- 테스트 현황 -->
   <section>
-    <h3>🧪 테스트 현황 (총 2,066개)</h3>
+    <h3>🧪 테스트 현황 (총 2,376개, UI 제외 · 커버리지 83%)</h3>
     <div class="two-col">
       <div>
         <table>
@@ -187,6 +187,17 @@
             <tr><td>ICC (ICC1/ICC2/ICC3, Koo&amp;Mae 해석)</td><td><span class="badge-impl">완료</span></td></tr>
             <tr><td>t-tests Compare Means 카테고리 registry 등록</td><td><span class="badge-impl">신규 완료</span></td></tr>
             <tr><td>Bland-Altman (LoA, bias, 비례 오차)</td><td><span class="badge-impl">신규 완료</span></td></tr>
+            <tr><td>UI — explore_dialog / partial_correlation_dialog 연결</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>UI — roc_dialog / agreement_dialog (Kappa/ICC/BA) 신규</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>UI — chi_square_gof_dialog / reliability_dialog 신규</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>pytest-cov 설치 + 커버리지 81% 달성 (UI 제외 기준)</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>SettingsManager 테스트 36개 (98% 커버리지)</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>clipboard_reader 테스트 25개 (94% 커버리지)</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>survival_analysis 고급 테스트 49개 + Cox AIC 버그 수정</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>logistic_regression 테스트 59개 (59%→91%)</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>excel_reader 44개(57%→82%) + csv_reader 71개(73%→89%)</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>registry+result 테스트 66개 (78%→98%)</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
+            <tr><td>전체 커버리지 83% 달성 (총 2,376개 통과)</td><td><span class="badge-impl">2026-05-23 완료</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -231,11 +242,11 @@
     <h3>🗺 향후 개선 과제</h3>
     <div class="two-col">
       <div>
-        <div class="warn-item"><strong>단기 (1~2주)</strong><br>① UI 다이얼로그 — 편상관/ROC/Explore/Kappa/ICC/Bland-Altman 연결<br>② sensitivity_specificity를 roc_analysis에 통합 마무리<br>③ pytest-cov coverage 측정 80% 이상 달성</div>
+        <div class="warn-item"><strong>단기 (1~2주)</strong><br>✅ UI 다이얼로그 — 편상관/ROC/Explore/Kappa/ICC/Bland-Altman/Chi-GOF/Reliability 연결 완료<br>② sensitivity_specificity를 roc_analysis에 통합 마무리<br>✅ pytest-cov coverage 81% 달성 (목표 80% 초과)</div>
         <div class="warn-item"><strong>중기 (1개월)</strong><br>① CI/CD 파이프라인 구성 (GitHub Actions)<br>② 분석 결과 자연어 해석문 생성 (Claude API 연동)<br>③ SPSS .sav 내보내기 호환성 완성도 향상</div>
       </div>
       <div>
-        <div class="note-item"><strong>UI/UX 개선</strong><br>① SettingsManager 테스트 추가 (QSettings)<br>② 신뢰도 분석 다이얼로그(reliability_dialog.py) 연결<br>③ Variable View 셀 편집 UX 개선</div>
+        <div class="note-item"><strong>UI/UX 개선</strong><br>① SettingsManager 테스트 추가 (QSettings)<br>✅ 신뢰도 분석 다이얼로그(reliability_dialog.py) 연결 완료<br>③ Variable View 셀 편집 UX 개선</div>
         <div class="note-item"><strong>인프라/품질</strong><br>① clipboard_reader.py 모킹 기반 테스트<br>② coverage 측정 설정 (pytest-cov)<br>③ CI/CD 파이프라인 구성 검토</div>
       </div>
     </div>
@@ -259,7 +270,7 @@
     </table>
   </section>
 
-  <div class="updated">자동 갱신 — 매 작업 완료 시 업데이트 | StatWorkbench 담당: SW 에이전트 | 최종 갱신: 2026-05-21</div>
+  <div class="updated">자동 갱신 — 매 작업 완료 시 업데이트 | StatWorkbench 담당: SW 에이전트 | 최종 갱신: 2026-05-23 (커버리지 83%, 2,376개 통과)</div>
 </div>
 
 </body>

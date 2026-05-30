@@ -1,16 +1,19 @@
 """Crosstab (contingency table) analysis for StatWorkbench."""
 
 from __future__ import annotations
-from typing import Optional
+
+import logging
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+logger = logging.getLogger(__name__)
+
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
 
 
 def _compute_cramers_v(contingency: np.ndarray) -> float:
@@ -59,7 +62,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     row_var: str = variables.get("row", "")
     col_var: str = variables.get("column", "")
-    layer_var: Optional[str] = variables.get("layer", None)
+    layer_var: str | None = variables.get("layer", None)
 
     result = AnalysisResult(
         id="crosstab",
@@ -72,9 +75,14 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         all_vars.append(layer_var)
 
     # Prepare data
-    prepared = prepare_analysis_frame(
-        dataset, variables=all_vars, missing_policy=missing_policy
-    )
+    try:
+        prepared = prepare_analysis_frame(
+            dataset, variables=all_vars, missing_policy=missing_policy
+        )
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
+
     df = prepared.data
 
     # Case Processing Summary
@@ -103,7 +111,7 @@ def _build_crosstab(
     col_var: str,
     options: dict,
     confidence_level: float,
-    layer: Optional[str] = None,
+    layer: str | None = None,
 ) -> None:
     """Build crosstab tables and tests for a single layer."""
     title_prefix = f"Layer: {layer} — " if layer else ""
@@ -271,8 +279,8 @@ def _build_crosstab(
             "df": "",
             "p-value": "",
         })
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Cramer's V 계산 실패: %s", exc)
 
     if contingency_arr.shape == (2, 2):
         try:
@@ -283,8 +291,8 @@ def _build_crosstab(
                 "df": "",
                 "p-value": "",
             })
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Phi Coefficient 계산 실패: %s", exc)
 
     test_df = pd.DataFrame(test_rows)
     result.add_table(ResultTable(

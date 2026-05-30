@@ -1,11 +1,14 @@
 """Dataset model for StatWorkbench."""
 
 from __future__ import annotations
+
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, cast
+
 import pandas as pd
+
 from statworkbench.core.exceptions import DatasetError
-from statworkbench.core.typing import StorageType, MeasureType, Role
+from statworkbench.core.typing import MeasureType, StorageType
 from statworkbench.core.variable import VariableMeta
 
 
@@ -16,9 +19,9 @@ class Dataset:
         self,
         data: pd.DataFrame,
         name: str = "Untitled",
-        variables: Optional[dict[str, VariableMeta]] = None,
+        variables: dict[str, VariableMeta] | None = None,
         description: str = "",
-        source_info: Optional[dict[str, Any]] = None,
+        source_info: dict[str, Any] | None = None,
     ) -> None:
         self._data: pd.DataFrame = data.copy()
         self.name: str = name
@@ -72,7 +75,7 @@ class Dataset:
 
     @property
     def is_empty(self) -> bool:
-        return self._data.empty
+        return bool(self._data.empty)
 
     @property
     def is_dirty(self) -> bool:
@@ -92,7 +95,7 @@ class Dataset:
 
     @property
     def shape(self) -> tuple[int, int]:
-        return self._data.shape
+        return cast(tuple[int, int], self._data.shape)
 
     def get_column(self, name: str) -> pd.Series:
         return self._data[name]
@@ -172,7 +175,7 @@ class Dataset:
             setattr(meta, key, value)
         self._dirty = True
 
-    def add_variable(self, name: str, data: Optional[pd.Series] = None, meta: Optional[VariableMeta] = None) -> None:
+    def add_variable(self, name: str, data: pd.Series | None = None, meta: VariableMeta | None = None) -> None:
         from statworkbench.core.validation import validate_variable_name
         name = validate_variable_name(name)
         if name in self._variables:

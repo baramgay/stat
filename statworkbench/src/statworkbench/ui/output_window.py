@@ -4,15 +4,24 @@
 단일 인스턴스로 관리되어 여러 창이 뜨지 않습니다.
 """
 
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QPushButton, QLabel, QSplitter,
-    QTabWidget, QMenuBar, QMenu, QFileDialog, QMessageBox
-)
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from __future__ import annotations
+
+import base64
+import io
 from datetime import datetime
-from typing import Optional
+
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class OutputWindow(QMainWindow):
@@ -61,10 +70,15 @@ class OutputWindow(QMainWindow):
         self.btn_clear.clicked.connect(self.clear_output)
         info_layout.addWidget(self.btn_clear)
 
-        self.btn_save = QPushButton("💾 저장")
+        self.btn_save = QPushButton("💾 HTML")
         self.btn_save.setToolTip("결과를 HTML 파일로 저장합니다")
         self.btn_save.clicked.connect(self._save_output)
         info_layout.addWidget(self.btn_save)
+
+        self.btn_word = QPushButton("📄 Word")
+        self.btn_word.setToolTip("결과를 Word(.docx) 파일로 저장합니다")
+        self.btn_word.clicked.connect(self._save_word)
+        info_layout.addWidget(self.btn_word)
 
         layout.addLayout(info_layout)
 
@@ -96,10 +110,14 @@ class OutputWindow(QMainWindow):
         # 파일 메뉴
         file_menu = menubar.addMenu("파일(&F)")
 
-        save_action = QAction("저장(&S)", self)
+        save_action = QAction("HTML로 저장(&S)", self)
         save_action.setShortcut(QKeySequence.Save)
         save_action.triggered.connect(self._save_output)
         file_menu.addAction(save_action)
+
+        word_action = QAction("Word(.docx)로 저장(&W)", self)
+        word_action.triggered.connect(self._save_word)
+        file_menu.addAction(word_action)
 
         file_menu.addSeparator()
 
@@ -217,6 +235,89 @@ class OutputWindow(QMainWindow):
                 self.statusbar.showMessage(f"저장 완료: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
+
+    def _save_word(self) -> None:
+        """결과를 Word(.docx) 파일로 저장."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Word 저장", "statworkbench_output.docx", "Word (*.docx)"
+        )
+        if not path:
+            return
+        try:
+            from docx import Document
+            from docx.shared import Inches, Pt
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            import re
+
+            doc = Document()
+            doc.core_properties.title = "StatWorkbench 분석 결과"
+
+            # 제목
+            title = doc.add_heading("StatWorkbench 분석 결과", 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            # HTML → Word 변환 (단순 파싱)
+            full_html = self._get_full_html()
+
+            # 타임스탬프 섹션별로 분리
+            sections = re.split(r'🕐 (\d{2}:\d{2}:\d{2})', full_html)
+            for i in range(1, len(sections), 2):
+                ts = sections[i]
+                content = sections[i + 1] if i + 1 < len(sections) else ""
+
+                doc.add_paragraph(f"── {ts} ──", style="Intense Quote")
+
+                # 테이블 파싱
+                tables = re.findall(r'<table[^>]*>(.*?)</table>', content, re.DOTALL)
+                for tbl_html in tables:
+                    # caption
+                    caption_match = re.search(r'<caption[^>]*>(.*?)</caption>', tbl_html, re.DOTALL)
+                    if caption_match:
+                        cap_text = re.sub(r'<[^>]+>', '', caption_match.group(1)).strip()
+                        doc.add_heading(cap_text, level=3)
+
+                    # 행 추출
+                    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', tbl_html, re.DOTALL)
+                    if not rows:
+                        continue
+                    # 열 수 계산
+                    first_row_cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', rows[0], re.DOTALL)
+                    n_cols = len(first_row_cells) if first_row_cells else 1
+                    if n_cols == 0:
+                        continue
+
+                    word_tbl = doc.add_table(rows=0, cols=n_cols)
+                    word_tbl.style = "Table Grid"
+
+                    for row_html in rows:
+                        cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', row_html, re.DOTALL)
+                        if not cells:
+                            continue
+                        row_cells = word_tbl.add_row().cells
+                        for j, cell_html in enumerate(cells[:n_cols]):
+                            text = re.sub(r'<[^>]+>', '', cell_html).strip()
+                            if j < len(row_cells):
+                                row_cells[j].text = text
+
+                    doc.add_paragraph()
+
+                # 이미지 파싱 (base64 inline)
+                imgs = re.findall(r'data:image/png;base64,([A-Za-z0-9+/=]+)', content)
+                for b64_str in imgs:
+                    try:
+                        img_bytes = base64.b64decode(b64_str)
+                        img_stream = io.BytesIO(img_bytes)
+                        doc.add_picture(img_stream, width=Inches(5.5))
+                        doc.add_paragraph()
+                    except Exception:
+                        pass
+
+            doc.save(path)
+            self.statusbar.showMessage(f"Word 저장 완료: {path}")
+        except ImportError:
+            QMessageBox.critical(self, "오류", "python-docx 패키지가 필요합니다.\npip install python-docx")
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"Word 저장 실패:\n{exc}")
 
     def closeEvent(self, event) -> None:
         """닫기 버튼 → 숨기기."""

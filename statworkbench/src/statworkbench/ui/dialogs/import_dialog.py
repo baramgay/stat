@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -87,7 +86,7 @@ def _detect_encoding(file_path: str) -> str:
     # Fallback: try common encodings
     for enc in ["utf-8", "utf-8-sig", "cp949", "euc-kr", "latin-1"]:
         try:
-            with open(file_path, "r", encoding=enc) as f:
+            with open(file_path, encoding=enc) as f:
                 f.read(1024)
             return enc
         except (UnicodeDecodeError, UnicodeError):
@@ -98,7 +97,7 @@ def _detect_encoding(file_path: str) -> str:
 def _detect_delimiter(file_path: str, encoding: str) -> str:
     """Detect delimiter from first few lines."""
     try:
-        with open(file_path, "r", encoding=encoding) as f:
+        with open(file_path, encoding=encoding) as f:
             sample = f.read(8192)
     except Exception:
         return ","
@@ -123,14 +122,14 @@ class ImportDialog(QDialog):
     그리고 처음 20행의 미리보기를 제공합니다.
     """
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"{STR_TITLE} / {STR_TITLE_KO}")
         self.setMinimumSize(800, 600)
 
         self._file_path: str = ""
-        self._preview_df: Optional[pd.DataFrame] = None
-        self._preview_model: Optional[DataFrameTableModel] = None
+        self._preview_df: pd.DataFrame | None = None
+        self._preview_model: DataFrameTableModel | None = None
 
         self._setup_ui()
         self._connect_signals()
@@ -298,7 +297,7 @@ class ImportDialog(QDialog):
             self.info_label.setText(f"Error loading file: {exc}")
             self.ok_btn.setEnabled(False)
 
-    def _load_csv_preview(self) -> Optional[pd.DataFrame]:
+    def _load_csv_preview(self) -> pd.DataFrame | None:
         """Load CSV/TXT preview with current settings."""
         encoding = self.encoding_combo.currentData()
         delimiter = self.delimiter_combo.currentData()
@@ -323,7 +322,7 @@ class ImportDialog(QDialog):
 
         return pd.read_csv(self._file_path, **kwargs)
 
-    def _load_excel_preview(self) -> Optional[pd.DataFrame]:
+    def _load_excel_preview(self) -> pd.DataFrame | None:
         """Load Excel preview."""
         header = 0 if self.header_check.isChecked() else None
         return pd.read_excel(self._file_path, header=header, nrows=100)
@@ -389,6 +388,6 @@ class ImportDialog(QDialog):
         """선택된 파일 경로를 반환합니다."""
         return self._file_path
 
-    def get_preview_dataframe(self) -> Optional[pd.DataFrame]:
+    def get_preview_dataframe(self) -> pd.DataFrame | None:
         """미리보기 DataFrame을 반환합니다."""
         return self._preview_df

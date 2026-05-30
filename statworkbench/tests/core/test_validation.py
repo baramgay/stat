@@ -208,10 +208,10 @@ class TestValidateMeasureStorageCompatibility:
         with pytest.raises(ValidationError):
             validate_measure_storage_compatibility(MeasureType.NOMINAL, StorageType.DATETIME)
 
-    def test_ordinal_with_float_raises(self) -> None:
-        """ORDINAL + FLOAT raises ValidationError."""
-        with pytest.raises(ValidationError):
-            validate_measure_storage_compatibility(MeasureType.ORDINAL, StorageType.FLOAT)
+    def test_ordinal_with_float_allowed(self) -> None:
+        """ORDINAL + FLOAT is allowed (SPSS 호환: 소수값 서열 변수 허용)."""
+        result = validate_measure_storage_compatibility(MeasureType.ORDINAL, StorageType.FLOAT)
+        assert result is True
 
     def test_binary_with_float_raises(self) -> None:
         """BINARY + FLOAT raises ValidationError."""

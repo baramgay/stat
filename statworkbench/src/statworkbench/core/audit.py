@@ -84,7 +84,7 @@ class AuditLog:
                 fh.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
 
     @classmethod
-    def load_jsonl(cls, path: str | Path) -> "AuditLog":
+    def load_jsonl(cls, path: str | Path) -> AuditLog:
         """Load an audit log from a JSON Lines file.
 
         Args:

@@ -10,7 +10,7 @@ warnings and errors at each stage.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -19,7 +19,6 @@ from statworkbench.core.exceptions import (
     DelimiterDetectionError,
     EncodingDetectionError,
     FileReadError,
-    ImportValidationError,
 )
 from statworkbench.io.csv_reader import _detect_delimiter, _detect_encoding
 
@@ -131,7 +130,7 @@ class ImportWizard:
         # Quick preview check
         preview_ok = True
         try:
-            with open(filepath, "r", encoding=detected) as f:
+            with open(filepath, encoding=detected) as f:
                 sample = f.read(1024)
                 if "\ufffd" in sample:
                     preview_ok = False
@@ -177,7 +176,7 @@ class ImportWizard:
 
         # Count columns from first line
         try:
-            with open(filepath, "r", encoding=encoding) as f:
+            with open(filepath, encoding=encoding) as f:
                 first_line = f.readline()
                 if first_line:
                     n_columns = first_line.count(detected) + 1
@@ -203,7 +202,7 @@ class ImportWizard:
         delimiter: str,
         header: int = 0,
         skip_rows: int = 0,
-        max_rows: Optional[int] = None,
+        max_rows: int | None = None,
     ) -> dict[str, Any]:
         """Step 4 — Configure header and row options.
 
@@ -216,7 +215,7 @@ class ImportWizard:
 
         column_names: list[str] = []
         try:
-            with open(filepath, "r", encoding=encoding) as f:
+            with open(filepath, encoding=encoding) as f:
                 # Skip user-specified rows
                 for _ in range(skip_rows):
                     next(f, None)
@@ -423,7 +422,7 @@ class ImportWizard:
         delimiter: str = "auto",
         header: int = 0,
         skip_rows: int = 0,
-        max_rows: Optional[int] = None,
+        max_rows: int | None = None,
     ) -> dict[str, Any]:
         """Run all wizard steps and return the combined state.
 
@@ -449,7 +448,7 @@ class ImportWizard:
         )
 
         # Step 4
-        header_info = self.step_header(
+        self.step_header(
             filepath,
             enc_info["encoding"],
             delim_info["delimiter"],
@@ -460,7 +459,7 @@ class ImportWizard:
 
         # Build a preview Dataset by reading the actual file
         fmt = file_info.get("file_format", "").lower()
-        dataset: Optional[Dataset] = None
+        dataset: Dataset | None = None
 
         try:
             if fmt in ("csv", "txt", "tsv"):

@@ -265,8 +265,7 @@ class TestRecommendation:
         self, registry: AnalysisRegistry, binary_dataset: Dataset
     ) -> None:
         """Binary group + scale dependent should match t-test."""
-        plugin = MockTTestPlugin()
-        registry.register(plugin)
+        # independent_t_test is now properly registered via _register_new_plugins
         recs = registry.recommend_for_variables(
             binary_dataset, ["treatment", "outcome"]
         )
@@ -296,9 +295,8 @@ class TestRecommendation:
         self, registry: AnalysisRegistry, scale_dataset: Dataset
     ) -> None:
         """Variables that don't match any requirement should return empty."""
-        plugin = MockTTestPlugin()
-        registry.register(plugin)
         # Only scale variables, no binary group → t-test shouldn't match
+        # independent_t_test is already registered via _register_new_plugins
         recs = registry.recommend_for_variables(
             scale_dataset, ["age", "bp"]
         )
@@ -350,10 +348,13 @@ class TestPlannedAnalysis:
         """Planned analyses should appear in list_planned."""
         planned = registry.list_planned()
         ids = [p.id for p in planned]
-        # Some known planned analyses from built-in list
-        assert "explore" in ids
-        # logistic_regression is now implemented, not planned
+        # kaplan_meier and cox_regression are truly unimplemented
+        assert "kaplan_meier" in ids
+        assert "cox_regression" in ids
+        # explore, logistic_regression, sensitivity_specificity are now implemented
         assert "logistic_regression" not in ids
+        assert "explore" not in ids
+        assert "sensitivity_specificity" not in ids
 
     def test_planned_not_in_list_implemented(
         self, registry: AnalysisRegistry
@@ -361,5 +362,10 @@ class TestPlannedAnalysis:
         """Planned analyses should NOT appear in list_implemented."""
         impl = registry.list_implemented()
         ids = [p.id for p in impl]
-        assert "explore" not in ids
-        assert "logistic_regression" not in ids
+        # kaplan_meier and cox_regression are truly unimplemented → not in implemented
+        assert "kaplan_meier" not in ids
+        assert "cox_regression" not in ids
+        # explore, logistic_regression, sensitivity_specificity ARE now implemented
+        assert "explore" in ids
+        assert "logistic_regression" in ids
+        assert "sensitivity_specificity" in ids

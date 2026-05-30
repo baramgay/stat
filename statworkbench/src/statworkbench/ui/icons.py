@@ -6,9 +6,8 @@ Unicode emoji와 문자 기반 아이콘을 사용하여 PySide6 애플리케이
 
 from __future__ import annotations
 
-from PySide6.QtGui import QIcon, QPixmap, QColor, QPainter, QFont
-from PySide6.QtCore import Qt, QSize
-
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 
 # ── Emoji Icons ────────────────────────────────────────────────────────────
 

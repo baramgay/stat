@@ -3,18 +3,22 @@
 모든 분석 다이얼로그의 공통 기능을 제공합니다.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QGroupBox, QDialogButtonBox,
-    QSplitter, QWidget
-)
-from PySide6.QtCore import Qt, Signal
-from typing import Optional, List, Callable
 
 import pandas as pd
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 
 
 class AnalysisDialog(QDialog):
@@ -57,7 +61,7 @@ class AnalysisDialog(QDialog):
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
-    def _get_variables(self, numeric_only: bool = False) -> List[str]:
+    def _get_variables(self, numeric_only: bool = False) -> list[str]:
         """변수 목록 반환."""
         df = self._dataset.data
         if numeric_only:
@@ -72,7 +76,7 @@ class AnalysisDialog(QDialog):
 class VariableSelectorDialog(AnalysisDialog):
     """변수 선택 다이얼로그."""
 
-    def __init__(self, title: str, dataset: Dataset, 
+    def __init__(self, title: str, dataset: Dataset,
                  numeric_only: bool = False, multi_select: bool = True,
                  parent=None):
         self._numeric_only = numeric_only
@@ -99,7 +103,7 @@ class VariableSelectorDialog(AnalysisDialog):
         var_layout.addWidget(self.var_list)
         self.main_layout.addWidget(var_group)
 
-    def get_selected_variables(self) -> List[str]:
+    def get_selected_variables(self) -> list[str]:
         """선택된 변수 목록 반환."""
         return [item.text() for item in self.var_list.selectedItems()]
 

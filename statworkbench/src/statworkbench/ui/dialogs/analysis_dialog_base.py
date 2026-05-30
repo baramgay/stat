@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QDialogButtonBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -26,8 +25,8 @@ from PySide6.QtWidgets import (
 )
 
 from statworkbench.core.dataset import Dataset
+from statworkbench.core.typing import MeasureType
 from statworkbench.core.variable import VariableMeta
-from statworkbench.core.typing import MeasureType, Role
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +52,10 @@ def _format_var_display(var: VariableMeta) -> str:
     """Format a variable for display in list widgets.
 
     Shows variable name, measure icon hint, and optional label.
+    Label is shown only when it differs from the variable name.
+    Format: "var_name (msr)" or "var_name (msr) [레이블]"
     """
-    label_part = f"  [{var.label}]" if var.label else ""
+    label_part = f"  [{var.label}]" if var.label and var.label != var.name else ""
     measure_tag = f" ({var.measure.value[:3]})" if var.measure else ""
     return f"{var.name}{measure_tag}{label_part}"
 
@@ -92,7 +93,7 @@ class AnalysisDialogBase(QDialog):
         self,
         dataset: Dataset,
         title: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._dataset = dataset
@@ -101,7 +102,7 @@ class AnalysisDialogBase(QDialog):
         self.setMinimumSize(750, 550)
 
         # UI components
-        self._available_list: Optional[QListWidget] = None
+        self._available_list: QListWidget | None = None
         self._selection_lists: dict[str, QListWidget] = {}
         self._option_widgets: dict[str, Any] = {}
 
@@ -119,6 +120,9 @@ class AnalysisDialogBase(QDialog):
         available_layout = QVBoxLayout(available_group)
         self._available_list = QListWidget()
         self._available_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self._available_list.setToolTip(
+            "분석에 사용할 변수를 선택하세요. 더블클릭 또는 화살표 버튼으로 이동할 수 있습니다."
+        )
         available_layout.addWidget(self._available_list)
         top_splitter.addWidget(available_group)
 
@@ -156,7 +160,7 @@ class AnalysisDialogBase(QDialog):
         layout.addWidget(QLabel("Override _build_selection_area() in subclass"))
         return widget
 
-    def _build_options_area(self) -> Optional[QWidget]:
+    def _build_options_area(self) -> QWidget | None:
         """Build the analysis options area.
 
         Subclasses should override this to add checkboxes, combo boxes,
@@ -184,10 +188,12 @@ class AnalysisDialogBase(QDialog):
 
         self.ok_btn = QPushButton(STR_OK)
         self.ok_btn.setDefault(True)
+        self.ok_btn.setToolTip("분석을 실행합니다 (Enter)")
         self.ok_btn.clicked.connect(self._on_ok)
         btn_layout.addWidget(self.ok_btn)
 
         self.cancel_btn = QPushButton(STR_CANCEL)
+        self.cancel_btn.setToolTip("분석을 취소하고 닫습니다 (Esc)")
         self.cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(self.cancel_btn)
 

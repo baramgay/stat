@@ -1,16 +1,31 @@
 """Logistic Regression Dialog — SPSS 스타일 로지스틱 회귀 다이얼로그."""
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QListWidget, QListWidgetItem, QGroupBox, QDialogButtonBox,
-    QPushButton, QCheckBox, QDoubleSpinBox, QFormLayout, QWidget,
-    QMessageBox
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    categorical_vars, all_vars, numeric_vars, display_label, measure_icon
+    all_vars,
+    categorical_vars,
+    display_label,
+    measure_icon,
+    numeric_vars,
 )
 
 
@@ -151,7 +166,7 @@ class LogisticRegressionDialog(QDialog):
         if dep_var and dep_var in self._dataset.data.columns:
             n_unique = self._dataset.data[dep_var].nunique()
             if n_unique == 2:
-                self.dep_type_label.setText(f"감지: 이항 로지스틱 (고유값 2개)")
+                self.dep_type_label.setText("감지: 이항 로지스틱 (고유값 2개)")
             elif n_unique > 2:
                 self.dep_type_label.setText(f"감지: 다항 로지스틱 (고유값 {n_unique}개)")
             else:

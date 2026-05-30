@@ -8,29 +8,41 @@ from __future__ import annotations
 
 import io
 import logging
-from typing import Optional, List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QListWidget, QListWidgetItem, QGroupBox,
-    QDialog, QDialogButtonBox, QSplitter, QFileDialog,
-    QMessageBox, QSpinBox, QCheckBox, QLineEdit,
-    QFrame, QGridLayout, QScrollArea, QApplication,
-    QButtonGroup, QRadioButton, QSizePolicy,
-)
-from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QPixmap, QImage, QFont
-
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
-import seaborn as sns
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QSizePolicy,
+    QSpinBox,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.visualization import VisualizationEngine
+from statworkbench.core.dataset import Dataset
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +53,7 @@ plt.rcParams["axes.unicode_minus"] = False
 
 # ── 차트 유형 정의 ──────────────────────────────────────────────────────────
 
-CHART_TYPES: List[tuple[str, str, str]] = [
+CHART_TYPES: list[tuple[str, str, str]] = [
     ("histogram",   "히스토그램",     "분포 분석 — 정규 곡선 선택 가능"),
     ("scatter",     "산점도",         "두 수치 변수의 관계"),
     ("bar",         "막대 그래프",    "범주별 빈도 / 평균"),
@@ -109,7 +121,7 @@ class ChartBuilderDialog(QDialog):
         super().__init__(parent)
         self._dataset = dataset
         self._engine = VisualizationEngine()
-        self._current_fig: Optional[Figure] = None
+        self._current_fig: Figure | None = None
 
         self.setWindowTitle("차트 빌더")
         self.setMinimumSize(1200, 800)
@@ -384,9 +396,9 @@ class ChartBuilderDialog(QDialog):
         self,
         key: str,
         df: pd.DataFrame,
-        x: Optional[str],
-        y: Optional[str],
-        grp: Optional[str],
+        x: str | None,
+        y: str | None,
+        grp: str | None,
         title: str,
     ) -> Figure:
         """차트 유형에 따라 VisualizationEngine 메서드를 호출."""

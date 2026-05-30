@@ -10,7 +10,7 @@ import json
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -38,19 +38,19 @@ class Project:
     def __init__(
         self,
         name: str = "Untitled Project",
-        dataset: Optional[Dataset] = None,
-        settings: Optional[dict[str, Any]] = None,
+        dataset: Dataset | None = None,
+        settings: dict[str, Any] | None = None,
         schema_version: str = SCHEMA_VERSION,
     ) -> None:
         self.name: str = name
-        self.dataset: Optional[Dataset] = dataset
+        self.dataset: Dataset | None = dataset
         self.datasets: list[Dataset] = [dataset] if dataset else []
         self.settings: dict[str, Any] = settings or {}
         self.schema_version: str = schema_version
         self.syntax_history: list[str] = []
         self.created_at: datetime = datetime.now()
         self.modified_at: datetime = datetime.now()
-        self.file_path: Optional[str] = None
+        self.file_path: str | None = None
         self._dirty: bool = False
 
     def mark_dirty(self) -> None:
@@ -79,7 +79,7 @@ class Project:
 
     @classmethod
     def from_metadata_dict(
-        cls, data: dict[str, Any], dataset: Optional[Dataset] = None
+        cls, data: dict[str, Any], dataset: Dataset | None = None
     ) -> Project:
         """Deserialize project metadata dict to a Project."""
         proj = cls(

@@ -1,14 +1,15 @@
 """Menu builder for StatWorkbench main window."""
 
-from PySide6.QtWidgets import QMenuBar, QMenu, QWidget
+from collections.abc import Callable
+
 from PySide6.QtGui import QAction, QKeySequence
-from typing import Callable, Optional
+from PySide6.QtWidgets import QMenu, QMenuBar, QWidget
 
 
 class MenuBuilder:
     """Builds the menu structure for the main window."""
 
-    def __init__(self, menubar: QMenuBar, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, menubar: QMenuBar, parent: QWidget | None = None) -> None:
         self.menubar = menubar
         self.parent = parent
         self._actions: dict[str, QAction] = {}
@@ -17,8 +18,8 @@ class MenuBuilder:
         self,
         menu: QMenu,
         text: str,
-        shortcut: Optional[str] = None,
-        triggered: Optional[Callable] = None,
+        shortcut: str | None = None,
+        triggered: Callable | None = None,
         enabled: bool = True,
     ) -> QAction:
         """Add an action to a menu."""
@@ -62,6 +63,6 @@ class MenuBuilder:
         menu = self.menubar.addMenu("&Help")
         return menu
 
-    def get_action(self, name: str) -> Optional[QAction]:
+    def get_action(self, name: str) -> QAction | None:
         """Get an action by name."""
         return self._actions.get(name)

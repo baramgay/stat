@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 
+from statworkbench.core.typing import MeasureType, Role, StorageType
 from statworkbench.core.variable import VariableMeta
-from statworkbench.core.typing import MeasureType, StorageType, Role
-
 
 # ── Internationalized column headers ───────────────────────────────────────
 
@@ -56,7 +55,7 @@ class VariableTableModel(QAbstractTableModel):
     def __init__(
         self,
         variables: list[VariableMeta],
-        parent: Optional[Any] = None,
+        parent: Any | None = None,
     ) -> None:
         super().__init__(parent)
         self._variables: list[VariableMeta] = list(variables)

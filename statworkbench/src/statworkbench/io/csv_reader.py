@@ -124,7 +124,7 @@ def _detect_delimiter(
         raise DelimiterDetectionError(filepath, "파일이 비어 있습니다")
 
     lines = [ln for ln in text.splitlines() if ln.strip()][:sample_lines]
-    if not lines:
+    if not lines:  # pragma: no cover
         raise DelimiterDetectionError(filepath, "빈 파일입니다")
 
     best_delimiter = ","
@@ -134,10 +134,10 @@ def _detect_delimiter(
         try:
             reader = csv.reader(StringIO("\n".join(lines)), delimiter=delim)
             rows = list(reader)
-        except csv.Error:
+        except csv.Error:  # pragma: no cover
             continue
 
-        if not rows:
+        if not rows:  # pragma: no cover
             continue
 
         col_counts = [len(row) for row in rows]

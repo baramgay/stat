@@ -10,15 +10,15 @@ Virtual grid: cells exist conceptually but only store data when actually entered
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
-from PySide6.QtGui import QColor, QBrush, QFont
+from PySide6.QtGui import QBrush, QColor, QFont
 
-from statworkbench.core.variable import VariableMeta
 from statworkbench.core.typing import MeasureType, StorageType
+from statworkbench.core.variable import VariableMeta
 
 logger = logging.getLogger(__name__)
 
@@ -116,9 +116,9 @@ class SPSSGridModel(QAbstractTableModel):
 
     def __init__(
         self,
-        dataframe: Optional[pd.DataFrame] = None,
-        variables: Optional[dict[str, VariableMeta]] = None,
-        parent: Optional[Any] = None,
+        dataframe: pd.DataFrame | None = None,
+        variables: dict[str, VariableMeta] | None = None,
+        parent: Any | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -200,7 +200,7 @@ class SPSSGridModel(QAbstractTableModel):
             return str(value)
         return str(value)
 
-    def _get_value_label(self, value: Any, col: int) -> Optional[str]:
+    def _get_value_label(self, value: Any, col: int) -> str | None:
         """값 라벨 모드에서 표시할 텍스트 반환 (없으면 None)."""
         if col >= len(self._dataframe.columns):
             return None
@@ -349,6 +349,21 @@ class SPSSGridModel(QAbstractTableModel):
 
         row, col = index.row(), index.column()
 
+        # 기존 숫자형 변수에 문자 입력 방지 (SPSS 호환)
+        # 변수가 이미 존재하고 numeric 타입으로 확정된 경우에만 검증
+        if col < len(self._dataframe.columns) and value not in ("", None, "."):
+            existing_var = self._variables.get(self._dataframe.columns[col])
+            if (existing_var is not None
+                    and existing_var.storage_type in (StorageType.FLOAT, StorageType.INTEGER)):
+                try:
+                    float(str(value))
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "숫자형 변수 '%s'에 문자 '%s' 입력 거부 (SPSS 호환)",
+                        self._dataframe.columns[col], value,
+                    )
+                    return False
+
         if col >= len(self._dataframe.columns):
             self._create_variable_at_col(col)
 
@@ -458,8 +473,18 @@ class SPSSGridModel(QAbstractTableModel):
 
         var_meta = self._variables[var_name]
 
-        first_value = non_null.iloc[0]
-        var_meta.storage_type = infer_storage_type(first_value)
+        # storage_type: 모든 값 중 가장 넓은 타입 사용
+        # INTEGER → FLOAT 승격은 발생할 수 있음 (소수 값 추가 시)
+        # STRING 열은 문자 입력 거부 로직에 의해 INTEGER/FLOAT로 변경 안 됨
+        widest = StorageType.INTEGER
+        for val in non_null:
+            st = infer_storage_type(val)
+            if st == StorageType.STRING:
+                widest = StorageType.STRING
+                break
+            if st == StorageType.FLOAT:
+                widest = StorageType.FLOAT
+        var_meta.storage_type = widest
 
         # 측정 척도: 최초 데이터 입력 시에만 자동 감지
         if var_name not in self._measure_initialized:
@@ -548,7 +573,7 @@ class SPSSGridModel(QAbstractTableModel):
 
     # ── Public helpers ───────────────────────────────────────────────────────
 
-    def set_dataframe(self, dataframe: pd.DataFrame, variables: Optional[dict[str, VariableMeta]] = None) -> None:
+    def set_dataframe(self, dataframe: pd.DataFrame, variables: dict[str, VariableMeta] | None = None) -> None:
         """Replace DataFrame and optionally variables."""
         self.beginResetModel()
         self._dataframe = dataframe.copy()
@@ -595,6 +620,29 @@ class SPSSGridModel(QAbstractTableModel):
         """Return variable metadata dictionary."""
         return self._variables.copy()
 
+    def mark_measure_initialized(self, var_name: str) -> None:
+        """Variable View에서 측정 척도를 사용자가 직접 설정한 변수를 초기화 완료로 표시.
+
+        이후 데이터 입력 시 자동 감지가 사용자 설정을 덮어쓰지 않도록 보호한다.
+        """
+        self._measure_initialized.add(var_name)
+
+    def sort_by_column(self, col: int, ascending: bool = True) -> None:
+        """열 기준 정렬. beginResetModel 없이 dataChanged 시그널로 뷰 갱신해 포커스 보존."""
+        if col >= len(self._dataframe.columns):
+            return
+        col_name = self._dataframe.columns[col]
+        self._dataframe.sort_values(by=col_name, ascending=ascending, inplace=True)
+        self._dataframe.reset_index(drop=True, inplace=True)
+        self._update_last_data_row()
+        top_left = self.index(0, 0)
+        bottom_right = self.index(self.rowCount() - 1, len(self._dataframe.columns) - 1)
+        self.dataChanged.emit(
+            top_left, bottom_right,
+            [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.BackgroundRole],
+        )
+        self.data_changed.emit()
+
     def toggle_value_labels(self) -> bool:
         """값 라벨 표시 토글. 변경 후 현재 상태 반환."""
         self.show_value_labels = not self.show_value_labels
@@ -604,7 +652,7 @@ class SPSSGridModel(QAbstractTableModel):
         self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole])
         return self.show_value_labels
 
-    def add_row(self, values: Optional[dict[str, Any]] = None) -> None:
+    def add_row(self, values: dict[str, Any] | None = None) -> None:
         """Add a new row."""
         current_rows = len(self._dataframe)
         self.beginInsertRows(QModelIndex(), current_rows, current_rows)
@@ -635,7 +683,7 @@ class SPSSGridModel(QAbstractTableModel):
             return True
         return False
 
-    def add_column(self, name: str, values: Optional[list[Any]] = None) -> None:
+    def add_column(self, name: str, values: list[Any] | None = None) -> None:
         """Add a new column."""
         col_idx = len(self._dataframe.columns)
         old_virtual = self.columnCount()

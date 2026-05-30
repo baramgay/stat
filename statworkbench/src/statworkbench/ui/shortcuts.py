@@ -3,8 +3,8 @@
 StatWorkbench 전역 단축키를 정의합니다.
 """
 
+
 from PySide6.QtGui import QKeySequence
-from typing import Dict, Tuple, Callable
 
 
 class ShortcutManager:
@@ -50,7 +50,7 @@ class ShortcutManager:
     HELP_ABOUT = "F1"
 
     @classmethod
-    def get_all_shortcuts(cls) -> Dict[str, str]:
+    def get_all_shortcuts(cls) -> dict[str, str]:
         """모든 단축키 반환."""
         return {
             "파일 > 새로 만들기": "Ctrl+N",

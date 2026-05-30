@@ -1,18 +1,19 @@
 """Descriptive statistics analysis for StatWorkbench."""
 
 from __future__ import annotations
-from typing import Optional
+
+import logging
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+logger = logging.getLogger(__name__)
+
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_ci, format_number, get_display_decimals
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci, get_display_decimals
-from statworkbench.analysis.assumptions import (
-    prepare_analysis_frame, get_case_processing_summary
-)
 
 
 def _compute_descriptives(
@@ -84,7 +85,6 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         AnalysisResult with descriptive statistics tables.
     """
     variables = spec.get("variables", {})
-    options = spec.get("options", {})
     confidence_level = spec.get("confidence_level", 0.95)
     missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
     if isinstance(missing_policy_str, str):
@@ -93,7 +93,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         missing_policy = missing_policy_str
 
     scale_vars: list[str] = variables.get("scale", [])
-    group_var: Optional[str] = variables.get("group", None)
+    group_var: str | None = variables.get("group", None)
 
     result = AnalysisResult(
         id="descriptive_statistics",
@@ -101,44 +101,82 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         spec=spec,
     )
 
-    # Prepare data
-    all_vars = list(scale_vars)
-    if group_var is not None:
-        all_vars.append(group_var)
+    try:
+        # Prepare data
+        all_vars = list(scale_vars)
+        if group_var is not None:
+            all_vars.append(group_var)
 
-    prepared = prepare_analysis_frame(
-        dataset, variables=all_vars, missing_policy=missing_policy
-    )
-    df = prepared.data
+        prepared = prepare_analysis_frame(
+            dataset, variables=all_vars, missing_policy=missing_policy
+        )
+        df = prepared.data
 
-    # Case Processing Summary
-    cps = get_case_processing_summary(
-        prepared.n_total, prepared.n_valid, prepared.n_excluded,
-        prepared.excluded_pct
-    )
-    result.add_table(cps)
+        # Case Processing Summary
+        cps = get_case_processing_summary(
+            prepared.n_total, prepared.n_valid, prepared.n_excluded,
+            prepared.excluded_pct
+        )
+        result.add_table(cps)
 
-    def _var_label(var: str) -> str:
-        meta = dataset.variables.get(var) if dataset.variables else None
-        return meta.label if (meta and meta.label) else var
+        def _var_label(var: str) -> str:
+            meta = dataset.variables.get(var) if dataset.variables else None
+            return meta.label if (meta and meta.label) else var
 
-    if group_var is not None and group_var in df.columns:
-        # Grouped descriptives
-        groups = df[group_var].dropna().unique()
-        rows = []
-        for grp in sorted(groups):
-            grp_df = df[df[group_var] == grp]
+        if group_var is not None and group_var in df.columns:
+            # Grouped descriptives
+            groups = df[group_var].dropna().unique()
+            rows = []
+            for grp in sorted(groups):
+                grp_df = df[df[group_var] == grp]
+                for var in scale_vars:
+                    if var in grp_df.columns:
+                        try:
+                            desc = _compute_descriptives(
+                                grp_df[var].apply(pd.to_numeric, errors="coerce"),
+                                confidence_level=confidence_level,
+                            )
+                        except Exception as exc:
+                            logger.warning("기술통계 계산 실패 (변수=%s, 그룹=%s): %s", var, grp, exc)
+                            desc = _compute_descriptives(pd.Series([], dtype=float))
+                        d = get_display_decimals(dataset, var)
+                        ci_str = format_ci(
+                            desc["CI_Lower"], desc["CI_Upper"], decimals=d, level=confidence_level
+                        )
+                        rows.append({
+                            "Group": grp,
+                            "Variable": _var_label(var),
+                            "N": desc["N"],
+                            "Missing": desc["Missing"],
+                            "Mean": format_number(desc["Mean"], d),
+                            "SD": format_number(desc["SD"], d + 1),
+                            "Median": format_number(desc["Median"], d),
+                            "IQR": format_number(desc["IQR"], d),
+                            "Min": format_number(desc["Min"], d),
+                            "Max": format_number(desc["Max"], d),
+                            "Skewness": format_number(desc["Skewness"], 3),
+                            "Kurtosis": format_number(desc["Kurtosis"], 3),
+                            "CI": ci_str,
+                        })
+            desc_df = pd.DataFrame(rows)
+        else:
+            # Overall descriptives
+            rows = []
             for var in scale_vars:
-                if var in grp_df.columns:
-                    desc = _compute_descriptives(
-                        grp_df[var], confidence_level=confidence_level
-                    )
+                if var in df.columns:
+                    try:
+                        desc = _compute_descriptives(
+                            df[var].apply(pd.to_numeric, errors="coerce"),
+                            confidence_level=confidence_level,
+                        )
+                    except Exception as exc:
+                        logger.warning("기술통계 계산 실패 (변수=%s): %s", var, exc)
+                        desc = _compute_descriptives(pd.Series([], dtype=float))
                     d = get_display_decimals(dataset, var)
                     ci_str = format_ci(
                         desc["CI_Lower"], desc["CI_Upper"], decimals=d, level=confidence_level
                     )
                     rows.append({
-                        "Group": grp,
                         "Variable": _var_label(var),
                         "N": desc["N"],
                         "Missing": desc["Missing"],
@@ -152,39 +190,34 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                         "Kurtosis": format_number(desc["Kurtosis"], 3),
                         "CI": ci_str,
                     })
-        desc_df = pd.DataFrame(rows)
-    else:
-        # Overall descriptives
-        rows = []
-        for var in scale_vars:
-            if var in df.columns:
-                desc = _compute_descriptives(
-                    df[var], confidence_level=confidence_level
-                )
-                d = get_display_decimals(dataset, var)
-                ci_str = format_ci(
-                    desc["CI_Lower"], desc["CI_Upper"], decimals=d, level=confidence_level
-                )
-                rows.append({
-                    "Variable": _var_label(var),
-                    "N": desc["N"],
-                    "Missing": desc["Missing"],
-                    "Mean": format_number(desc["Mean"], d),
-                    "SD": format_number(desc["SD"], d + 1),
-                    "Median": format_number(desc["Median"], d),
-                    "IQR": format_number(desc["IQR"], d),
-                    "Min": format_number(desc["Min"], d),
-                    "Max": format_number(desc["Max"], d),
-                    "Skewness": format_number(desc["Skewness"], 3),
-                    "Kurtosis": format_number(desc["Kurtosis"], 3),
-                    "CI": ci_str,
-                })
-        desc_df = pd.DataFrame(rows)
+            desc_df = pd.DataFrame(rows)
 
-    desc_table = ResultTable(
-        title="Descriptive Statistics",
-        dataframe=desc_df,
-    )
-    result.add_table(desc_table)
+        desc_table = ResultTable(
+            title="Descriptive Statistics",
+            dataframe=desc_df,
+        )
+        result.add_table(desc_table)
+
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
 
     return result
+
+
+class DescriptiveEngine:
+    """AnalysisPlugin wrapper for descriptive statistics."""
+
+    id = "descriptives"
+    name = "기술통계"
+    category = "Descriptive Statistics"
+    description = "척도 변수의 기술통계량 (평균, 표준편차, 사분위수, CI)"
+    variable_requirements: list[dict] = [
+        {"role": "variables", "measure_types": ["scale", "ordinal"], "min_count": 1, "required": True},
+    ]
+    implemented = True
+
+    def validate(self, dataset: Dataset, spec: dict) -> list[str]:
+        return []
+
+    def run(self, dataset: Dataset, spec: dict) -> AnalysisResult:
+        return run_analysis(dataset, spec)

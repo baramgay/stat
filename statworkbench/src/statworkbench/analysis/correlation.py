@@ -1,16 +1,19 @@
 """Correlation analysis for StatWorkbench."""
 
 from __future__ import annotations
-from typing import Optional
+
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+from statworkbench.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from statworkbench.analysis.formatting import format_ci, format_number, format_pvalue
+from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.typing import MissingPolicy
-from statworkbench.analysis.result import AnalysisResult, ResultTable
-from statworkbench.analysis.formatting import format_pvalue, format_number, format_ci
-from statworkbench.analysis.assumptions import prepare_analysis_frame, get_case_processing_summary
 
 
 def _fisher_z_transform(r: float, n: int, confidence_level: float = 0.95) -> tuple[float, float]:
@@ -78,21 +81,25 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         return result
 
     # Prepare data
-    if use_pairwise:
-        df = dataset.data[target_vars].copy()
-        n_total = len(df)
-        n_valid = len(df)
-        n_excluded = 0
-        excluded_pct = 0.0
-    else:
-        prepared = prepare_analysis_frame(
-            dataset, variables=target_vars, missing_policy=missing_policy
-        )
-        df = prepared.data
-        n_total = prepared.n_total
-        n_valid = prepared.n_valid
-        n_excluded = prepared.n_excluded
-        excluded_pct = prepared.excluded_pct
+    try:
+        if use_pairwise:
+            df = dataset.data[target_vars].copy()
+            n_total = len(df)
+            n_valid = int(df.dropna().shape[0])
+            n_excluded = n_total - n_valid
+            excluded_pct = (n_excluded / n_total * 100) if n_total > 0 else 0.0
+        else:
+            prepared = prepare_analysis_frame(
+                dataset, variables=target_vars, missing_policy=missing_policy
+            )
+            df = prepared.data
+            n_total = prepared.n_total
+            n_valid = prepared.n_valid
+            n_excluded = prepared.n_excluded
+            excluded_pct = prepared.excluded_pct
+    except Exception as exc:
+        result.add_warning(f"분석 오류: {exc}")
+        return result
 
     # Case Processing Summary
     cps = get_case_processing_summary(
@@ -107,8 +114,6 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     n_matrix = np.zeros((n_vars, n_vars), dtype=int)
     ci_low_matrix = np.zeros((n_vars, n_vars))
     ci_high_matrix = np.zeros((n_vars, n_vars))
-
-    alpha = 1 - confidence_level
 
     for i in range(n_vars):
         for j in range(i, n_vars):
@@ -146,12 +151,14 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 result.warnings.append(f"Unknown method: {method}")
                 return result
 
+            if tail == "one-tailed":
+                p = p / 2
+
             corr_matrix[i, j] = corr_matrix[j, i] = r
             p_matrix[i, j] = p_matrix[j, i] = p
             n_matrix[i, j] = n_matrix[j, i] = n_pair
-            ci_low_matrix[i, j] = ci_low
-            ci_high_matrix[j, i] = ci_low
-            ci_high_matrix[i, j] = ci_low_matrix[j, i] = ci_high
+            ci_low_matrix[i, j] = ci_low_matrix[j, i] = ci_low
+            ci_high_matrix[i, j] = ci_high_matrix[j, i] = ci_high
 
     # Correlation matrix — raw floats rounded to 3 dp (SPSS standard for r)
     corr_df = pd.DataFrame(
@@ -229,3 +236,22 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         ))
 
     return result
+
+
+class CorrelationEngine:
+    """AnalysisPlugin wrapper for correlation analysis."""
+
+    id = "pearson_correlation"
+    name = "상관분석"
+    category = "Correlate"
+    description = "Pearson / Spearman / Kendall 상관행렬, Fisher z 변환 CI"
+    variable_requirements: list[dict] = [
+        {"role": "variables", "measure_types": ["scale"], "min_count": 2, "required": True},
+    ]
+    implemented = True
+
+    def validate(self, dataset: Dataset, spec: dict) -> list[str]:
+        return []
+
+    def run(self, dataset: Dataset, spec: dict) -> AnalysisResult:
+        return run_analysis(dataset, spec)

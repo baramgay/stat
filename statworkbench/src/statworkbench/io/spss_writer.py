@@ -6,9 +6,6 @@ pyreadstat을 사용하여 DataFrame을 SPSS .sav 파일로 저장합니다.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
-
-import pandas as pd
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.core.exceptions import ImportError as SWBImportError
@@ -33,7 +30,7 @@ def write_sav(dataset: Dataset, path: str) -> None:
             "'pip install pyreadstat'로 설치하세요."
         )
 
-    path = Path(path)
+    save_path = Path(path)
 
     if dataset is None or dataset.data.empty:
         raise ValueError("저장할 데이터가 없습니다.")
@@ -68,7 +65,7 @@ def write_sav(dataset: Dataset, path: str) -> None:
     # 저장 (pyreadstat 1.x API)
     pyreadstat.write_sav(
         df,
-        str(path),
+        str(save_path),
         column_labels=column_labels if column_labels else None,
         variable_value_labels=value_labels if value_labels else None,
         variable_measure=variable_measure if variable_measure else None,

@@ -1,16 +1,23 @@
 """Regression Dialog — SPSS 스타일 회귀분석 다이얼로그."""
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QListWidget, QListWidgetItem, QGroupBox, QDialogButtonBox,
-    QPushButton
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt, Signal
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, display_label, measure_icon
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
 )
 
 

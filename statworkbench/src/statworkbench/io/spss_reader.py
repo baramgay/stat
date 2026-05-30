@@ -6,40 +6,39 @@ pyreadstat을 사용하여 SPSS .sav 파일을 읽고 Dataset으로 변환합니
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
 from statworkbench.core.dataset import Dataset
-from statworkbench.core.variable import VariableMeta, StorageType, MeasureType
 from statworkbench.core.exceptions import ImportError as SWBImportError
+from statworkbench.core.variable import MeasureType, StorageType, VariableMeta
 
 
 def read_sav(path: str | Path) -> Dataset:
     """SPSS .sav 파일을 읽어 Dataset으로 변환합니다.
-    
+
     Args:
         path: .sav 파일 경로
-        
+
     Returns:
         Dataset 객체
-        
+
     Raises:
         DataError: 파일 읽기 실패 시
     """
     path = Path(path)
-    
+
     if not path.exists():
         raise SWBImportError(f"파일을 찾을 수 없습니다: {path}")
-    
+
     if not path.suffix.lower() == ".sav":
         raise SWBImportError(f"SPSS .sav 파일이 아닙니다: {path.suffix}")
-    
+
     try:
         import pyreadstat
-        
+
         df, meta = pyreadstat.read_sav(str(path))
-        
+
         # 변수 메타데이터 변환
         _MEASURE_MAP = {
             "scale":   MeasureType.SCALE,
@@ -73,16 +72,16 @@ def read_sav(path: str | Path) -> Dataset:
                 var_meta.missing_values = meta.missing_ranges[col]
 
             variables[col] = var_meta
-        
+
         dataset = Dataset(
             data=df,
             variables=variables,
             name=path.stem,
             description=f"SPSS 파일: {path.name}",
         )
-        
+
         return dataset
-        
+
     except ImportError:
         raise SWBImportError(
             "pyreadstat이 설치되지 않았습니다. "

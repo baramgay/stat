@@ -3,16 +3,21 @@
 Mann-Whitney U, Wilcoxon, Kruskal-Wallis, Chi-square 검정을 수행합니다.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QRadioButton, QButtonGroup, QComboBox,
-    QMessageBox, QTextEdit
-)
-from PySide6.QtCore import Signal
-from typing import Optional
-
 import pandas as pd
-import numpy as np
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 from scipy import stats
 
 from statworkbench.core.dataset import Dataset
@@ -20,73 +25,80 @@ from statworkbench.core.dataset import Dataset
 
 class NonparametricDialog(QDialog):
     """비모수 검정 다이얼로그."""
-    
+
     analysis_completed = Signal(dict)
-    
+
     def __init__(self, dataset: Dataset, parent=None) -> None:
         super().__init__(parent)
         self.dataset = dataset
-        
+
         self.setWindowTitle("🧪 비모수 검정")
         self.setMinimumSize(500, 450)
         self._setup_ui()
-    
+
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        
+
         # 검정 유형
         type_group = QGroupBox("📈 검정 유형")
         type_layout = QVBoxLayout(type_group)
-        
+
         self.type_group = QButtonGroup(self)
-        
+
         self.mannwhitney_radio = QRadioButton("Mann-Whitney U (독립표본)")
         self.mannwhitney_radio.setChecked(True)
         self.type_group.addButton(self.mannwhitney_radio)
         type_layout.addWidget(self.mannwhitney_radio)
-        
+
         self.wilcoxon_radio = QRadioButton("Wilcoxon 부호순위 (대응표본)")
         self.type_group.addButton(self.wilcoxon_radio)
         type_layout.addWidget(self.wilcoxon_radio)
-        
+
         self.kruskal_radio = QRadioButton("Kruskal-Wallis H (3+ 그룹)")
         self.type_group.addButton(self.kruskal_radio)
         type_layout.addWidget(self.kruskal_radio)
-        
+
         self.chisquare_radio = QRadioButton("Chi-square 적합도/독립성")
         self.type_group.addButton(self.chisquare_radio)
         type_layout.addWidget(self.chisquare_radio)
-        
+
         layout.addWidget(type_group)
-        
+
         # 변수 선택
         vars_group = QGroupBox("🔢 변수 선택")
         vars_layout = QVBoxLayout(vars_group)
-        
+
+        # 변수 목록 구성 (variables 메타데이터 우선)
+        all_vars = (
+            list(self.dataset.variables.keys())
+            if self.dataset.variables
+            else list(self.dataset.data.columns)
+        )
+
         # 검정 변수
         test_layout = QHBoxLayout()
         test_layout.addWidget(QLabel("검정 변수:"))
         self.test_combo = QComboBox()
-        self.test_combo.addItems(self.dataset.data.columns)
+        self.test_combo.addItems(all_vars)
         test_layout.addWidget(self.test_combo)
         vars_layout.addLayout(test_layout)
-        
+
         # 그룹 변수
         group_layout = QHBoxLayout()
         group_layout.addWidget(QLabel("그룹 변수:"))
         self.group_combo = QComboBox()
         self.group_combo.addItem("(없음)")
-        self.group_combo.addItems(self.dataset.data.columns)
+        self.group_combo.addItems(all_vars)
         group_layout.addWidget(self.group_combo)
         vars_layout.addLayout(group_layout)
-        
+
         layout.addWidget(vars_group)
-        
+
         # 결과
         result_group = QGroupBox("📊 결과")
         result_layout = QVBoxLayout(result_group)
-        
+
         self.result_text = QTextEdit()
         self.result_text.setReadOnly(True)
         self.result_text.setStyleSheet(
@@ -94,12 +106,12 @@ class NonparametricDialog(QDialog):
             "font-family: Consolas; font-size: 11px;"
         )
         result_layout.addWidget(self.result_text)
-        
+
         layout.addWidget(result_group)
-        
+
         # 실행 버튼
         action_layout = QHBoxLayout()
-        
+
         self.btn_run = QPushButton("▶ 검정 실행")
         self.btn_run.setStyleSheet(
             "QPushButton { background-color: #1f77b4; color: white; "
@@ -107,84 +119,84 @@ class NonparametricDialog(QDialog):
         )
         self.btn_run.clicked.connect(self._run_analysis)
         action_layout.addWidget(self.btn_run)
-        
+
         self.btn_close = QPushButton("❌ 닫기")
         self.btn_close.clicked.connect(self.reject)
         action_layout.addWidget(self.btn_close)
-        
+
         action_layout.addStretch()
         layout.addLayout(action_layout)
-    
+
     def _run_analysis(self) -> None:
         """비모수 검정 실행."""
         test_var = self.test_combo.currentText()
         group_var = self.group_combo.currentText()
         if group_var == "(없음)":
             group_var = None
-        
+
         df = self.dataset.data.dropna(subset=[test_var])
-        
+
         try:
             result_lines = []
             result_lines.append("=" * 60)
-            
+
             if self.mannwhitney_radio.isChecked():
                 result_lines.append("Mann-Whitney U 검정")
                 result_lines.append("=" * 60)
-                
+
                 if group_var is None:
                     QMessageBox.warning(self, "경고", "그룹 변수를 선택하세요")
                     return
-                
+
                 groups = df[group_var].unique()
                 if len(groups) != 2:
                     QMessageBox.warning(self, "경고", "그룹 변수는 2개의 범주를 가져야 합니다")
                     return
-                
+
                 group1 = df[df[group_var] == groups[0]][test_var]
                 group2 = df[df[group_var] == groups[1]][test_var]
-                
+
                 statistic, p_value = stats.mannwhitneyu(group1, group2, alternative='two-sided')
-                
+
                 result_lines.append(f"그룹 1 ({groups[0]}): N={len(group1)}, 중위수={group1.median():.2f}")
                 result_lines.append(f"그룹 2 ({groups[1]}): N={len(group2)}, 중위수={group2.median():.2f}")
                 result_lines.append("")
                 result_lines.append(f"U 통계량: {statistic:.4f}")
                 result_lines.append(f"p-value: {p_value:.4f}")
                 result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
-            
+
             elif self.wilcoxon_radio.isChecked():
                 result_lines.append("Wilcoxon 부호순위 검정")
                 result_lines.append("=" * 60)
-                
+
                 # 대응표본은 2개 변수 필요 - 간단한 구현
                 result_lines.append("(대응표본: 2개 변수 선택 필요)")
-            
+
             elif self.kruskal_radio.isChecked():
                 result_lines.append("Kruskal-Wallis H 검정")
                 result_lines.append("=" * 60)
-                
+
                 if group_var is None:
                     QMessageBox.warning(self, "경고", "그룹 변수를 선택하세요")
                     return
-                
+
                 groups = [group[test_var].values for name, group in df.groupby(group_var)]
                 statistic, p_value = stats.kruskal(*groups)
-                
+
                 result_lines.append(f"그룹 수: {len(groups)}")
                 result_lines.append(f"H 통계량: {statistic:.4f}")
                 result_lines.append(f"p-value: {p_value:.4f}")
                 result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
-            
+
             elif self.chisquare_radio.isChecked():
                 result_lines.append("Chi-square 검정")
                 result_lines.append("=" * 60)
-                
+
                 if group_var:
                     # 독립성 검정
                     contingency = pd.crosstab(df[test_var], df[group_var])
                     chi2, p_value, dof, expected = stats.chi2_contingency(contingency)
-                    
+
                     result_lines.append("[독립성 검정]")
                     result_lines.append(f"카이제곱: {chi2:.4f}")
                     result_lines.append(f"자유도: {dof}")
@@ -193,25 +205,25 @@ class NonparametricDialog(QDialog):
                     # 적합도 검정
                     observed = df[test_var].value_counts()
                     chi2, p_value = stats.chisquare(observed)
-                    
+
                     result_lines.append("[적합도 검정]")
                     result_lines.append(f"카이제곱: {chi2:.4f}")
                     result_lines.append(f"p-value: {p_value:.4f}")
-                
+
                 result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
-            
+
             result_lines.append("")
             result_lines.append(f"유효 케이스: {len(df)}")
-            
+
             result_text = "\n".join(result_lines)
             self.result_text.setText(result_text)
-            
+
             # 시그널 발생
             self.analysis_completed.emit({
                 "type": "nonparametric",
                 "test": self.type_group.checkedButton().text(),
                 "result": result_text,
             })
-            
+
         except Exception as exc:
             self.result_text.setText(f"[오류]\n{exc}")

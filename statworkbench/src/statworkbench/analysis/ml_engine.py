@@ -6,20 +6,20 @@ scikit-learn 기반 기본 ML 기능을 제공합니다.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
 def kmeans_clustering(
     df: pd.DataFrame,
-    features: List[str],
+    features: list[str],
     n_clusters: int = 3,
     random_state: int = 42,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """K-Means 군집화를 수행합니다.
 
     Args:
@@ -39,7 +39,7 @@ def kmeans_clustering(
 
     # 데이터 준비
     X = df[features].dropna()
-    
+
     if len(X) == 0:
         raise ValueError("유효한 데이터가 없습니다.")
 
@@ -73,11 +73,11 @@ def kmeans_clustering(
 
 def decision_tree_classifier(
     df: pd.DataFrame,
-    features: List[str],
+    features: list[str],
     target: str,
     test_size: float = 0.2,
     random_state: int = 42,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """의사결정나무 분류를 수행합니다.
 
     Args:
@@ -91,16 +91,16 @@ def decision_tree_classifier(
         분류 결과 딕셔너리
     """
     try:
-        from sklearn.tree import DecisionTreeClassifier
+        from sklearn.metrics import accuracy_score, classification_report  # noqa: F401
         from sklearn.model_selection import train_test_split
-        from sklearn.metrics import accuracy_score, classification_report
         from sklearn.preprocessing import LabelEncoder
+        from sklearn.tree import DecisionTreeClassifier
     except ImportError:
         raise ImportError("scikit-learn이 설치되지 않았습니다.")
 
     # 데이터 준비
     data = df[features + [target]].dropna()
-    
+
     if len(data) == 0:
         raise ValueError("유효한 데이터가 없습니다.")
 
@@ -142,11 +142,11 @@ def decision_tree_classifier(
 
 def linear_regression_ml(
     df: pd.DataFrame,
-    features: List[str],
+    features: list[str],
     target: str,
     test_size: float = 0.2,
     random_state: int = 42,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """선형 회귀 (ML 버전)을 수행합니다.
 
     Args:
@@ -161,14 +161,14 @@ def linear_regression_ml(
     """
     try:
         from sklearn.linear_model import LinearRegression
+        from sklearn.metrics import mean_squared_error, r2_score
         from sklearn.model_selection import train_test_split
-        from sklearn.metrics import r2_score, mean_squared_error
     except ImportError:
         raise ImportError("scikit-learn이 설치되지 않았습니다.")
 
     # 데이터 준비
     data = df[features + [target]].dropna()
-    
+
     if len(data) == 0:
         raise ValueError("유효한 데이터가 없습니다.")
 

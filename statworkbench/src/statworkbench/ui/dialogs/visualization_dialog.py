@@ -8,23 +8,36 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Optional, List
 
 import numpy as np
 import pandas as pd
-
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QGroupBox, QCheckBox, QSpinBox, QLineEdit,
-    QMessageBox, QTabWidget, QTextEdit, QSplitter, QScrollArea,
-    QWidget, QGridLayout, QRadioButton, QButtonGroup, QFileDialog,
-    QFrame,
-)
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QSpinBox,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.visualization import VisualizationEngine
+from statworkbench.core.dataset import Dataset
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +55,7 @@ class VisualizationDialog(QDialog):
         super().__init__(parent)
         self.dataset = dataset
         self.engine = VisualizationEngine()
-        self._current_image: Optional[str] = None  # base64 data-URI
+        self._current_image: str | None = None  # base64 data-URI
 
         self.setWindowTitle("시각화")
         self.setMinimumSize(1050, 820)
@@ -335,7 +348,7 @@ class VisualizationDialog(QDialog):
         df: pd.DataFrame,
         x: str,
         y: str,
-        hue: Optional[str],
+        hue: str | None,
         title: str,
     ):
         """VisualizationEngine 메서드 호출."""
@@ -382,6 +395,7 @@ class VisualizationDialog(QDialog):
     def _base64_to_figure(img_uri: str):
         """base64 data-URI를 matplotlib Figure로 역변환 (표시 전용)."""
         import io as _io
+
         from matplotlib.figure import Figure as _Fig
         from matplotlib.image import imread as _imread
 

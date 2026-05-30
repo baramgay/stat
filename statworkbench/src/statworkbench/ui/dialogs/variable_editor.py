@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -25,8 +25,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from statworkbench.core.variable import VariableMeta
 from statworkbench.core.typing import MeasureType, Role, StorageType
+from statworkbench.core.variable import VariableMeta
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class ValueLabelsDialog(QDialog):
     def __init__(
         self,
         value_labels: dict,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Value Labels / 값 라벨 편집")
@@ -155,7 +155,7 @@ class MissingValuesDialog(QDialog):
     def __init__(
         self,
         missing_values: list[Any],
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("결측값 (Missing Values)")
@@ -165,7 +165,7 @@ class MissingValuesDialog(QDialog):
         self._load_data()
 
     def _setup_ui(self) -> None:
-        from PySide6.QtWidgets import QRadioButton, QButtonGroup, QFrame
+        from PySide6.QtWidgets import QButtonGroup, QFrame, QRadioButton
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
@@ -317,8 +317,8 @@ class VariableEditorDialog(QDialog):
 
     def __init__(
         self,
-        variable: Optional[VariableMeta] = None,
-        parent: Optional[QWidget] = None,
+        variable: VariableMeta | None = None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._is_new = variable is None

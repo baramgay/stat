@@ -6,7 +6,8 @@ import sys
 def main() -> int:
     """Launch the StatWorkbench application."""
     try:
-        from PySide6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication  # noqa: F401
+
         from statworkbench.app import StatWorkbenchApp
     except ImportError as e:
         print(f"Error: Required dependency not found: {e}", file=sys.stderr)

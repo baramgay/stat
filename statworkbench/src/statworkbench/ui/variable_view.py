@@ -4,18 +4,27 @@ SPSS Variable View와 동일한 11개 속성 컬럼:
 Name, Type, Width, Decimals, Label, Values, Missing, Columns, Align, Measure, Role
 """
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableView, QLabel, QHeaderView,
-    QAbstractItemView, QPushButton, QHBoxLayout, QMessageBox,
-    QComboBox, QStyledItemDelegate, QLineEdit, QSpinBox
-)
-from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex
+from typing import Any
+
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
-from typing import Any, Optional, List
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QStyledItemDelegate,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
 
 from statworkbench.core.dataset import Dataset
-from statworkbench.core.variable import VariableMeta, StorageType, MeasureType, Role
-
+from statworkbench.core.variable import MeasureType, Role, StorageType, VariableMeta
 
 # SPSS 호환 표시 이름
 _TYPE_DISPLAY = {
@@ -126,7 +135,7 @@ class VariableViewDelegate(QStyledItemDelegate):
 
 class VariablePropertiesModel(QAbstractTableModel):
     """SPSS Variable View 모델 (11개 속성)."""
-    
+
     # SPSS Variable View 컬럼 정의
     COLUMNS = [
         ("Name", "변수명"),
@@ -141,45 +150,45 @@ class VariablePropertiesModel(QAbstractTableModel):
         ("Measure", "측정"),
         ("Role", "역할"),
     ]
-    
+
     # 편집 가능한 컬럼
     EDITABLE_COLS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-    
+
     data_changed = Signal()
-    
-    def __init__(self, dataset: Optional[Dataset] = None):
+
+    def __init__(self, dataset: Dataset | None = None):
         super().__init__()
         self._dataset = dataset
-        self._variables: List[VariableMeta] = []
+        self._variables: list[VariableMeta] = []
         self._update_variables()
-    
+
     def _update_variables(self):
         if self._dataset:
             self._variables = list(self._dataset.variables.values())
         else:
             self._variables = []
-    
+
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self._variables)
-    
+
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self.COLUMNS)
-    
+
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid() or index.row() >= len(self._variables):
             return None
-        
+
         var = self._variables[index.row()]
         col = index.column()
-        
+
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return self._get_value(var, col)
-        
+
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if col in (2, 3, 7):  # 숫자 컬럼
                 return Qt.AlignmentFlag.AlignCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        
+
         if role == Qt.ItemDataRole.BackgroundRole:
             # Measure에 따른 색상
             if col == 9:
@@ -190,9 +199,9 @@ class VariablePropertiesModel(QAbstractTableModel):
                     return QColor(255, 243, 224)  # 연한 주황
                 elif measure == MeasureType.ORDINAL:
                     return QColor(227, 242, 253)  # 연한 파랑
-        
+
         return None
-    
+
     def _get_value(self, var: VariableMeta, col: int) -> str:
         if col == 0:
             return var.name
@@ -228,17 +237,17 @@ class VariablePropertiesModel(QAbstractTableModel):
                     return "입력"
             return _ROLE_DISPLAY.get(role, "입력")
         return ""
-    
+
     def setData(self, index: QModelIndex, value: Any, role: int = Qt.ItemDataRole.EditRole) -> bool:
         if not index.isValid() or role != Qt.ItemDataRole.EditRole:
             return False
-        
+
         row, col = index.row(), index.column()
         if row >= len(self._variables):
             return False
-        
+
         var = self._variables[row]
-        
+
         try:
             if col == 0:  # Name
                 old_name = var.name
@@ -285,41 +294,41 @@ class VariablePropertiesModel(QAbstractTableModel):
             return True
         except (ValueError, TypeError):
             return False
-    
+
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if role == Qt.ItemDataRole.DisplayRole:
             if orientation == Qt.Orientation.Horizontal:
                 return self.COLUMNS[section][1]  # 한글 이름
             return str(section + 1)
-        
+
         if role == Qt.ItemDataRole.ToolTipRole:
             if orientation == Qt.Orientation.Horizontal:
                 return self.COLUMNS[section][0]  # 영문 이름
-        
+
         return None
-    
+
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
-        
+
         flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
         if index.column() in self.EDITABLE_COLS:
             flags |= Qt.ItemFlag.ItemIsEditable
         return flags
-    
+
     def set_dataset(self, dataset: Dataset):
         self.beginResetModel()
         self._dataset = dataset
         self._update_variables()
         self.endResetModel()
-    
+
     def add_variable(self, name: str = "VAR00001"):
         if not self._dataset:
             return
-        
+
         from statworkbench.core.variable import VariableMeta
         var = VariableMeta(name=name, label=name)
-        
+
         self.beginInsertRows(QModelIndex(), len(self._variables), len(self._variables))
         self._dataset.variables[name] = var
         if name not in self._dataset.data.columns:
@@ -327,7 +336,7 @@ class VariablePropertiesModel(QAbstractTableModel):
         self._variables.append(var)
         self.endInsertRows()
         self.data_changed.emit()
-    
+
     def remove_variable(self, row: int) -> bool:
         if 0 <= row < len(self._variables):
             self.beginRemoveRows(QModelIndex(), row, row)
@@ -341,7 +350,7 @@ class VariablePropertiesModel(QAbstractTableModel):
             self.data_changed.emit()
             return True
         return False
-    
+
     def move_variable(self, from_row: int, to_row: int) -> bool:
         """변수 순서 이동."""
         if 0 <= from_row < len(self._variables) and 0 <= to_row < len(self._variables):
@@ -349,7 +358,7 @@ class VariablePropertiesModel(QAbstractTableModel):
             # 변수 목록에서 이동
             var = self._variables.pop(from_row)
             self._variables.insert(to_row, var)
-            
+
             # 데이터셋의 변수 순서도 업데이트
             if self._dataset:
                 # OrderedDict로 순서 유지
@@ -358,11 +367,11 @@ class VariablePropertiesModel(QAbstractTableModel):
                 for v in self._variables:
                     new_vars[v.name] = v
                 self._dataset.variables = new_vars
-                
+
                 # DataFrame 컬럼 순서도 업데이트
                 cols = [v.name for v in self._variables]
                 self._dataset.data = self._dataset.data[cols]
-            
+
             self.endResetModel()
             self.data_changed.emit()
             return True
@@ -371,20 +380,20 @@ class VariablePropertiesModel(QAbstractTableModel):
 
 class VariableView(QWidget):
     """SPSS Variable View 위젯."""
-    
+
     dataset_changed = Signal()
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._dataset: Optional[Dataset] = None
-        self._model: Optional[VariablePropertiesModel] = None
+        self._dataset: Dataset | None = None
+        self._model: VariablePropertiesModel | None = None
         self._setup_ui()
-    
+
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
-        
+
         # 정보 바
         self.info_bar = QLabel("변수 없음 — 변수를 추가하세요")
         self.info_bar.setStyleSheet(
@@ -392,33 +401,33 @@ class VariableView(QWidget):
             "background-color: #f1f3f4; border-radius: 4px;"
         )
         layout.addWidget(self.info_bar)
-        
+
         # 도구 버튼
         btn_layout = QHBoxLayout()
-        
+
         self.btn_add = QPushButton("+ 변수 추가")
         self.btn_add.setToolTip("새 변수를 추가합니다 (Ctrl+Insert)")
         self.btn_add.clicked.connect(self._add_variable)
         btn_layout.addWidget(self.btn_add)
-        
+
         self.btn_del = QPushButton("- 변수 삭제")
         self.btn_del.setToolTip("선택한 변수를 삭제합니다 (Delete)")
         self.btn_del.clicked.connect(self._delete_variable)
         btn_layout.addWidget(self.btn_del)
-        
+
         self.btn_up = QPushButton("↑ 위로")
         self.btn_up.setToolTip("변수 순서를 위로 이동")
         self.btn_up.clicked.connect(self._move_up)
         btn_layout.addWidget(self.btn_up)
-        
+
         self.btn_down = QPushButton("↓ 아래로")
         self.btn_down.setToolTip("변수 순서를 아래로 이동")
         self.btn_down.clicked.connect(self._move_down)
         btn_layout.addWidget(self.btn_down)
-        
+
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
-        
+
         # 변수 속성 테이블
         self.table = QTableView()
         self.table.setAlternatingRowColors(True)
@@ -427,7 +436,7 @@ class VariableView(QWidget):
         self.table.horizontalHeader().setStretchLastSection(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.verticalHeader().setDefaultSectionSize(24)
-        
+
         # SPSS 스타일
         self.table.setStyleSheet("""
             QTableView {
@@ -451,7 +460,7 @@ class VariableView(QWidget):
                 border: 1px solid #c0c4cc;
             }
         """)
-        
+
         # SPSS 스타일 delegate (콤보박스/스핀박스)
         self._var_delegate = VariableViewDelegate(self.table)
         self.table.setItemDelegate(self._var_delegate)
@@ -477,13 +486,13 @@ class VariableView(QWidget):
         self.help_label.setStyleSheet("color: #7a7a8a; font-size: 11px; padding: 4px;")
         self.help_label.setWordWrap(True)
         layout.addWidget(self.help_label)
-    
+
     def set_dataset(self, dataset: Dataset):
         self._dataset = dataset
         self._model = VariablePropertiesModel(dataset)
         self._model.data_changed.connect(self._on_data_changed)
         self.table.setModel(self._model)
-        
+
         # 컬럼 너비 설정
         self.table.setColumnWidth(0, 120)  # Name
         self.table.setColumnWidth(1, 100)  # Type
@@ -496,37 +505,37 @@ class VariableView(QWidget):
         self.table.setColumnWidth(8, 60)   # Align
         self.table.setColumnWidth(9, 80)   # Measure
         self.table.setColumnWidth(10, 80)  # Role
-        
+
         self._update_info()
-    
+
     def _update_info(self):
         if self._dataset is None:
             self.info_bar.setText("변수 없음 — 변수를 추가하세요")
             return
-        
+
         n_vars = len(self._dataset.variables)
-        
+
         measures = {}
         for v in self._dataset.variables.values():
             m = v.measure.value if hasattr(v.measure, 'value') else str(v.measure)
             measures[m] = measures.get(m, 0) + 1
-        
+
         measure_str = ", ".join([f"{k}({v})" for k, v in measures.items()]) if measures else "없음"
         self.info_bar.setText(
             f"📊 {self._dataset.name}: {n_vars}개 변수 | "
             f"측정: {measure_str}"
         )
-    
+
     def _on_data_changed(self):
         self._update_info()
         self.dataset_changed.emit()
-    
+
     def _add_variable(self):
         if self._model:
             from statworkbench.ui.models.spss_grid_model import generate_var_name
             name = generate_var_name(len(self._model._variables) + 1)
             self._model.add_variable(name)
-    
+
     def _delete_variable(self):
         if self._model is None:
             return
@@ -540,7 +549,7 @@ class VariableView(QWidget):
             )
             if reply == QMessageBox.Yes:
                 self._model.remove_variable(row)
-    
+
     def _move_up(self):
         """선택한 변수를 위로 이동."""
         if self._model is None:
@@ -548,11 +557,11 @@ class VariableView(QWidget):
         index = self.table.currentIndex()
         if not index.isValid() or index.row() <= 0:
             return
-        
+
         row = index.row()
         self._model.move_variable(row, row - 1)
         self.table.selectRow(row - 1)
-    
+
     def _move_down(self):
         """선택한 변수를 아래로 이동."""
         if self._model is None:

@@ -7,8 +7,8 @@ for reproducibility.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -30,7 +30,7 @@ class SyntaxCommand(BaseModel):
     raw_text: str = Field(..., description="Complete SPSS-style syntax string")
     created_at: datetime = Field(..., description="Creation timestamp")
     dataset_id: str = Field(..., description="Dataset identifier")
-    result_id: Optional[str] = Field(default=None, description="Optional result identifier")
+    result_id: str | None = Field(default=None, description="Optional result identifier")
 
     model_config = {"populate_by_name": True}
 
@@ -43,7 +43,7 @@ class SyntaxCommand(BaseModel):
         return self.model_dump_json()
 
     @classmethod
-    def from_json_line(cls, line: str) -> "SyntaxCommand":
+    def from_json_line(cls, line: str) -> SyntaxCommand:
         """Deserialize from a JSON Lines string.
 
         Args:

@@ -628,3 +628,173 @@ class TestNavigationDoesNotCreateVariables:
         idx = model.index(0, 5)
         val = model.data(idx, Qt.ItemDataRole.EditRole)
         assert val == "" or val is None
+
+
+# ──────────────────────────────────────────────────────────────
+# 8. 숫자형 변수 입력 유효성 검증 (SPSS 호환)
+# ──────────────────────────────────────────────────────────────
+
+class TestNumericColumnStringRejection:
+    """숫자형 변수에 문자 입력 시 거부 — SPSS 동작 검증."""
+
+    def test_string_rejected_in_integer_column(self):
+        """정수형 컬럼에 문자열 입력 → setData False 반환."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "5")  # INTEGER로 확정
+
+        result = model.setData(model.index(1, 0), "abc", Qt.ItemDataRole.EditRole)
+        assert result is False, "숫자형 열에 문자 입력은 거부되어야 함"
+
+        df = model.get_dataframe()
+        assert len(df) == 1, "거부된 입력으로 행이 추가되면 안 됨"
+
+    def test_string_rejected_in_float_column(self):
+        """소수형 컬럼에 문자열 입력 → setData False 반환."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "3.14")  # FLOAT으로 확정
+
+        result = model.setData(model.index(1, 0), "hello", Qt.ItemDataRole.EditRole)
+        assert result is False
+
+    def test_dot_allowed_in_numeric_column(self):
+        """숫자형 열에 "." (SPSS 결측 기호) → 허용."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "10")
+
+        result = model.setData(model.index(1, 0), ".", Qt.ItemDataRole.EditRole)
+        assert result is True, '"." 는 결측 기호이므로 허용되어야 함'
+
+        df = model.get_dataframe()
+        assert pd.isna(df.iloc[1, 0])
+
+    def test_empty_string_allowed_in_numeric_column(self):
+        """숫자형 열에 빈 문자열 → 허용 (결측 처리)."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "10")
+
+        result = model.setData(model.index(1, 0), "", Qt.ItemDataRole.EditRole)
+        assert result is True
+
+    def test_first_entry_to_new_column_string_allowed(self):
+        """새 열에는 타입 미확정이므로 문자 입력 허용."""
+        model = SPSSGridModel()
+        result = model.setData(model.index(0, 0), "hello", Qt.ItemDataRole.EditRole)
+        assert result is True, "신규 변수에는 문자 입력 허용"
+
+    def test_numeric_string_allowed_in_integer_column(self):
+        """정수형 열에 숫자 문자열 → 허용."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "5")
+        result = model.setData(model.index(1, 0), "10", Qt.ItemDataRole.EditRole)
+        assert result is True
+
+    def test_numeric_string_allowed_in_float_column(self):
+        """소수형 열에 숫자 문자열 → 허용."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "1.5")
+        result = model.setData(model.index(1, 0), "2.5", Qt.ItemDataRole.EditRole)
+        assert result is True
+
+
+# ──────────────────────────────────────────────────────────────
+# 9. mark_measure_initialized API 테스트
+# ──────────────────────────────────────────────────────────────
+
+class TestMarkMeasureInitialized:
+    """Variable View에서 측정 척도 변경 후 모델에 초기화 완료 표시."""
+
+    def test_mark_before_first_data_prevents_overwrite(self):
+        """데이터 입력 전 mark_measure_initialized 호출 → 자동 감지 스킵."""
+        model = SPSSGridModel()
+
+        # 변수를 미리 생성 (add_column으로 Variable View 역할 시뮬레이션)
+        model.add_column("custom_var")
+        var = model.get_variables()["custom_var"]
+        var.measure = MeasureType.ORDINAL
+
+        # 초기화 완료 표시 (Variable View에서 measure 설정했음을 알림)
+        model.mark_measure_initialized("custom_var")
+
+        # 데이터 입력
+        model.setData(model.index(0, 0), "3", Qt.ItemDataRole.EditRole)
+
+        var = model.get_variables()["custom_var"]
+        assert var.measure == MeasureType.ORDINAL, (
+            "mark_measure_initialized 후 자동 감지가 사용자 설정을 덮어써선 안 됨"
+        )
+
+    def test_without_mark_auto_detects(self):
+        """mark 없이 데이터 입력 → 자동 감지 작동."""
+        model = SPSSGridModel()
+        model.add_column("auto_var")
+
+        # mark 없이 바로 데이터 입력 → 자동 감지
+        model.setData(model.index(0, 0), "42", Qt.ItemDataRole.EditRole)
+
+        var = model.get_variables()["auto_var"]
+        assert var.measure == MeasureType.SCALE, "mark 없이 입력 시 SCALE 자동 감지"
+
+
+# ──────────────────────────────────────────────────────────────
+# 10. sort_by_column 테스트
+# ──────────────────────────────────────────────────────────────
+
+class TestSortByColumn:
+    """sort_by_column: beginResetModel 없이 정렬 후 데이터 정확성 검증."""
+
+    def test_sort_ascending(self):
+        """오름차순 정렬."""
+        model = SPSSGridModel()
+        for i, v in enumerate(["30", "10", "20"]):
+            _enter(model, i, 0, v)
+
+        model.sort_by_column(0, ascending=True)
+        df = model.get_dataframe()
+        assert list(df.iloc[:, 0]) == [10, 20, 30]
+
+    def test_sort_descending(self):
+        """내림차순 정렬."""
+        model = SPSSGridModel()
+        for i, v in enumerate(["30", "10", "20"]):
+            _enter(model, i, 0, v)
+
+        model.sort_by_column(0, ascending=False)
+        df = model.get_dataframe()
+        assert list(df.iloc[:, 0]) == [30, 20, 10]
+
+    def test_sort_out_of_bounds_col(self):
+        """존재하지 않는 열 정렬 → 조용히 무시."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "5")
+        model.sort_by_column(99, ascending=True)  # 오류 없이 종료
+        df = model.get_dataframe()
+        assert df.iloc[0, 0] == 5
+
+
+# ──────────────────────────────────────────────────────────────
+# 11. ORDINAL + FLOAT 호환성 검증
+# ──────────────────────────────────────────────────────────────
+
+class TestOrdinalFloatCompatibility:
+    """SPSS 호환: ORDINAL 변수에 소수값 허용."""
+
+    def test_ordinal_with_float_data_no_error(self):
+        """ORDINAL 설정 변수에 소수 입력 → 오류 없이 저장."""
+        model = SPSSGridModel()
+        _enter(model, 0, 0, "1")
+        var = model.get_variables()["VAR00001"]
+        var.measure = MeasureType.ORDINAL
+
+        # 소수 입력 — storage_type이 FLOAT으로 바뀌어도 ORDINAL 유지
+        result = model.setData(model.index(1, 0), "2.5", Qt.ItemDataRole.EditRole)
+        assert result is True
+
+        var = model.get_variables()["VAR00001"]
+        assert var.measure == MeasureType.ORDINAL
+        assert var.storage_type == StorageType.FLOAT
+
+    def test_ordinal_float_validation_passes(self):
+        """ORDINAL + FLOAT 조합이 validate_measure_storage_compatibility 통과."""
+        from statworkbench.core.validation import validate_measure_storage_compatibility
+        result = validate_measure_storage_compatibility(MeasureType.ORDINAL, StorageType.FLOAT)
+        assert result is True

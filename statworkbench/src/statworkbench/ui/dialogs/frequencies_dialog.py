@@ -1,15 +1,18 @@
 """Frequencies Dialog — SPSS 스타일 빈도분석 다이얼로그."""
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QGroupBox, QCheckBox,
-    QDialogButtonBox
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt, Signal
-from typing import List
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 
 
 class FrequenciesDialog(QDialog):
@@ -36,7 +39,13 @@ class FrequenciesDialog(QDialog):
         self.var_list = QListWidget()
         self.var_list.setSelectionMode(QListWidget.ExtendedSelection)
 
-        for var in self._dataset.data.columns:
+        # variables 메타데이터 우선, 없으면 data.columns 사용
+        vars_to_show = (
+            list(self._dataset.variables.keys())
+            if self._dataset.variables
+            else list(self._dataset.data.columns)
+        )
+        for var in vars_to_show:
             item = QListWidgetItem(var)
             self.var_list.addItem(item)
 
@@ -94,8 +103,15 @@ class FrequenciesDialog(QDialog):
             return
 
         try:
-            from statworkbench.analysis.descriptive import run_frequencies
-            result = run_frequencies(self._dataset.data, selected)
+            from statworkbench.analysis.frequencies import run_analysis
+            spec = {
+                "variables": {"target": selected},
+                "options": {
+                    "include_missing": False,
+                    "show_cumulative": True,
+                },
+            }
+            result = run_analysis(self._dataset, spec)
             self.analysis_run.emit(result)
             self.accept()
         except Exception as exc:

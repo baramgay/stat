@@ -3,38 +3,49 @@
 가독성과 검증 절차를 중시한 UI 설계.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QPlainTextEdit, QTextEdit, QSplitter, QGroupBox,
-    QTabWidget, QMessageBox, QProgressBar, QFileDialog
-)
+
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QFont, QFontDatabase
-from typing import Optional
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QSplitter,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+)
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.python_bridge import PythonBridge
 from statworkbench.analysis.r_bridge import RBridge
+from statworkbench.core.dataset import Dataset
 
 
 class ScriptRunnerThread(QThread):
     """스크립트 실행 스레드."""
-    
+
     finished_signal = Signal(dict)
     progress_signal = Signal(str)
-    
-    def __init__(self, engine: str, script: str, dataset: Optional[Dataset]) -> None:
+
+    def __init__(self, engine: str, script: str, dataset: Dataset | None) -> None:
         super().__init__()
         self.engine = engine
         self.script = script
         self.dataset = dataset
         self._python_bridge = PythonBridge()
         self._r_bridge = RBridge()
-    
+
     def run(self) -> None:
         """스크립트 실행."""
         self.progress_signal.emit("스크립트 실행 중...")
-        
+
         try:
             if self.engine == "Python":
                 result = self._python_bridge.execute(self.script, self.dataset)
@@ -45,9 +56,9 @@ class ScriptRunnerThread(QThread):
                     "success": False,
                     "error": f"지원하지 않는 엔진: {self.engine}",
                 }
-            
+
             self.finished_signal.emit(result)
-            
+
         except Exception as exc:
             self.finished_signal.emit({
                 "success": False,
@@ -57,53 +68,53 @@ class ScriptRunnerThread(QThread):
 
 class ScriptRunnerDialog(QDialog):
     """R/Python 스크립트 실행 다이얼로그."""
-    
-    def __init__(self, dataset: Optional[Dataset], parent=None) -> None:
+
+    def __init__(self, dataset: Dataset | None, parent=None) -> None:
         super().__init__(parent)
         self.dataset = dataset
-        self._thread: Optional[ScriptRunnerThread] = None
-        
+        self._thread: ScriptRunnerThread | None = None
+
         self.setWindowTitle("🔧 스크립트 실행기")
         self.setMinimumSize(900, 700)
         self._setup_ui()
-    
+
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        
+
         # 상단: 엔진 선택 및 정보
         top_layout = QHBoxLayout()
-        
+
         top_layout.addWidget(QLabel("실행 엔진:"))
         self.engine_combo = QComboBox()
         self.engine_combo.addItem("🐍 Python", "Python")
         self.engine_combo.addItem("📊 R", "R")
         self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
         top_layout.addWidget(self.engine_combo)
-        
+
         top_layout.addSpacing(20)
-        
+
         # 엔진 상태
         self.engine_status = QLabel("✅ Python 사용 가능")
         self.engine_status.setStyleSheet("color: #2ca02c; font-weight: bold;")
         top_layout.addWidget(self.engine_status)
-        
+
         top_layout.addStretch()
-        
+
         # 예제 버튼
         self.btn_example = QPushButton("📋 예제 불러오기")
         self.btn_example.clicked.connect(self._load_example)
         top_layout.addWidget(self.btn_example)
-        
+
         layout.addLayout(top_layout)
-        
+
         # 스플리터: 스크립트 | 결과
         splitter = QSplitter(Qt.Orientation.Vertical)
-        
+
         # 스크립트 영역
         script_group = QGroupBox("📝 스크립트")
         script_layout = QVBoxLayout(script_group)
-        
+
         self.script_editor = QPlainTextEdit()
         self.script_editor.setPlaceholderText(
             "# Python 스크립트를 입력하세요.\n"
@@ -125,7 +136,7 @@ class ScriptRunnerDialog(QDialog):
             font = QFont("Courier New", 11)
         self.script_editor.setFont(font)
         script_layout.addWidget(self.script_editor)
-        
+
         # 실행 버튼
         btn_layout = QHBoxLayout()
         self.btn_run = QPushButton("▶ 실행")
@@ -135,38 +146,38 @@ class ScriptRunnerDialog(QDialog):
         )
         self.btn_run.clicked.connect(self._run_script)
         btn_layout.addWidget(self.btn_run)
-        
+
         self.btn_stop = QPushButton("⏹ 중지")
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self._stop_script)
         btn_layout.addWidget(self.btn_stop)
-        
+
         btn_layout.addStretch()
-        
+
         self.btn_save = QPushButton("💾 스크립트 저장")
         self.btn_save.clicked.connect(self._save_script)
         btn_layout.addWidget(self.btn_save)
-        
+
         self.btn_load = QPushButton("📂 스크립트 불러오기")
         self.btn_load.clicked.connect(self._load_script)
         btn_layout.addWidget(self.btn_load)
-        
+
         script_layout.addLayout(btn_layout)
         splitter.addWidget(script_group)
-        
+
         # 결과 영역
         result_group = QGroupBox("📊 실행 결과")
         result_layout = QVBoxLayout(result_group)
-        
+
         # 진행 표시줄
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setVisible(False)
         result_layout.addWidget(self.progress_bar)
-        
+
         # 결과 탭
         self.result_tabs = QTabWidget()
-        
+
         # 출력 탭
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
@@ -175,23 +186,23 @@ class ScriptRunnerDialog(QDialog):
             "font-family: Consolas, Courier New; font-size: 11px;"
         )
         self.result_tabs.addTab(self.output_text, "🖥️ 출력")
-        
+
         # 그림 탭
         self.plot_text = QTextEdit()
         self.plot_text.setReadOnly(True)
         self.result_tabs.addTab(self.plot_text, "📈 그림")
-        
+
         # 변수 탭
         self.vars_text = QTextEdit()
         self.vars_text.setReadOnly(True)
         self.result_tabs.addTab(self.vars_text, "🔢 변수")
-        
+
         result_layout.addWidget(self.result_tabs)
         splitter.addWidget(result_group)
-        
+
         splitter.setSizes([400, 300])
         layout.addWidget(splitter)
-        
+
         # 하단: 검증 정보
         self.validation_label = QLabel("✅ 스크립트를 입력하고 실행하세요")
         self.validation_label.setStyleSheet(
@@ -199,11 +210,11 @@ class ScriptRunnerDialog(QDialog):
             "border-radius: 4px;"
         )
         layout.addWidget(self.validation_label)
-    
+
     def _on_engine_changed(self) -> None:
         """엔진 변경 시."""
         engine = self.engine_combo.currentData()
-        
+
         if engine == "R":
             bridge = RBridge()
             if bridge.is_available():
@@ -212,7 +223,7 @@ class ScriptRunnerDialog(QDialog):
             else:
                 self.engine_status.setText("❌ R 미설치 (R을 설치하세요)")
                 self.engine_status.setStyleSheet("color: #d62728; font-weight: bold;")
-            
+
             self.script_editor.setPlaceholderText(
                 "# R 스크립트를 입력하세요.\n"
                 "# 사용 가능한 변수:\n"
@@ -224,16 +235,16 @@ class ScriptRunnerDialog(QDialog):
         else:
             self.engine_status.setText("✅ Python 사용 가능")
             self.engine_status.setStyleSheet("color: #2ca02c; font-weight: bold;")
-    
+
     def _run_script(self) -> None:
         """스크립트 실행."""
         script = self.script_editor.toPlainText().strip()
         if not script:
             QMessageBox.warning(self, "경고", "스크립트를 입력하세요")
             return
-        
+
         engine = self.engine_combo.currentData()
-        
+
         # UI 상태 변경
         self.btn_run.setEnabled(False)
         self.btn_stop.setEnabled(True)
@@ -241,13 +252,13 @@ class ScriptRunnerDialog(QDialog):
         self.output_text.clear()
         self.plot_text.clear()
         self.vars_text.clear()
-        
+
         # 스레드 실행
         self._thread = ScriptRunnerThread(engine, script, self.dataset)
         self._thread.progress_signal.connect(self._on_progress)
         self._thread.finished_signal.connect(self._on_finished)
         self._thread.start()
-    
+
     def _stop_script(self) -> None:
         """스크립트 중지."""
         if self._thread and self._thread.isRunning():
@@ -255,31 +266,31 @@ class ScriptRunnerDialog(QDialog):
             self._thread.wait()
             self._on_progress("실행이 중지되었습니다.")
             self._reset_ui()
-    
+
     def _on_progress(self, message: str) -> None:
         """진행 상황 업데이트."""
         self.output_text.append(message)
-    
+
     def _on_finished(self, result: dict) -> None:
         """실행 완료."""
         self._reset_ui()
-        
+
         if result.get("success"):
             self.validation_label.setText("✅ 실행 완료")
             self.validation_label.setStyleSheet(
                 "color: #2ca02c; padding: 6px; background-color: #e8f5e9; "
                 "border-radius: 4px;"
             )
-            
+
             # 출력 표시
             stdout = result.get("stdout", "")
             if stdout:
                 self.output_text.append(f"[표준 출력]\n{stdout}")
-            
+
             stderr = result.get("stderr", "")
             if stderr:
                 self.output_text.append(f"[표준 오류]\n{stderr}")
-            
+
             # 그림 표시
             plots = result.get("plots", [])
             if plots:
@@ -288,7 +299,7 @@ class ScriptRunnerDialog(QDialog):
                     self.plot_text.append(f"  📊 {plot_path}\n")
             else:
                 self.plot_text.append("생성된 그림이 없습니다.")
-            
+
             # 변수 표시
             variables = result.get("variables", {})
             if variables:
@@ -303,7 +314,7 @@ class ScriptRunnerDialog(QDialog):
                         self.vars_text.append(f"  🔢 {name}: {var_type} = {value}\n")
             else:
                 self.vars_text.append("생성된 변수가 없습니다.")
-        
+
         else:
             error = result.get("error", "알 수 없는 오류")
             self.validation_label.setText(f"❌ 오류: {error}")
@@ -311,23 +322,23 @@ class ScriptRunnerDialog(QDialog):
                 "color: #d62728; padding: 6px; background-color: #ffebee; "
                 "border-radius: 4px;"
             )
-            
+
             self.output_text.append(f"[오류]\n{error}")
-            
+
             traceback_str = result.get("traceback", "")
             if traceback_str:
                 self.output_text.append(f"\n[추적]\n{traceback_str}")
-    
+
     def _reset_ui(self) -> None:
         """UI 상태 초기화."""
         self.btn_run.setEnabled(True)
         self.btn_stop.setEnabled(False)
         self.progress_bar.setVisible(False)
-    
+
     def _load_example(self) -> None:
         """예제 스크립트 불러오기."""
         engine = self.engine_combo.currentData()
-        
+
         if engine == "Python":
             example = '''# 데이터 요약
 print("=== 데이터 요약 ===")
@@ -367,9 +378,9 @@ if(ncol(df) > 0) {
   hist(df[,1], main="분포", xlab=names(df)[1])
 }
 '''
-        
+
         self.script_editor.setPlainText(example)
-    
+
     def _save_script(self) -> None:
         """스크립트 저장."""
         path, _ = QFileDialog.getSaveFileName(
@@ -378,16 +389,16 @@ if(ncol(df) > 0) {
         if path:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(self.script_editor.toPlainText())
-    
+
     def _load_script(self) -> None:
         """스크립트 불러오기."""
         path, _ = QFileDialog.getOpenFileName(
             self, "스크립트 불러오기", "", "Python (*.py);;R (*.r);;모든 파일 (*.*)"
         )
         if path:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self.script_editor.setPlainText(f.read())
-    
+
     def closeEvent(self, event) -> None:
         """종료 시 스레드 정리."""
         if self._thread and self._thread.isRunning():

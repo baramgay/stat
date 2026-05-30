@@ -220,19 +220,21 @@ class TestDataTypes:
         assert isinstance(df.iloc[0, 0], str)
 
     def test_mixed_types_in_column(self):
-        """SPSS 동작: 수치형으로 추론된 컬럼에 문자 입력 시 결측(NaN) 처리."""
-        import pandas as pd
-        import numpy as np
+        """SPSS 동작: 수치형으로 추론된 컬럼에 문자 입력 시 거부 (입력 자체가 반영되지 않음)."""
         model = SPSSGridModel()
 
         # 첫 값이 정수 → 컬럼이 INTEGER로 추론됨
-        model.setData(model.index(0, 0), "10", Qt.ItemDataRole.EditRole)
-        model.setData(model.index(1, 0), "text", Qt.ItemDataRole.EditRole)
+        ok1 = model.setData(model.index(0, 0), "10", Qt.ItemDataRole.EditRole)
+        assert ok1 is True
+
+        # 수치형 컬럼에 문자 입력 → SPSS 호환: 거부 (False 반환)
+        ok2 = model.setData(model.index(1, 0), "text", Qt.ItemDataRole.EditRole)
+        assert ok2 is False
 
         df = model.get_dataframe()
-        # 수치형 컬럼이므로 row 0은 숫자, row 1("text")은 NaN (SPSS 시스템 결측)
+        # 문자 입력이 거부되어 행이 추가되지 않음 — row 0만 존재
+        assert len(df) == 1
         assert df.iloc[0, 0] == 10
-        assert pd.isna(df.iloc[1, 0])
 
     def test_negative_numbers(self):
         """Negative numbers should work."""

@@ -7,29 +7,30 @@ SPSS와 동일한 구성:
 - 컨텍스트 메뉴: 행/열 조작, 정렬
 """
 
+
+from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTableView,
-    QLabel,
-    QHeaderView,
     QAbstractItemView,
-    QMenu,
-    QLineEdit,
-    QInputDialog,
-    QMessageBox,
     QApplication,
-    QSizePolicy,
     QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal, QEvent
-from PySide6.QtGui import QKeyEvent, QFont, QColor
-from typing import Optional
 
 from statworkbench.core.dataset import Dataset
-from statworkbench.ui.models.spss_grid_model import SPSSGridModel, generate_var_name
+from statworkbench.core.typing import MeasureType, StorageType
+from statworkbench.core.variable import VariableMeta
 from statworkbench.ui.delegates.cell_delegate import CellDelegate
+from statworkbench.ui.models.spss_grid_model import SPSSGridModel, generate_var_name
 
 
 class DataView(QWidget):
@@ -39,8 +40,8 @@ class DataView(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._dataset: Optional[Dataset] = None
-        self._model: Optional[SPSSGridModel] = None
+        self._dataset: Dataset | None = None
+        self._model: SPSSGridModel | None = None
         self._cell_change_connected = False
         self._setup_ui()
 
@@ -571,28 +572,12 @@ class DataView(QWidget):
     def _sort_ascending(self) -> None:
         index = self.table.currentIndex()
         if index.isValid() and self._model:
-            col = index.column()
-            df = self._model.get_dataframe()
-            if col < len(df.columns):
-                col_name = df.columns[col]
-                df.sort_values(by=col_name, ascending=True, inplace=True)
-                df.reset_index(drop=True, inplace=True)
-                self._model.beginResetModel()
-                self._model._dataframe = df
-                self._model.endResetModel()
+            self._model.sort_by_column(index.column(), ascending=True)
 
     def _sort_descending(self) -> None:
         index = self.table.currentIndex()
         if index.isValid() and self._model:
-            col = index.column()
-            df = self._model.get_dataframe()
-            if col < len(df.columns):
-                col_name = df.columns[col]
-                df.sort_values(by=col_name, ascending=False, inplace=True)
-                df.reset_index(drop=True, inplace=True)
-                self._model.beginResetModel()
-                self._model._dataframe = df
-                self._model.endResetModel()
+            self._model.sort_by_column(index.column(), ascending=False)
 
     # ── 공개 인터페이스 (기존 기능 유지) ────────────────────────────────────
 
@@ -617,12 +602,22 @@ class DataView(QWidget):
             self.table.setCurrentIndex(first)
 
     def refresh(self) -> None:
-        """화면을 새로고침합니다."""
+        """화면을 새로고침합니다. beginResetModel 없이 갱신해 포커스를 보존합니다."""
         if self._model is not None:
-            self._model.beginResetModel()
-            self._model.endResetModel()
+            top_left = self._model.index(0, 0)
+            bottom_right = self._model.index(
+                self._model.rowCount() - 1,
+                self._model.columnCount() - 1,
+            )
+            self._model.dataChanged.emit(
+                top_left, bottom_right,
+                [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.BackgroundRole],
+            )
+            self._model.headerDataChanged.emit(
+                Qt.Orientation.Horizontal, 0, self._model.columnCount() - 1
+            )
 
-    def get_dataset(self) -> Optional[Dataset]:
+    def get_dataset(self) -> Dataset | None:
         """현재 데이터셋을 반환합니다."""
         return self._dataset
 
@@ -646,7 +641,6 @@ class DataView(QWidget):
 
     def _on_variable_added(self, var_name: str) -> None:
         if self._dataset is not None:
-            from statworkbench.core.variable import VariableMeta, StorageType, MeasureType
             if var_name not in self._dataset.variables:
                 var = VariableMeta(
                     name=var_name,

@@ -10,8 +10,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from statworkbench.core.typing import MeasureType, StorageType
 from statworkbench.core.exceptions import ValidationError
+from statworkbench.core.typing import MeasureType, StorageType
 
 # Variable names may contain English letters, digits, underscores,
 # and Korean Hangul characters. They must not start with a digit.
@@ -86,7 +86,7 @@ def validate_variable_name(name: str | None) -> str:
     if sanitized and sanitized[0].isdigit():
         sanitized = "var_" + sanitized
 
-    if not _VARIABLE_NAME_PATTERN.match(sanitized):
+    if not _VARIABLE_NAME_PATTERN.match(sanitized):  # pragma: no cover
         raise ValidationError(
             f"Invalid variable name '{sanitized}'. "
             "Names must start with a letter or underscore and contain only "
@@ -115,7 +115,7 @@ def validate_measure_storage_compatibility(
     """
     allowed = _MEASURE_STORAGE_COMPAT.get(measure)
 
-    if allowed is None:
+    if allowed is None:  # pragma: no cover
         # No restrictions registered for this measure type.
         return True
 

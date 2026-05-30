@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from statworkbench.core.typing import MeasureType, Role, StorageType
 
@@ -55,10 +55,10 @@ class VariableMeta:
     unit: str = ""
     """Measurement unit."""
 
-    allowed_min: Optional[float] = None
+    allowed_min: float | None = None
     """Minimum allowed value."""
 
-    allowed_max: Optional[float] = None
+    allowed_max: float | None = None
     """Maximum allowed value."""
 
     format_pattern: str = ""
@@ -76,7 +76,7 @@ class VariableMeta:
     derived: bool = False
     """Whether this is a derived (computed) variable."""
 
-    formula: Optional[str] = None
+    formula: str | None = None
     """Formula expression for derived variables."""
 
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -87,7 +87,11 @@ class VariableMeta:
 
     def __post_init__(self) -> None:
         """Post-initialization: validate and sanitize name."""
-        from statworkbench.core.validation import validate_variable_name, validate_measure_storage_compatibility, validate_missing_rules
+        from statworkbench.core.validation import (
+            validate_measure_storage_compatibility,
+            validate_missing_rules,
+            validate_variable_name,
+        )
         self.name = validate_variable_name(self.name)
         # Coerce None missing_values to empty list
         if self.missing_values is None:

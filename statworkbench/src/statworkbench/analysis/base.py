@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 
 
 @runtime_checkable
@@ -59,7 +59,7 @@ class AnalysisPlugin(Protocol):
         list[str]
             Validation messages — empty list means the request is valid.
         """
-        ...
+        ...  # pragma: no cover
 
     def run(self, dataset: Dataset, spec: dict) -> AnalysisResult:
         """Run the analysis.
@@ -76,4 +76,4 @@ class AnalysisPlugin(Protocol):
         AnalysisResult
             Structured analysis result.
         """
-        ...
+        ...  # pragma: no cover

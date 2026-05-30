@@ -5,30 +5,28 @@ Allows users to create a new dataset by manually entering data in a spreadsheet-
 
 from __future__ import annotations
 
+import pandas as pd
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QDialogButtonBox,
+    QGroupBox,
     QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QPushButton,
+    QHeaderView,
     QLabel,
     QLineEdit,
-    QSpinBox,
-    QComboBox,
-    QHeaderView,
     QMessageBox,
-    QGroupBox,
-    QDialogButtonBox,
-    QAbstractItemView,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt
-
-import pandas as pd
-from typing import Optional
 
 from statworkbench.core.dataset import Dataset
-from statworkbench.core.variable import VariableMeta, StorageType, MeasureType
+from statworkbench.core.variable import MeasureType, StorageType
 
 
 class ManualDataDialog(QDialog):
@@ -38,8 +36,8 @@ class ManualDataDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Manual Data Entry")
         self.setMinimumSize(800, 600)
-        
-        self._dataset: Optional[Dataset] = None
+
+        self._dataset: Dataset | None = None
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -60,26 +58,26 @@ class ManualDataDialog(QDialog):
         # Column configuration group
         col_group = QGroupBox("Column Setup")
         col_layout = QHBoxLayout(col_group)
-        
+
         col_layout.addWidget(QLabel("Column Name:"))
         self.col_name_edit = QLineEdit()
         self.col_name_edit.setPlaceholderText("e.g., Age, Gender, Score")
         col_layout.addWidget(self.col_name_edit)
-        
+
         col_layout.addWidget(QLabel("Type:"))
         self.col_type_combo = QComboBox()
         self.col_type_combo.addItems(["Numeric", "Text", "Date"])
         col_layout.addWidget(self.col_type_combo)
-        
+
         add_col_btn = QPushButton("Add Column")
         add_col_btn.setDefault(True)
         add_col_btn.clicked.connect(self._add_column)
         col_layout.addWidget(add_col_btn)
-        
+
         remove_col_btn = QPushButton("Remove Column")
         remove_col_btn.clicked.connect(self._remove_column)
         col_layout.addWidget(remove_col_btn)
-        
+
         layout.addWidget(col_group)
 
         # Data table
@@ -89,38 +87,38 @@ class ManualDataDialog(QDialog):
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        
+
         # Enable editing
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.AllEditTriggers)
-        
+
         # Header setup
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setDefaultSectionSize(120)
-        
+
         vheader = self.table.verticalHeader()
         vheader.setDefaultSectionSize(28)
-        
+
         layout.addWidget(self.table)
 
         # Row controls
         row_layout = QHBoxLayout()
-        
+
         add_rows_btn = QPushButton("Add 10 Rows")
         add_rows_btn.clicked.connect(self._add_rows)
         row_layout.addWidget(add_rows_btn)
-        
+
         row_layout.addStretch()
-        
+
         rows_label = QLabel("Rows:")
         row_layout.addWidget(rows_label)
-        
+
         self.rows_spin = QSpinBox()
         self.rows_spin.setRange(1, 10000)
         self.rows_spin.setValue(10)
         self.rows_spin.valueChanged.connect(self._set_row_count)
         row_layout.addWidget(self.rows_spin)
-        
+
         layout.addLayout(row_layout)
 
         # Dialog buttons
@@ -146,7 +144,7 @@ class ManualDataDialog(QDialog):
         if not name:
             QMessageBox.warning(self, "Warning", "Please enter a column name.")
             return
-        
+
         dtype = self.col_type_combo.currentText()
         self._add_column_internal(name, dtype)
         self.col_name_edit.clear()
@@ -156,7 +154,7 @@ class ManualDataDialog(QDialog):
         """Add a column internally."""
         col_idx = self.table.columnCount()
         self.table.insertColumn(col_idx)
-        
+
         # Set header with type indicator
         type_icon = {"Numeric": "#", "Text": "T", "Date": "D"}.get(dtype, "?")
         header_item = QTableWidgetItem(f"{name} ({type_icon})")
@@ -186,24 +184,24 @@ class ManualDataDialog(QDialog):
         if self.table.columnCount() == 0:
             QMessageBox.warning(self, "Warning", "Please add at least one column.")
             return
-        
+
         # Build DataFrame from table
         data: dict[str, list] = {}
         col_types: dict[str, str] = {}
-        
+
         for col in range(self.table.columnCount()):
             header = self.table.horizontalHeaderItem(col)
             if header is None:
                 continue
-            
+
             meta = header.data(Qt.ItemDataRole.UserRole)
             if meta is None:
                 continue
-            
+
             col_name = meta["name"]
             col_type = meta["type"]
             col_types[col_name] = col_type
-            
+
             # Collect non-empty values
             values = []
             for row in range(self.table.rowCount()):
@@ -212,33 +210,33 @@ class ManualDataDialog(QDialog):
                     values.append(item.text().strip())
                 else:
                     values.append(None)
-            
+
             data[col_name] = values
-        
+
         if not data:
             QMessageBox.warning(self, "Warning", "No data entered.")
             return
-        
+
         # Create DataFrame
         df = pd.DataFrame(data)
-        
+
         # Convert types
         for col, dtype in col_types.items():
             if dtype == "Numeric":
                 df[col] = pd.to_numeric(df[col], errors="coerce")
             elif dtype == "Date":
                 df[col] = pd.to_datetime(df[col], errors="coerce")
-        
+
         # Remove completely empty rows
         df = df.dropna(how="all")
-        
+
         if len(df) == 0:
             QMessageBox.warning(self, "Warning", "No valid data entered.")
             return
-        
+
         # Create Dataset
         self._dataset = Dataset(df, name="Manual Entry")
-        
+
         # Set variable metadata
         for col, dtype in col_types.items():
             if col in self._dataset.variables:
@@ -252,9 +250,9 @@ class ManualDataDialog(QDialog):
                 elif dtype == "Date":
                     var.storage_type = StorageType.DATETIME
                     var.measure = MeasureType.ORDINAL
-        
+
         self.accept()
 
-    def get_dataset(self) -> Optional[Dataset]:
+    def get_dataset(self) -> Dataset | None:
         """Return the created dataset."""
         return self._dataset

@@ -1,18 +1,30 @@
 """Correlation Dialog — SPSS 스타일 상관분석 다이얼로그."""
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QRadioButton, QButtonGroup,
-    QMessageBox, QListWidget, QAbstractItemView, QListWidgetItem,
-    QDialogButtonBox
-)
 from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QButtonGroup,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QVBoxLayout,
+)
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, ordinal_or_higher_vars,
-    display_label, var_from_display, measure_icon
+    display_label,
+    measure_icon,
+    numeric_vars,
+    ordinal_or_higher_vars,
+    scale_vars,
 )
 
 

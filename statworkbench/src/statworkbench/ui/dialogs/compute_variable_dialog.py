@@ -3,16 +3,24 @@
 SPSS의 Transform > Compute Variable 기능을 모방합니다.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QComboBox, QTextEdit, QListWidget, QListWidgetItem,
-    QMessageBox, QGroupBox, QGridLayout, QSplitter
-)
-from PySide6.QtCore import Qt, Signal
-from typing import Optional, List
-
-import pandas as pd
 import numpy as np
+import pandas as pd
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 from statworkbench.core.dataset import Dataset
 

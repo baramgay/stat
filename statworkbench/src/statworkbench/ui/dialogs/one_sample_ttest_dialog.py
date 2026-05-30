@@ -1,14 +1,24 @@
 """One Sample T-Test Dialog — 단일표본 T 검정 다이얼로그."""
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QGroupBox, QDialogButtonBox, QDoubleSpinBox, QMessageBox
-)
 from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QVBoxLayout,
+)
 
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, display_label, measure_icon
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
 )
 
 

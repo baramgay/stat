@@ -247,7 +247,7 @@ class ProjectStore:
                     vars_dict = json.loads(vars_raw)
                     for name, vdict in vars_dict.items():
                         variables[name] = VariableMeta.from_dict(vdict)
-                except (KeyError, json.JSONDecodeError) as exc:
+                except (KeyError, json.JSONDecodeError):
                     # If variables metadata is missing/corrupt, rebuild defaults
                     variables = {}
 

@@ -1,16 +1,28 @@
 """ANOVA Dialog — SPSS 스타일 분산분석 다이얼로그."""
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QGroupBox, QCheckBox, QDialogButtonBox, QDoubleSpinBox
-)
 from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+)
 
-from statworkbench.core.dataset import Dataset
 from statworkbench.analysis.result import AnalysisResult
+from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
-    scale_vars, numeric_vars, categorical_vars, all_vars,
-    display_label, var_from_display, measure_icon
+    all_vars,
+    categorical_vars,
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
+    var_from_display,
 )
 
 

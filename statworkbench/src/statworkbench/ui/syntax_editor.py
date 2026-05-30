@@ -8,23 +8,24 @@ SPSS Syntax Editor 기능:
 - 실행 히스토리 관리
 """
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPlainTextEdit,
-    QLabel, QPushButton, QComboBox, QListWidget, QListWidgetItem,
-    QSplitter, QTabWidget, QMenu, QToolBar, QMessageBox, QFileDialog,
-    QCompleter
-)
-from PySide6.QtCore import Qt, Signal, QStringListModel
-from PySide6.QtGui import (
-    QFont, QFontDatabase, QColor, QTextCharFormat, QSyntaxHighlighter,
-    QTextDocument, QAction, QKeySequence, QPalette
-)
-from typing import Optional, List, Dict
 
 import pandas as pd
+from PySide6.QtCore import QStringListModel, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QSyntaxHighlighter, QTextCharFormat
+from PySide6.QtWidgets import (
+    QCompleter,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from statworkbench.core.dataset import Dataset
-
 
 # SPSS Syntax 키워드
 SPSS_COMMANDS = [
@@ -143,8 +144,8 @@ class SyntaxEditor(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._dataset: Optional[Dataset] = None
-        self._history: List[str] = []
+        self._dataset: Dataset | None = None
+        self._history: list[str] = []
         self._history_index = -1
         self._max_history = 50
         self._setup_ui()
@@ -325,14 +326,14 @@ class SyntaxEditor(QWidget):
             if upper.startswith('FREQUENCIES'):
                 vars = self._extract_variables(line)
                 from statworkbench.analysis.descriptive import run_frequencies
-                result = run_frequencies(df, vars)
+                run_frequencies(df, vars)
                 results.append(f"Frequencies: {len(vars)}개 변수")
 
             # DESCRIPTIVES
             elif upper.startswith('DESCRIPTIVES'):
                 vars = self._extract_variables(line)
                 from statworkbench.analysis.descriptive import run_descriptives
-                result = run_descriptives(df, vars)
+                run_descriptives(df, vars)
                 results.append(f"Descriptives: {len(vars)}개 변수")
 
             # T-TEST
@@ -357,7 +358,7 @@ class SyntaxEditor(QWidget):
 
         return '; '.join(results) if results else "완료"
 
-    def _extract_variables(self, line: str) -> List[str]:
+    def _extract_variables(self, line: str) -> list[str]:
         """구문에서 변수 목록 추출."""
         import re
         # VARIABLES=var1 var2 var3.
@@ -401,7 +402,7 @@ class SyntaxEditor(QWidget):
     def _connect_editor_signals(self):
         """에디터 시그널 연결."""
         self.editor.textChanged.connect(self._on_text_changed)
-    
+
     def _on_text_changed(self):
         """텍스트 변경 시 히스토리 저장."""
         # 타이머를 사용하여 연속 입력 시 과도한 히스토리 저장 방지
@@ -411,7 +412,7 @@ class SyntaxEditor(QWidget):
             self._change_timer.setSingleShot(True)
             self._change_timer.timeout.connect(self._save_text_state)
         self._change_timer.start(1000)  # 1초 후 저장
-    
+
     def _save_text_state(self):
         """현재 텍스트 상태를 히스토리에 저장."""
         text = self.editor.toPlainText()
@@ -424,14 +425,14 @@ class SyntaxEditor(QWidget):
                 self._history.pop(0)
             else:
                 self._history_index += 1
-    
+
     def _undo(self):
         """실행 취소."""
         if self._history_index > 0:
             self._history_index -= 1
             self.editor.setPlainText(self._history[self._history_index])
             self._log("[실행 취소]")
-    
+
     def _redo(self):
         """다시 실행."""
         if self._history_index < len(self._history) - 1:
@@ -455,6 +456,6 @@ class SyntaxEditor(QWidget):
             self, "구문 불러오기", "", "SPSS Syntax (*.sps);;텍스트 파일 (*.txt)"
         )
         if path:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 self.editor.setPlainText(f.read())
             self._log(f"[불러오기] {path}")

@@ -43,8 +43,6 @@ class SyntaxParser:
 
         for block in raw_blocks:
             block = block.strip()
-            if not block:
-                continue
             try:
                 cmd = self.parse_single(block)
                 commands.append(cmd)

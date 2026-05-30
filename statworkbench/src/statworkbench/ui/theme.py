@@ -5,8 +5,32 @@ Supports Light (default) and Dark (OLED-optimized) themes.
 
 from __future__ import annotations
 
+import os
+import shutil
+import tempfile
 from enum import Enum
-from typing import Dict, Any
+
+
+def _prepare_arrow_svg() -> str:
+    """화살표 SVG를 ASCII 경로 임시 디렉토리에 복사하고 경로 반환.
+
+    Qt QSS의 url()은 유니코드 경로에서 간헐적으로 실패할 수 있으므로
+    ASCII 경로의 임시 파일을 사용한다.
+    """
+    _src = os.path.join(os.path.dirname(__file__), "..", "resources", "arrow_down_dark.svg")
+    _src = os.path.normpath(_src)
+    if not os.path.exists(_src):
+        return ""
+    _tmp_dir = tempfile.gettempdir()
+    _dst = os.path.join(_tmp_dir, "swb_arrow_down.svg")
+    try:
+        shutil.copy2(_src, _dst)
+        return _dst.replace("\\", "/")
+    except Exception:
+        return _src.replace("\\", "/")
+
+
+_ARROW_SVG_PATH = _prepare_arrow_svg()
 
 
 class ThemeMode(str, Enum):
@@ -147,10 +171,10 @@ class ThemeColors:
 class ThemeManager:
     """Manages application theme."""
 
-    _instance: "ThemeManager | None" = None
+    _instance: ThemeManager | None = None
     _current_mode: ThemeMode = ThemeMode.LIGHT
 
-    def __new__(cls) -> "ThemeManager":
+    def __new__(cls) -> ThemeManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -192,7 +216,10 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
         mode = get_theme_manager().current_mode
     t = ThemeColors(mode)
 
+    _arrow_svg = _ARROW_SVG_PATH
+
     return f"""
+    /* ── 전역 기반 ─────────────────────────────────────────────────── */
     QMainWindow {{
         background-color: {t.BG_MAIN};
     }}
@@ -200,19 +227,22 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
     QWidget {{
         background-color: {t.BG_MAIN};
         color: {t.TEXT_PRIMARY};
+        font-size: 13px;
     }}
 
+    /* ── 메뉴바 ───────────────────────────────────────────────────── */
     QMenuBar {{
         background-color: {t.BG_CARD};
         border-bottom: 1px solid {t.BORDER};
-        padding: 2px;
+        padding: 2px 4px;
         color: {t.TEXT_PRIMARY};
+        font-size: 13px;
     }}
 
     QMenuBar::item {{
         background-color: transparent;
-        padding: 4px 12px;
-        border-radius: 3px;
+        padding: 5px 14px;
+        border-radius: 4px;
         color: {t.TEXT_PRIMARY};
     }}
 
@@ -224,14 +254,17 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
     QMenu {{
         background-color: {t.BG_CARD};
         border: 1px solid {t.BORDER};
+        border-radius: 6px;
         padding: 4px;
         color: {t.TEXT_PRIMARY};
+        font-size: 13px;
     }}
 
     QMenu::item {{
-        padding: 6px 24px;
-        border-radius: 3px;
+        padding: 7px 28px 7px 18px;
+        border-radius: 4px;
         color: {t.TEXT_PRIMARY};
+        min-width: 160px;
     }}
 
     QMenu::item:selected {{
@@ -242,22 +275,24 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
     QMenu::separator {{
         height: 1px;
         background-color: {t.BORDER};
-        margin: 4px 8px;
+        margin: 4px 10px;
     }}
 
+    /* ── 툴바 ─────────────────────────────────────────────────────── */
     QToolBar {{
         background-color: {t.BG_CARD};
         border-bottom: 1px solid {t.BORDER};
-        padding: 4px;
-        spacing: 4px;
+        padding: 4px 6px;
+        spacing: 3px;
     }}
 
     QToolButton {{
         background-color: transparent;
         border: 1px solid transparent;
-        border-radius: 4px;
-        padding: 4px 8px;
+        border-radius: 5px;
+        padding: 5px 10px;
         color: {t.TEXT_PRIMARY};
+        font-size: 13px;
     }}
 
     QToolButton:hover {{
@@ -265,27 +300,36 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
         border-color: {t.BORDER};
     }}
 
+    QToolButton:pressed {{
+        background-color: {t.BG_SELECTED};
+    }}
+
+    /* ── 상태바 ───────────────────────────────────────────────────── */
     QStatusBar {{
         background-color: {t.BG_SIDEBAR};
         border-top: 1px solid {t.BORDER};
         color: {t.TEXT_SECONDARY};
+        font-size: 12px;
+        padding: 2px 8px;
     }}
 
+    /* ── 탭 ───────────────────────────────────────────────────────── */
     QTabWidget::pane {{
         border: 1px solid {t.BORDER};
         background-color: {t.BG_CARD};
-        border-radius: 4px;
+        border-radius: 0 4px 4px 4px;
     }}
 
     QTabBar::tab {{
         background-color: {t.BG_SIDEBAR};
         border: 1px solid {t.BORDER};
         border-bottom: none;
-        padding: 8px 16px;
+        padding: 8px 20px;
         margin-right: 2px;
-        border-top-left-radius: 4px;
-        border-top-right-radius: 4px;
+        border-top-left-radius: 5px;
+        border-top-right-radius: 5px;
         color: {t.TEXT_SECONDARY};
+        font-size: 13px;
     }}
 
     QTabBar::tab:selected {{
@@ -300,41 +344,51 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
         color: {t.TEXT_PRIMARY};
     }}
 
+    /* ── 그룹박스 ─────────────────────────────────────────────────── */
     QGroupBox {{
         font-weight: bold;
+        font-size: 13px;
         color: {t.TEXT_PRIMARY};
-        border: 1px solid {t.BORDER};
-        border-radius: 6px;
-        margin-top: 8px;
-        padding-top: 8px;
+        border: 1.5px solid {t.BORDER};
+        border-radius: 7px;
+        margin-top: 10px;
+        padding-top: 10px;
         background-color: {t.BG_CARD};
     }}
 
     QGroupBox::title {{
         subcontrol-origin: margin;
-        left: 8px;
-        padding: 0 4px;
+        subcontrol-position: top left;
+        left: 10px;
+        padding: 0 6px;
         color: {t.PRIMARY};
+        background-color: {t.BG_CARD};
+        font-size: 12px;
     }}
 
+    /* ── 버튼 ─────────────────────────────────────────────────────── */
     QPushButton {{
         background-color: {t.BG_CARD};
-        border: 1px solid {t.BORDER};
-        border-radius: 4px;
-        padding: 6px 16px;
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
+        padding: 7px 18px;
         color: {t.TEXT_PRIMARY};
+        font-size: 13px;
+        min-height: 28px;
     }}
 
     QPushButton:hover {{
         background-color: {t.BG_HOVER};
-        border-color: {t.BORDER_FOCUS};
+        border-color: {t.PRIMARY_LIGHT};
+        color: {t.PRIMARY};
     }}
 
     QPushButton:default {{
         background-color: {t.PRIMARY};
-        border-color: {t.PRIMARY_DARK};
+        border: none;
         color: {t.TEXT_ON_PRIMARY};
         font-weight: bold;
+        border-radius: 5px;
     }}
 
     QPushButton:default:hover {{
@@ -343,100 +397,158 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
 
     QPushButton:pressed {{
         background-color: {t.PRIMARY_DARK};
+        color: {t.TEXT_ON_PRIMARY};
     }}
 
     QPushButton:disabled {{
         background-color: {t.BG_SIDEBAR};
         color: {t.TEXT_MUTED};
-        border-color: {t.BORDER};
+        border-color: {t.BORDER_LIGHT};
     }}
 
+    /* ── 입력 필드 ────────────────────────────────────────────────── */
     QLineEdit {{
         background-color: {t.BG_INPUT};
-        border: 1px solid {t.BORDER};
-        border-radius: 4px;
-        padding: 6px;
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
+        padding: 6px 10px;
         color: {t.TEXT_PRIMARY};
         selection-background-color: {t.BG_SELECTED};
+        min-height: 28px;
+    }}
+
+    QLineEdit:hover {{
+        border-color: {t.SECONDARY_DARK};
     }}
 
     QLineEdit:focus {{
         border-color: {t.BORDER_FOCUS};
+        border-width: 2px;
     }}
 
     QTextEdit, QPlainTextEdit {{
         background-color: {t.BG_INPUT};
-        border: 1px solid {t.BORDER};
-        border-radius: 4px;
-        padding: 4px;
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
+        padding: 6px;
         color: {t.TEXT_PRIMARY};
         selection-background-color: {t.BG_SELECTED};
     }}
 
     QTextEdit:focus, QPlainTextEdit:focus {{
         border-color: {t.BORDER_FOCUS};
+        border-width: 2px;
     }}
 
+    /* ── 리스트 ───────────────────────────────────────────────────── */
     QListWidget {{
         background-color: {t.BG_CARD};
-        border: 1px solid {t.BORDER};
-        border-radius: 4px;
-        padding: 2px;
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
+        padding: 3px;
         alternate-background-color: {t.TABLE_ROW_ALT};
         color: {t.TEXT_PRIMARY};
+        outline: none;
     }}
 
     QListWidget::item {{
-        padding: 4px 8px;
-        border-radius: 2px;
+        padding: 5px 10px;
+        border-radius: 3px;
         color: {t.TEXT_PRIMARY};
+        min-height: 22px;
     }}
 
     QListWidget::item:selected {{
         background-color: {t.BG_SELECTED};
         color: {t.PRIMARY};
+        border-left: 3px solid {t.PRIMARY};
+        font-weight: bold;
     }}
 
-    QListWidget::item:hover {{
+    QListWidget::item:hover:!selected {{
         background-color: {t.BG_HOVER};
     }}
 
+    /* ── 콤보박스 ─────────────────────────────────────────────────── */
     QComboBox {{
         background-color: {t.BG_INPUT};
-        border: 1px solid {t.BORDER};
-        border-radius: 4px;
-        padding: 4px 8px;
-        min-width: 80px;
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
+        padding: 6px 36px 6px 10px;
+        min-width: 100px;
+        min-height: 28px;
         color: {t.TEXT_PRIMARY};
+        font-size: 13px;
+    }}
+
+    QComboBox:hover {{
+        border-color: {t.SECONDARY_DARK};
     }}
 
     QComboBox:focus {{
         border-color: {t.BORDER_FOCUS};
+        border-width: 2px;
     }}
 
     QComboBox::drop-down {{
-        border: none;
-        width: 24px;
+        subcontrol-origin: border;
+        subcontrol-position: center right;
+        width: 32px;
+        border-left: 1.5px solid {t.BORDER};
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+        background-color: {t.BG_SIDEBAR};
+    }}
+
+    QComboBox::drop-down:hover {{
+        background-color: {t.BG_SELECTED};
+    }}
+
+    QComboBox::down-arrow {{
+        image: url("{_arrow_svg}");
+        width: 12px;
+        height: 8px;
     }}
 
     QComboBox QAbstractItemView {{
         background-color: {t.BG_CARD};
-        border: 1px solid {t.BORDER};
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
         selection-background-color: {t.BG_SELECTED};
+        selection-color: {t.PRIMARY};
         color: {t.TEXT_PRIMARY};
+        padding: 2px;
+        outline: none;
     }}
 
+    QComboBox QAbstractItemView::item {{
+        padding: 6px 10px;
+        border-radius: 3px;
+        min-height: 24px;
+    }}
+
+    QComboBox QAbstractItemView::item:selected {{
+        background-color: {t.BG_SELECTED};
+        color: {t.PRIMARY};
+    }}
+
+    /* ── 체크박스 ─────────────────────────────────────────────────── */
     QCheckBox {{
-        spacing: 6px;
+        spacing: 8px;
         color: {t.TEXT_PRIMARY};
+        font-size: 13px;
     }}
 
     QCheckBox::indicator {{
-        width: 16px;
-        height: 16px;
-        border-radius: 3px;
-        border: 1px solid {t.BORDER};
+        width: 17px;
+        height: 17px;
+        border-radius: 4px;
+        border: 1.5px solid {t.BORDER};
         background-color: {t.BG_INPUT};
+    }}
+
+    QCheckBox::indicator:hover {{
+        border-color: {t.PRIMARY_LIGHT};
     }}
 
     QCheckBox::indicator:checked {{
@@ -444,102 +556,216 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
         border-color: {t.PRIMARY};
     }}
 
+    /* ── 라디오버튼 ───────────────────────────────────────────────── */
+    QRadioButton {{
+        spacing: 8px;
+        color: {t.TEXT_PRIMARY};
+        font-size: 13px;
+    }}
+
+    QRadioButton::indicator {{
+        width: 17px;
+        height: 17px;
+        border-radius: 9px;
+        border: 1.5px solid {t.BORDER};
+        background-color: {t.BG_INPUT};
+    }}
+
+    QRadioButton::indicator:hover {{
+        border-color: {t.PRIMARY_LIGHT};
+    }}
+
+    QRadioButton::indicator:checked {{
+        background-color: {t.PRIMARY};
+        border-color: {t.PRIMARY};
+        image: none;
+    }}
+
+    /* ── 스핀박스 ─────────────────────────────────────────────────── */
+    QSpinBox, QDoubleSpinBox {{
+        background-color: {t.BG_INPUT};
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
+        padding: 5px 8px;
+        color: {t.TEXT_PRIMARY};
+        min-height: 28px;
+    }}
+
+    QSpinBox:hover, QDoubleSpinBox:hover {{
+        border-color: {t.SECONDARY_DARK};
+    }}
+
+    QSpinBox:focus, QDoubleSpinBox:focus {{
+        border-color: {t.BORDER_FOCUS};
+        border-width: 2px;
+    }}
+
+    QSpinBox::up-button, QDoubleSpinBox::up-button {{
+        border: none;
+        border-left: 1px solid {t.BORDER};
+        border-bottom: 1px solid {t.BORDER};
+        background-color: {t.BG_SIDEBAR};
+        width: 22px;
+        border-top-right-radius: 4px;
+    }}
+
+    QSpinBox::down-button, QDoubleSpinBox::down-button {{
+        border: none;
+        border-left: 1px solid {t.BORDER};
+        background-color: {t.BG_SIDEBAR};
+        width: 22px;
+        border-bottom-right-radius: 4px;
+    }}
+
+    QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+    QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+        background-color: {t.BG_SELECTED};
+    }}
+
+    /* ── 스플리터 ─────────────────────────────────────────────────── */
     QSplitter::handle {{
         background-color: {t.BORDER};
     }}
 
     QSplitter::handle:horizontal {{
-        width: 2px;
+        width: 3px;
     }}
 
     QSplitter::handle:vertical {{
-        height: 2px;
+        height: 3px;
     }}
 
+    QSplitter::handle:hover {{
+        background-color: {t.PRIMARY_LIGHT};
+    }}
+
+    /* ── 트리 위젯 ────────────────────────────────────────────────── */
     QTreeWidget {{
         background-color: {t.BG_CARD};
-        border: 1px solid {t.BORDER};
-        border-radius: 4px;
+        border: 1.5px solid {t.BORDER};
+        border-radius: 5px;
         alternate-background-color: {t.TABLE_ROW_ALT};
         color: {t.TEXT_PRIMARY};
+        outline: none;
     }}
 
     QTreeWidget::item {{
-        padding: 4px 8px;
+        padding: 5px 8px;
         color: {t.TEXT_PRIMARY};
+        min-height: 22px;
     }}
 
     QTreeWidget::item:selected {{
         background-color: {t.BG_SELECTED};
         color: {t.PRIMARY};
+        border-left: 3px solid {t.PRIMARY};
     }}
 
+    QTreeWidget::item:hover:!selected {{
+        background-color: {t.BG_HOVER};
+    }}
+
+    /* ── 헤더뷰 ───────────────────────────────────────────────────── */
     QHeaderView::section {{
         background-color: {t.TABLE_HEADER_BG};
         color: {t.TABLE_TEXT};
-        padding: 6px 8px;
-        border: 1px solid {t.BORDER};
+        padding: 7px 10px;
+        border: none;
+        border-right: 1px solid {t.BORDER};
+        border-bottom: 1.5px solid {t.BORDER};
         font-weight: bold;
+        font-size: 12px;
     }}
 
+    QHeaderView::section:hover {{
+        background-color: {t.BG_SELECTED};
+        color: {t.PRIMARY};
+    }}
+
+    QHeaderView::section:first {{
+        border-left: none;
+    }}
+
+    /* ── 테이블뷰 ─────────────────────────────────────────────────── */
     QTableView {{
         background-color: {t.BG_CARD};
         border: 1px solid {t.BORDER};
-        gridline-color: {t.BORDER};
+        gridline-color: {t.BORDER_LIGHT};
         selection-background-color: {t.BG_SELECTED};
         selection-color: {t.TEXT_PRIMARY};
         color: {t.TEXT_PRIMARY};
+        alternate-background-color: {t.TABLE_ROW_ALT};
+        outline: none;
     }}
 
     QTableView::item {{
         padding: 4px 8px;
         color: {t.TEXT_PRIMARY};
+        border: none;
     }}
 
     QTableView::item:selected {{
         background-color: {t.BG_SELECTED};
-        color: {t.TEXT_PRIMARY};
+        color: {t.PRIMARY};
     }}
 
     QTableView QTableCornerButton::section {{
         background-color: {t.TABLE_HEADER_BG};
-        border: 1px solid {t.BORDER};
+        border-bottom: 1.5px solid {t.BORDER};
+        border-right: 1px solid {t.BORDER};
     }}
 
+    /* ── 스크롤바 ─────────────────────────────────────────────────── */
     QScrollBar:vertical {{
-        background-color: {t.SCROLLBAR_BG};
-        width: 12px;
-        border-radius: 6px;
+        background-color: transparent;
+        width: 10px;
+        margin: 0;
     }}
 
     QScrollBar::handle:vertical {{
         background-color: {t.SCROLLBAR_HANDLE};
-        border-radius: 6px;
-        min-height: 20px;
+        border-radius: 5px;
+        min-height: 24px;
+        margin: 1px 1px;
     }}
 
     QScrollBar::handle:vertical:hover {{
         background-color: {t.SCROLLBAR_HANDLE_HOVER};
     }}
 
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+        height: 0;
+        background: none;
+        border: none;
+    }}
+
     QScrollBar:horizontal {{
-        background-color: {t.SCROLLBAR_BG};
-        height: 12px;
-        border-radius: 6px;
+        background-color: transparent;
+        height: 10px;
+        margin: 0;
     }}
 
     QScrollBar::handle:horizontal {{
         background-color: {t.SCROLLBAR_HANDLE};
-        border-radius: 6px;
-        min-width: 20px;
+        border-radius: 5px;
+        min-width: 24px;
+        margin: 1px 1px;
     }}
 
     QScrollBar::handle:horizontal:hover {{
         background-color: {t.SCROLLBAR_HANDLE_HOVER};
     }}
 
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+        width: 0;
+        background: none;
+        border: none;
+    }}
+
+    /* ── 레이블 / 다이얼로그 ──────────────────────────────────────── */
     QLabel {{
         color: {t.TEXT_PRIMARY};
+        background-color: transparent;
     }}
 
     QMessageBox {{
@@ -552,58 +778,60 @@ def get_application_stylesheet(mode: ThemeMode | None = None) -> str:
         color: {t.TEXT_PRIMARY};
     }}
 
-    QSpinBox, QDoubleSpinBox {{
-        background-color: {t.BG_INPUT};
-        border: 1px solid {t.BORDER};
-        border-radius: 4px;
-        padding: 4px;
-        color: {t.TEXT_PRIMARY};
-    }}
-
-    QSpinBox:focus, QDoubleSpinBox:focus {{
-        border-color: {t.BORDER_FOCUS};
-    }}
-
-    QRadioButton {{
-        color: {t.TEXT_PRIMARY};
-    }}
-
-    QRadioButton::indicator {{
-        width: 16px;
-        height: 16px;
-        border-radius: 8px;
-        border: 1px solid {t.BORDER};
-        background-color: {t.BG_INPUT};
-    }}
-
-    QRadioButton::indicator:checked {{
-        background-color: {t.PRIMARY};
-        border-color: {t.PRIMARY};
-    }}
-
+    /* ── 슬라이더 ─────────────────────────────────────────────────── */
     QSlider::groove:horizontal {{
         height: 6px;
         background-color: {t.BG_SIDEBAR};
         border-radius: 3px;
+        border: 1px solid {t.BORDER};
+    }}
+
+    QSlider::sub-page:horizontal {{
+        background-color: {t.PRIMARY_LIGHT};
+        border-radius: 3px;
     }}
 
     QSlider::handle:horizontal {{
-        width: 16px;
-        height: 16px;
+        width: 18px;
+        height: 18px;
+        margin: -6px 0;
         background-color: {t.PRIMARY};
-        border-radius: 8px;
+        border-radius: 9px;
+        border: 2px solid {t.BG_CARD};
     }}
 
+    QSlider::handle:horizontal:hover {{
+        background-color: {t.PRIMARY_LIGHT};
+    }}
+
+    /* ── 프로그레스바 ─────────────────────────────────────────────── */
     QProgressBar {{
         border: 1px solid {t.BORDER};
-        border-radius: 4px;
+        border-radius: 5px;
         text-align: center;
         color: {t.TEXT_PRIMARY};
+        background-color: {t.BG_SIDEBAR};
+        min-height: 16px;
     }}
 
     QProgressBar::chunk {{
         background-color: {t.PRIMARY};
-        border-radius: 3px;
+        border-radius: 4px;
+    }}
+
+    /* ── 다이얼로그 버튼박스 ──────────────────────────────────────── */
+    QDialogButtonBox QPushButton {{
+        min-width: 80px;
+    }}
+
+    /* ── 툴팁 ─────────────────────────────────────────────────────── */
+    QToolTip {{
+        background-color: {t.BG_CARD};
+        color: {t.TEXT_PRIMARY};
+        border: 1px solid {t.BORDER};
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
     }}
 """
 
