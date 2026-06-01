@@ -290,6 +290,9 @@ def _scree_plot(eigenvalues: np.ndarray, n_comp: int) -> bytes | None:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        from statworkbench.analysis._chart_font import ensure_korean_font
+        ensure_korean_font()
+
         p = len(eigenvalues)
         x = np.arange(1, p + 1)
         fig, ax = plt.subplots(figsize=(7, 4))

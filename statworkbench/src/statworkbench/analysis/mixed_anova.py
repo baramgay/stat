@@ -477,6 +477,9 @@ def _profile_plot_mixed(
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        from statworkbench.analysis._chart_font import ensure_korean_font
+        ensure_korean_font()
+
         groups = sorted(data[between_var].unique(), key=str)
         colors = plt.cm.tab10.colors
         fig, ax = plt.subplots(figsize=(7, 4.5))

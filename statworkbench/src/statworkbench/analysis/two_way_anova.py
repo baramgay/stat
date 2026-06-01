@@ -431,6 +431,9 @@ def _profile_plot_two_way(
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        from statworkbench.analysis._chart_font import ensure_korean_font
+        ensure_korean_font()
+
         cell_means = (
             df.groupby([factor_a, factor_b])[dep_var]
             .mean()
