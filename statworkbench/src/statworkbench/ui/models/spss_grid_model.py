@@ -142,6 +142,12 @@ class SPSSGridModel(QAbstractTableModel):
         self._last_data_row = -1
         self._update_last_data_row()
 
+        # Cache: col index → is_numeric bool. Invalidated on structural changes.
+        self._numeric_col_cache: dict[int, bool] = {}
+
+    def _invalidate_col_cache(self) -> None:
+        self._numeric_col_cache.clear()
+
     def _update_last_data_row(self) -> None:
         """Update the last row index that contains data."""
         if self._dataframe.empty:
@@ -157,18 +163,21 @@ class SPSSGridModel(QAbstractTableModel):
     # ── 내부 헬퍼 ────────────────────────────────────────────────────────────
 
     def _is_numeric_col(self, col: int) -> bool:
-        """숫자형 열인지 확인."""
+        """숫자형 열인지 확인 (캐시 사용)."""
+        cached = self._numeric_col_cache.get(col)
+        if cached is not None:
+            return cached
         if col >= len(self._dataframe.columns):
             return False
         col_name = self._dataframe.columns[col]
         var = self._variables.get(col_name)
         if var is not None:
-            return var.storage_type in (StorageType.FLOAT, StorageType.INTEGER)
-        # 메타 없으면 데이터로 판단
-        series = self._dataframe.iloc[:, col].dropna()
-        if series.empty:
-            return False
-        return pd.api.types.is_numeric_dtype(series)
+            result = var.storage_type in (StorageType.FLOAT, StorageType.INTEGER)
+        else:
+            series = self._dataframe.iloc[:, col].dropna()
+            result = bool(series.empty is False and pd.api.types.is_numeric_dtype(series))
+        self._numeric_col_cache[col] = result
+        return result
 
     def _get_decimals(self, col: int) -> int:
         """열의 소수점 자릿수 반환 (기본 2)."""
@@ -254,13 +263,15 @@ class SPSSGridModel(QAbstractTableModel):
             return None
 
         value = self._dataframe.iloc[row, col]
-        is_missing = (value is None or value is pd.NA
-                      or (isinstance(value, float) and np.isnan(value)))
-        try:
-            if pd.isna(value):
-                is_missing = True
-        except (TypeError, ValueError):
-            pass
+        is_missing = value is None or value is pd.NA
+        if not is_missing:
+            if isinstance(value, float):
+                is_missing = np.isnan(value)
+            elif not isinstance(value, (int, str, bool)):
+                try:
+                    is_missing = bool(pd.isna(value))
+                except (TypeError, ValueError):
+                    pass
 
         if role == Qt.ItemDataRole.DisplayRole:
             if is_missing:
@@ -382,7 +393,7 @@ class SPSSGridModel(QAbstractTableModel):
             self._dataframe.iloc[row, col] = new_value
             self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole])
             self._last_data_row = max(self._last_data_row, row)
-            self._update_variable_metadata(col_name)
+            self._update_variable_metadata(col_name, new_value=new_value)
             self.data_changed.emit()
 
             return True
@@ -451,58 +462,54 @@ class SPSSGridModel(QAbstractTableModel):
                 # 헤더 텍스트만 갱신 (가상 그리드 크기 불변)
                 self.headerDataChanged.emit(Qt.Orientation.Horizontal, col_idx, col_idx)
 
+            self._invalidate_col_cache()
             self.variable_added.emit(var_name)
             logger.info("Created variable: %s", var_name)
 
-    def _update_variable_metadata(self, var_name: str) -> None:
-        """Update variable metadata based on actual data.
+    def _update_variable_metadata(self, var_name: str, new_value: Any = None) -> None:
+        """Update variable metadata incrementally (O(1) per cell edit).
 
         SPSS 호환 규칙:
           - 측정 척도(measure)는 첫 번째 데이터 입력 시에만 자동 감지.
           - _measure_initialized에 등록된 변수는 사용자 설정 보존 — 덮어쓰지 않음.
-          - storage_type은 항상 최신 데이터 기준으로 갱신.
+          - storage_type은 새 값 기준으로 승격(INTEGER→FLOAT→STRING).
         """
         if var_name not in self._variables:
             return
 
-        series = self._dataframe[var_name]
-        non_null = series.dropna()
-
-        if len(non_null) == 0:
+        if new_value is None or new_value is pd.NA:
             return
 
         var_meta = self._variables[var_name]
+        new_st = infer_storage_type(new_value)
 
-        # storage_type: 모든 값 중 가장 넓은 타입 사용
-        # INTEGER → FLOAT 승격은 발생할 수 있음 (소수 값 추가 시)
-        # STRING 열은 문자 입력 거부 로직에 의해 INTEGER/FLOAT로 변경 안 됨
-        widest = StorageType.INTEGER
-        for val in non_null:
-            st = infer_storage_type(val)
-            if st == StorageType.STRING:
-                widest = StorageType.STRING
-                break
-            if st == StorageType.FLOAT:
-                widest = StorageType.FLOAT
-        var_meta.storage_type = widest
+        # storage_type: STRING(초기) → INTEGER / FLOAT 로 승격, INTEGER → FLOAT 승격
+        # 수치형 변수는 문자 입력 자체가 거부되므로 FLOAT/INTEGER → STRING 하향은 없음
+        current_st = var_meta.storage_type
+        if current_st == StorageType.STRING:
+            if new_st in (StorageType.INTEGER, StorageType.FLOAT):
+                var_meta.storage_type = new_st
+                cols = self._dataframe.columns
+                if var_name in cols:
+                    self._numeric_col_cache.pop(cols.get_loc(var_name), None)
+        elif current_st == StorageType.INTEGER and new_st == StorageType.FLOAT:
+            var_meta.storage_type = StorageType.FLOAT
 
         # 측정 척도: 최초 데이터 입력 시에만 자동 감지
         if var_name not in self._measure_initialized:
-            var_meta.measure = infer_measure_type(series)
+            var_meta.measure = infer_measure_type(self._dataframe[var_name])
             self._measure_initialized.add(var_name)
-        # 이후 입력 시 measure는 사용자 설정 보존
 
-        if var_meta.storage_type == StorageType.FLOAT:
-            max_decimals = 0
-            for val in non_null:
-                try:
-                    str_val = str(val)
-                    if '.' in str_val:
-                        decimals = len(str_val.split('.')[1])
-                        max_decimals = max(max_decimals, decimals)
-                except Exception:
-                    pass
-            var_meta.decimals = min(max_decimals, 4) if max_decimals > 0 else 2
+        # 소수점 자릿수: 새 값 기준으로 현재 최댓값과 비교
+        if var_meta.storage_type == StorageType.FLOAT or new_st == StorageType.FLOAT:
+            try:
+                str_val = str(new_value)
+                if '.' in str_val:
+                    new_dec = len(str_val.split('.')[1])
+                    current_dec = var_meta.decimals if var_meta.decimals is not None else 2
+                    var_meta.decimals = min(max(current_dec, new_dec), 4)
+            except Exception:
+                pass
 
         var_meta.touch()
 
@@ -539,6 +546,7 @@ class SPSSGridModel(QAbstractTableModel):
             var_meta.label = new_name
             self._variables[new_name] = var_meta
 
+        self._numeric_col_cache.pop(section, None)
         self.headerDataChanged.emit(orientation, section, section)
         self.variable_renamed.emit(old_name, new_name)
         return True
@@ -582,6 +590,7 @@ class SPSSGridModel(QAbstractTableModel):
             self._variables = variables.copy()
         # 새 데이터셋: 모든 변수를 초기화 완료 상태로 표시
         self._measure_initialized = set(self._variables.keys())
+        self._invalidate_col_cache()
         self._update_last_data_row()
         self.endResetModel()
         self.data_changed.emit()
@@ -728,6 +737,7 @@ class SPSSGridModel(QAbstractTableModel):
             self._dataframe = self._dataframe.drop(columns=[col_name])
             if col_name in self._variables:
                 del self._variables[col_name]
+            self._invalidate_col_cache()
 
             if new_virtual < old_virtual:
                 self.endRemoveColumns()

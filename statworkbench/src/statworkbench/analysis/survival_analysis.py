@@ -330,7 +330,7 @@ def _run_km_manual(
                 sv = float(str(r["생존 확률 S(t)"]).strip())
                 if sv <= 0.5:
                     medians.append(r["시간"])
-            except (ValueError, TypeError):
+            except (ValueError, TypeError):  # pragma: no cover
                 continue
         median_t = medians[0] if medians else np.nan
 

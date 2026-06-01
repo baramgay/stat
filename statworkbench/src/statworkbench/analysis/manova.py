@@ -221,8 +221,7 @@ def _multivariate_tests(
             effect_key = keys[0] if keys else list(mv_res.results.keys())[-1]
 
         if effect_key is None:
-            result.warnings.append("MANOVA: 효과 키를 찾을 수 없습니다.")
-            return result
+            return rows
         stat_df = mv_res.results[effect_key]["stat"]
         # columns: Value, Num DF, Den DF, F Value, Pr > F
         stat_names = [

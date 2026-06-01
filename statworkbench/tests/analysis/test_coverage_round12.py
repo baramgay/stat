@@ -79,18 +79,17 @@ class TestManovaHelpers:
         # effect_key = "Intercept" (from fallback) — 오류 없이 처리됨
         assert isinstance(rows, list)
 
-    # L224-225: mv_res.results 비어있음 → effect_key=None → 경고 반환
+    # effect_key=None → empty rows 반환 (manova.py 버그 수정 후)
     def test_multivariate_tests_empty_results_effect_key_none(self):
-        """L224-225: mv_res.results={} → effect_key=None → NameError → L260-262."""
+        """mv_res.results={} → effect_key=None → empty list 반환."""
         from statworkbench.analysis.manova import _multivariate_tests
         mock_mv_res = MagicMock()
-        mock_mv_res.results = {}  # empty dict → L219 False → L223 True → L224 NameError
+        mock_mv_res.results = {}  # empty dict → effect_key=None → return rows (empty)
         df = self._base_df()
         with patch("statworkbench.analysis.manova.MANOVA") as mock_manova:
             mock_manova.from_formula.return_value.mv_test.return_value = mock_mv_res
             rows = _multivariate_tests(df, ["y1", "y2"], "group", ["0", "1", "2"], True)
-        # L224 raises NameError → caught at L260 → error row appended
-        assert any("오류" in str(r.get("검정", "")) for r in rows)
+        assert rows == []
 
     # L236: stat_df < 4행 → continue
     def test_multivariate_tests_short_stat_df_continue(self):
