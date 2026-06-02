@@ -46,6 +46,17 @@ class TestNormality:
         assert row["N"] == 50
         assert "Shapiro" in str(row["Interpretation"]) or "D'Agostino" in str(row["Interpretation"])
 
+    def test_empty_variables_warns(self, normal_dataset):
+        """분석 변수 미지정 시 빈 테이블 대신 명확한 경고를 반환한다."""
+        spec = {
+            "variables": {"target": []},
+            "options": {},
+            "missing_policy": MissingPolicy.LISTWISE,
+        }
+        result = run_analysis(normal_dataset, spec)
+        assert result.tables == []
+        assert any("지정되지 않았" in w for w in result.warnings)
+
     def test_skewed_data(self, normal_dataset):
         """Test that skewed data fails normality test."""
         spec = {

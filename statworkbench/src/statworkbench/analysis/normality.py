@@ -46,6 +46,11 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         spec=spec,
     )
 
+    # 분석 변수 미지정 시 빈 테이블 대신 명확한 경고 반환 (타 분석과 일관)
+    if not target_vars:
+        result.warnings.append("분석 변수가 지정되지 않았습니다.")
+        return result
+
     # Prepare data
     try:
         prepared = prepare_analysis_frame(
