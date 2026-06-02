@@ -1056,7 +1056,7 @@ class TestNormalityKnownDistributions:
         """정규분포 데이터에서 정규성 검정 실행 성공."""
         from statworkbench.analysis.normality import run_analysis as run_norm
         spec = {
-            "variables": {"variables": ["normal"]},
+            "variables": {"target": ["normal"]},
             "missing_policy": MissingPolicy.LISTWISE,
         }
         res = run_norm(normality_ds, spec)
@@ -1066,7 +1066,7 @@ class TestNormalityKnownDistributions:
         """지수분포 데이터는 정규성 검정에서 p < 0.05 기대."""
         from statworkbench.analysis.normality import run_analysis as run_norm
         spec = {
-            "variables": {"variables": ["exponential"]},
+            "variables": {"target": ["exponential"]},
             "missing_policy": MissingPolicy.LISTWISE,
         }
         res = run_norm(normality_ds, spec)
@@ -1096,7 +1096,7 @@ class TestNormalityKnownDistributions:
         from statworkbench.analysis.normality import run_analysis as run_norm
         for var in ["normal", "uniform", "exponential"]:
             spec = {
-                "variables": {"variables": [var]},
+                "variables": {"target": [var]},
                 "missing_policy": MissingPolicy.LISTWISE,
             }
             res = run_norm(normality_ds, spec)
