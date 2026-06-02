@@ -14,6 +14,7 @@ SPSS 29/30 호환 출력:
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 from typing import Any

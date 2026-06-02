@@ -2,9 +2,9 @@
 
 > Menu-based desktop statistical package — SPSS/MedCalc alternative
 
-[![Tests](https://img.shields.io/badge/tests-3613%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-98%25-green)](tests/)
-[![Version](https://img.shields.io/badge/version-3.1.0-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-4420%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-3.3.1-blue)](pyproject.toml)
 
 ## Overview
 

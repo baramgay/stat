@@ -244,10 +244,11 @@ class OutputWindow(QMainWindow):
         if not path:
             return
         try:
-            from docx import Document
-            from docx.shared import Inches, Pt
-            from docx.enum.text import WD_ALIGN_PARAGRAPH
             import re
+
+            from docx import Document
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.shared import Inches
 
             doc = Document()
             doc.core_properties.title = "StatWorkbench 분석 결과"

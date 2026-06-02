@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
@@ -128,7 +129,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         n_comp = max(1, int(np.sum(eigenvalues >= 1.0)))
 
     pca = PCA(n_components=n_comp)
-    scores = pca.fit_transform(X)
+    pca.fit(X)
     loadings = pca.components_.T * np.sqrt(pca.explained_variance_)  # (p, n_comp)
 
     # ── 공통성 ────────────────────────────────────────────────────────────────
@@ -238,7 +239,6 @@ def _kmo_interpret(kmo: float) -> str:
 def _rotate(loadings: np.ndarray, method: str) -> np.ndarray:
     """Varimax / Promax 회전 (간이 구현)."""
     try:
-        from sklearn.utils.extmath import svd_flip
         # Varimax: sklearn에 내장 없으므로 직접 구현 (최대 200회 반복)
         L = loadings.copy()
         p, k = L.shape

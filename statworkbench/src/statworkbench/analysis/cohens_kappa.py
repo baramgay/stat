@@ -14,6 +14,7 @@ SPSS: Analyze > Descriptive Statistics > Crosstabs > Statistics > Kappa 대응 �
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np

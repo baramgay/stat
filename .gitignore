@@ -35,6 +35,12 @@ desktop.ini
 .pytest_cache/
 .coverage
 htmlcov/
+coverage.json
+coverage.xml
+
+# 린트/타입 캐시
+.mypy_cache/
+.ruff_cache/
 
 # 임시 파일
 *.tmp

@@ -14,13 +14,14 @@ SPSS: Analyze > General Linear Model > Univariate (공변량 포함)
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 from scipy import stats
 from statsmodels.formula.api import ols
-import statsmodels.api as sm
 
 from statworkbench.analysis.assumptions import get_cps_table_kr, prepare_analysis_frame
 from statworkbench.analysis.formatting import format_number, format_pvalue

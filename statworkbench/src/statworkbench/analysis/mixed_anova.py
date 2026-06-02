@@ -14,6 +14,7 @@ SPSS: Analyze > General Linear Model > Repeated Measures (집단 간 요인 포�
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
@@ -469,10 +470,11 @@ def _profile_plot_mixed(
     between_var: str,
     within_vars: list,
     within_name: str,
-) -> "bytes | None":
+) -> bytes | None:
     """집단 × 시점 상호작용 선 그래프 생성."""
     try:
         import io
+
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt

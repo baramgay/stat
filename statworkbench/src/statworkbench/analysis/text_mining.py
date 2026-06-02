@@ -14,7 +14,6 @@ import io
 import logging
 import re
 from collections import Counter
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,6 @@ import pandas as pd
 
 from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
-
 
 # ── 내장 불용어 ───────────────────────────────────────────────────────────────
 _KO_STOPWORDS = {
@@ -273,11 +271,11 @@ def _generate_wordcloud(
     width: int,
     height: int,
     language: str,
-) -> Optional[bytes]:
+) -> bytes | None:
     """wordcloud 라이브러리로 이미지 생성 후 PNG bytes 반환."""
     try:
-        from wordcloud import WordCloud
         import matplotlib
+        from wordcloud import WordCloud
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -313,7 +311,7 @@ def _generate_wordcloud(
         return None
 
 
-def _find_font(language: str) -> Optional[str]:
+def _find_font(language: str) -> str | None:
     """시스템에서 한글 지원 폰트 경로를 탐색합니다."""
     import os
 

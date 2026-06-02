@@ -11,6 +11,7 @@ Supports:
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
@@ -103,7 +104,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
 
     # Encode labels
     le = LabelEncoder()
-    y_encoded = le.fit_transform(y)
+    le.fit(y)
     class_labels = le.classes_
 
     # Build predictor matrix (numeric only)

@@ -14,13 +14,14 @@ SPSS: Analyze > General Linear Model > Univariate (2개 요인)
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 from scipy import stats
 from statsmodels.formula.api import ols
-import statsmodels.api as sm
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 from statworkbench.analysis.assumptions import get_cps_table_kr, prepare_analysis_frame
@@ -427,6 +428,7 @@ def _profile_plot_two_way(
     """Factor A × Factor B 셀 평균 상호작용 선 그래프 생성 후 PNG bytes 반환."""
     try:
         import io
+
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt

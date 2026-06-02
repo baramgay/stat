@@ -5,6 +5,29 @@
 
 ---
 
+## [v3.3.1] - 2026-06-02
+
+### 수정 (Bug Fixes)
+
+- **한글 차트 글리프 누락**: `mixed_anova` · `pca` · `two_way_anova`가 차트를
+  `savefig`할 때 한글 폰트가 설정되지 않아 DejaVu Sans로 폴백되어 한글 라벨이
+  깨지던 결함 수정. 공용 헬퍼 `analysis/_chart_font.ensure_korean_font()` 도입
+- **PCA 대화상자 NameError**: `pca_dialog._setup_ui`가 정의되지 않은 `dataset`을
+  참조하여 대화상자 실행 시 `NameError`가 발생하던 버그 수정 (`self._dataset` 사용)
+
+### 변경 (Stabilization & Quality)
+
+- 버전 메타데이터 정합화: `pyproject.toml` · `__init__.py` · README 배지를
+  v3.3.1로 동기화 (기존 3.1.0 ↔ CHANGELOG v3.3.0 불일치 해소)
+- 린트 정리: `ruff check src/` 무결점 통과 (미사용 임포트·변수 제거, 임포트 정렬,
+  E402는 모듈 공통 logger 초기화·`matplotlib.use` 순서 사유로 명시적 예외 처리)
+- CI 워크플로 결함 수정: 루트 체크아웃과 패키지 하위 디렉터리(`statworkbench/`)
+  불일치로 `pip install -e .`가 실패하던 문제를 `working-directory`로 해결
+- 추가 검증 테스트 268개(Round 1~4) 보강 — 전체 4420 통과, 커버리지 100% 유지
+- 저장소 정리: 임시 산출물·캐시 제거, 개발 추적 문서를 `docs/`·`_archive/`로 재배치
+
+---
+
 ## [v3.3.0] - 2026-05-29
 
 ### 추가

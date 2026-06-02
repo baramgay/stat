@@ -6,6 +6,7 @@ SPSS: Analyze > Nonparametric Tests > Legacy Dialogs > Chi-Square 대응 모듈.
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np

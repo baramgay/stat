@@ -18,12 +18,14 @@ SPSS: Analyze > General Linear Model > Repeated Measures
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
+
+from itertools import combinations
 
 import numpy as np
 import pandas as pd
 from scipy import stats
-from itertools import combinations
 
 from statworkbench.analysis.assumptions import get_cps_table_kr
 from statworkbench.analysis.formatting import format_number, format_pvalue

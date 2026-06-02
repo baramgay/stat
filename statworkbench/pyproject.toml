@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "statworkbench"
-version = "3.1.0"
+version = "3.3.1"
 description = "Menu-based desktop statistical package — SPSS/MedCalc alternative"
 readme = "README.md"
 license = {text = "MIT"}
@@ -103,4 +103,5 @@ ignore = [
     "N803",  # argument name should be lowercase — statistical convention (X, y matrices)
     "N806",  # variable in function should be lowercase — statistical convention (X, y, T, E, Z)
     "E501",  # line too long — enforced separately; many long lines are in UI/string literals
+    "E402",  # module import not at top — 모듈 공통 logger 초기화 및 의도적 matplotlib.use("Agg") 순서
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
@@ -470,7 +471,6 @@ def _run_stepwise(
     method: str,
 ) -> list[dict]:
     """Forward/Backward/Stepwise 변수 선택 요약 테이블 반환."""
-    from scipy import stats as scipy_stats
 
     p_enter = 0.05
     p_remove = 0.10

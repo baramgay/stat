@@ -11,6 +11,7 @@ SPSS에는 직접 메뉴가 없으나 MedCalc·SPSS 매크로로 구현됨.
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np

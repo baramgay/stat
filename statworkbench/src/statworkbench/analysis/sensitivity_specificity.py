@@ -14,6 +14,7 @@ SPSS Analyze > Descriptive Statistics > Crosstabs (with statistics)
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import math

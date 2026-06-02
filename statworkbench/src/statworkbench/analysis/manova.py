@@ -13,16 +13,20 @@ SPSS: Analyze > General Linear Model > Multivariate
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
-from scipy import stats
-from statsmodels.multivariate.manova import MANOVA
-from statsmodels.formula.api import ols
 import statsmodels.api as sm
+from scipy import stats
+from statsmodels.formula.api import ols
+from statsmodels.multivariate.manova import MANOVA
 
-from statworkbench.analysis.assumptions import get_cps_table_kr, prepare_analysis_frame  # noqa: F401
+from statworkbench.analysis.assumptions import (  # noqa: F401
+    get_cps_table_kr,
+    prepare_analysis_frame,
+)
 from statworkbench.analysis.formatting import format_number, format_pvalue
 from statworkbench.analysis.result import AnalysisResult, ResultTable
 from statworkbench.core.dataset import Dataset
@@ -290,7 +294,6 @@ def _univariate_tests(
             ss_factor = float(factor_row["sum_sq"].iloc[0])
             ss_error = float(error_row["sum_sq"].iloc[0])
             df_factor = float(factor_row["df"].iloc[0])
-            df_error = float(error_row["df"].iloc[0])
             f_val = float(factor_row["F"].iloc[0])
             p_val = float(factor_row["PR(>F)"].iloc[0])
 

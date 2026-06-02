@@ -15,7 +15,12 @@ from PySide6.QtWidgets import (
 
 from statworkbench.analysis.result import AnalysisResult
 from statworkbench.core.dataset import Dataset
-from statworkbench.ui.dialogs._dialog_helpers import display_label, measure_icon, numeric_vars, scale_vars
+from statworkbench.ui.dialogs._dialog_helpers import (
+    display_label,
+    measure_icon,
+    numeric_vars,
+    scale_vars,
+)
 
 
 class NormalityDialog(QDialog):

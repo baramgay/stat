@@ -167,8 +167,8 @@ def measure_icon(dataset: Dataset, var_name: str) -> str:
 def populate_list_widget(list_widget, dataset: Dataset, var_list: list[str],
                          empty_message: str = "(해당 변수 없음)") -> None:
     """리스트 위젯에 변수 항목을 추가. 변수 없으면 비활성화 안내 항목 표시."""
-    from PySide6.QtWidgets import QListWidgetItem
     from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QListWidgetItem
     if not var_list:
         item = QListWidgetItem(empty_message)
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)

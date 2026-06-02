@@ -20,8 +20,6 @@ from statworkbench.analysis.result import AnalysisResult
 from statworkbench.core.dataset import Dataset
 from statworkbench.ui.dialogs._dialog_helpers import (
     all_vars,
-    display_label,
-    measure_icon,
     numeric_vars,
     populate_list_widget,
     scale_vars,
@@ -55,8 +53,8 @@ class PcaDialog(QDialog):
         left.addWidget(QLabel("사용 가능한 변수:"))
         self.avail_list = QListWidget()
         self.avail_list.setSelectionMode(QListWidget.ExtendedSelection)
-        avail = scale_vars(dataset) or numeric_vars(dataset) or all_vars(dataset)
-        populate_list_widget(self.avail_list, dataset, avail,
+        avail = scale_vars(self._dataset) or numeric_vars(self._dataset) or all_vars(self._dataset)
+        populate_list_widget(self.avail_list, self._dataset, avail,
                              "(척도형/수치형 변수 없음)")
         left.addWidget(self.avail_list)
         var_layout.addLayout(left)

@@ -25,7 +25,6 @@ from statworkbench.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
     numeric_vars,
-    populate_list_widget,
     user_friendly_error,
     var_from_display,
 )
