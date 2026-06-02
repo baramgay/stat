@@ -426,14 +426,16 @@ class DataView(QWidget):
             return
 
         rows = text.split("\n")
-        for r, row_text in enumerate(rows):
-            if not row_text:
-                continue
-            cells = row_text.split("\t")
-            for c, val in enumerate(cells):
-                idx = self._model.index(current.row() + r, current.column() + c)
-                if idx.isValid():
-                    self._model.setData(idx, val.strip(), Qt.ItemDataRole.EditRole)
+        # 배치 모드: 셀별 전체 재구축 신호를 억제하고 종료 시 1회만 방출 (대량 붙여넣기 최적화)
+        with self._model.batch_update():
+            for r, row_text in enumerate(rows):
+                if not row_text:
+                    continue
+                cells = row_text.split("\t")
+                for c, val in enumerate(cells):
+                    idx = self._model.index(current.row() + r, current.column() + c)
+                    if idx.isValid():
+                        self._model.setData(idx, val.strip(), Qt.ItemDataRole.EditRole)
 
     def _fill_down(self) -> None:
         """Ctrl+D: 현재 셀 위쪽 값을 선택 영역에 복사 (SPSS Fill Down)."""
@@ -447,12 +449,14 @@ class DataView(QWidget):
         cols = sorted(set(idx.column() for idx in indexes))
         rows = sorted(set(idx.row() for idx in indexes))
 
-        for c in cols:
-            source_idx = self._model.index(rows[0] - 1, c)
-            source_val = self._model.data(source_idx, Qt.ItemDataRole.EditRole)
-            for r in rows:
-                target_idx = self._model.index(r, c)
-                self._model.setData(target_idx, source_val, Qt.ItemDataRole.EditRole)
+        # 배치 모드: 다중 셀 채우기를 1회 신호로 합침 (SPSS Fill Down 최적화)
+        with self._model.batch_update():
+            for c in cols:
+                source_idx = self._model.index(rows[0] - 1, c)
+                source_val = self._model.data(source_idx, Qt.ItemDataRole.EditRole)
+                for r in rows:
+                    target_idx = self._model.index(r, c)
+                    self._model.setData(target_idx, source_val, Qt.ItemDataRole.EditRole)
 
     # ── 헤더 편집 ────────────────────────────────────────────────────────────
 

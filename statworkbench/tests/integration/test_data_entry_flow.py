@@ -168,3 +168,93 @@ class TestDataEntryFlow:
         assert len(df.columns) == 1
         # But cell should be empty/NA
         assert len(df) == 0 or pd.isna(df.iloc[0, 0])
+
+
+class TestBatchUpdate:
+    """대량 편집 배치 업데이트(붙여넣기·채우기 최적화) 검증."""
+
+    def _count_signals(self, model):
+        counter = {"n": 0}
+        model.data_changed.connect(lambda: counter.__setitem__("n", counter["n"] + 1))
+        return counter
+
+    def test_batch_emits_data_changed_once(self):
+        """배치 블록 내 다수 setData → data_changed는 1회만 방출."""
+        model = SPSSGridModel()
+        counter = self._count_signals(model)
+        with model.batch_update():
+            for r in range(10):
+                for c in range(4):
+                    model.setData(model.index(r, c), str(r * 4 + c), Qt.ItemDataRole.EditRole)
+        assert counter["n"] == 1, f"data_changed가 {counter['n']}회 방출됨 (1회 기대)"
+
+    def test_batch_result_matches_per_cell(self):
+        """배치 입력 결과가 셀별 입력 결과와 동일."""
+        block = [[str(r * 3 + c) for c in range(3)] for r in range(8)]
+
+        m_cell = SPSSGridModel()
+        for r, row in enumerate(block):
+            for c, v in enumerate(row):
+                m_cell.setData(m_cell.index(r, c), v, Qt.ItemDataRole.EditRole)
+
+        m_batch = SPSSGridModel()
+        with m_batch.batch_update():
+            for r, row in enumerate(block):
+                for c, v in enumerate(row):
+                    m_batch.setData(m_batch.index(r, c), v, Qt.ItemDataRole.EditRole)
+
+        df_cell = m_cell.get_dataframe()
+        df_batch = m_batch.get_dataframe()
+        assert df_cell.shape == df_batch.shape
+        assert (df_cell.values == df_batch.values).all()
+        assert list(df_cell.dtypes) == list(df_batch.dtypes)
+
+    def test_batch_dirty_region_covers_all_cells(self):
+        """비순차 입력 순서에서도 더티 영역이 전체를 포함."""
+        model = SPSSGridModel()
+        received = {}
+
+        def on_changed(top_left, bottom_right, roles):
+            received["tl"] = (top_left.row(), top_left.column())
+            received["br"] = (bottom_right.row(), bottom_right.column())
+
+        model.dataChanged.connect(on_changed)
+        with model.batch_update():
+            # 일부러 역순·교차로 입력
+            model.setData(model.index(5, 3), "1", Qt.ItemDataRole.EditRole)
+            model.setData(model.index(2, 1), "2", Qt.ItemDataRole.EditRole)
+            model.setData(model.index(7, 0), "3", Qt.ItemDataRole.EditRole)
+        assert received["tl"] == (2, 0), f"top_left={received.get('tl')}"
+        assert received["br"] == (7, 3), f"bottom_right={received.get('br')}"
+
+    def test_nested_batch_flushes_once_at_outer_exit(self):
+        """중첩 배치는 가장 바깥 블록 종료 시에만 1회 방출."""
+        model = SPSSGridModel()
+        counter = self._count_signals(model)
+        with model.batch_update():
+            model.setData(model.index(0, 0), "1", Qt.ItemDataRole.EditRole)
+            with model.batch_update():
+                model.setData(model.index(1, 0), "2", Qt.ItemDataRole.EditRole)
+            # 내부 블록 종료로는 방출되지 않아야 함
+            assert counter["n"] == 0
+        assert counter["n"] == 1
+
+    def test_empty_batch_no_emit(self):
+        """변경 없는 빈 배치 블록은 신호를 방출하지 않음."""
+        model = SPSSGridModel()
+        counter = self._count_signals(model)
+        with model.batch_update():
+            pass
+        assert counter["n"] == 0
+
+    def test_batch_rejects_invalid_numeric_like_per_cell(self):
+        """배치 모드에서도 숫자형 변수에 문자 입력은 거부."""
+        model = SPSSGridModel()
+        # 먼저 숫자형으로 확정
+        model.setData(model.index(0, 0), "10", Qt.ItemDataRole.EditRole)
+        with model.batch_update():
+            ok = model.setData(model.index(1, 0), "abc", Qt.ItemDataRole.EditRole)
+        assert ok is False
+        df = model.get_dataframe()
+        # 거부되어 1행만 존재
+        assert df.iloc[0, 0] == 10

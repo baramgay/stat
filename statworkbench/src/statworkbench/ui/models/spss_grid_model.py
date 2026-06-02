@@ -10,6 +10,7 @@ Virtual grid: cells exist conceptually but only store data when actually entered
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from typing import Any
 
 import numpy as np
@@ -145,8 +146,57 @@ class SPSSGridModel(QAbstractTableModel):
         # Cache: col index → is_numeric bool. Invalidated on structural changes.
         self._numeric_col_cache: dict[int, bool] = {}
 
+        # 대량 편집(붙여넣기·채우기) 배치 상태:
+        #   batch_update() 컨텍스트 동안 셀별 dataChanged/data_changed 방출을 억제하고
+        #   더티 영역만 추적했다가 종료 시 1회만 방출한다.
+        self._batch_depth: int = 0
+        self._batch_min_row = self._batch_min_col = -1
+        self._batch_max_row = self._batch_max_col = -1
+
     def _invalidate_col_cache(self) -> None:
         self._numeric_col_cache.clear()
+
+    @contextmanager
+    def batch_update(self):
+        """대량 셀 편집 시 셀별 갱신 신호를 억제하고 종료 시 1회만 방출.
+
+        붙여넣기·채우기처럼 다수 셀을 연속 변경할 때 setData를 그대로 호출하되
+        ``with model.batch_update():`` 블록으로 감싸면, 셀마다 발생하던
+        dataChanged/data_changed(전체 DataFrame 재구축 유발)를 영역 1회로 합쳐
+        O(n²) → O(n) 로 줄인다.
+        """
+        self._batch_depth += 1
+        try:
+            yield
+        finally:
+            self._batch_depth -= 1
+            if self._batch_depth == 0:
+                self._flush_batch()
+
+    def _track_dirty(self, row: int, col: int) -> None:
+        """배치 모드에서 변경된 셀 영역(min/max)을 누적 추적."""
+        if self._batch_min_row < 0:
+            self._batch_min_row = self._batch_max_row = row
+            self._batch_min_col = self._batch_max_col = col
+        else:
+            self._batch_min_row = min(self._batch_min_row, row)
+            self._batch_max_row = max(self._batch_max_row, row)
+            self._batch_min_col = min(self._batch_min_col, col)
+            self._batch_max_col = max(self._batch_max_col, col)
+
+    def _flush_batch(self) -> None:
+        """누적된 더티 영역에 대해 dataChanged·data_changed를 1회 방출."""
+        if self._batch_min_row < 0:
+            return
+        top_left = self.index(self._batch_min_row, self._batch_min_col)
+        bottom_right = self.index(self._batch_max_row, self._batch_max_col)
+        self._batch_min_row = self._batch_min_col = -1
+        self._batch_max_row = self._batch_max_col = -1
+        self.dataChanged.emit(
+            top_left, bottom_right,
+            [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole],
+        )
+        self.data_changed.emit()
 
     def _update_last_data_row(self) -> None:
         """Update the last row index that contains data."""
@@ -391,10 +441,18 @@ class SPSSGridModel(QAbstractTableModel):
                 new_value = self._parse_value(value, old_value)
 
             self._dataframe.iloc[row, col] = new_value
-            self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole])
             self._last_data_row = max(self._last_data_row, row)
             self._update_variable_metadata(col_name, new_value=new_value)
-            self.data_changed.emit()
+
+            # 배치 모드면 영역만 추적하고 신호는 종료 시 1회 방출
+            if self._batch_depth > 0:
+                self._track_dirty(row, col)
+            else:
+                self.dataChanged.emit(
+                    index, index,
+                    [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole],
+                )
+                self.data_changed.emit()
 
             return True
         except (ValueError, TypeError) as exc:
