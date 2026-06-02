@@ -158,10 +158,13 @@ class TestScheffeException:
             "variables": {"dependent": "score", "factor": "group"},
             "options": {"post_hoc": ["scheffe"]},
         }
-        with patch("scipy.stats.f.sf", side_effect=Exception("scheffe fail")):
+        # Scheffe 전용 호출(f.ppf, anova.py:328)을 패치 — 전역 f.sf 패치는
+        # scipy 버전에 따라 옴니버스 f_oneway 내부 호출 여부가 달라져 취약함
+        with patch("statworkbench.analysis.anova.stats.f.ppf", side_effect=Exception("scheffe fail")):
             result = run_analysis(anova_dataset, spec)
-        # Scheffe 계산에 실패할 수 있음
+        # Scheffe 계산 실패 시 경고를 추가하고 결과는 반환되어야 함
         assert result is not None
+        assert any("Scheffe" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
