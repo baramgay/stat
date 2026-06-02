@@ -8,6 +8,7 @@ JSON Lines format for reproducibility.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -453,7 +454,7 @@ class SyntaxWriter:
         """Return the number of recorded commands."""
         return len(self.commands)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[SyntaxCommand]:
         """Iterate over recorded commands."""
         return iter(self.commands)
 

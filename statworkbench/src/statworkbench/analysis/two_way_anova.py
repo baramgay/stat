@@ -445,7 +445,7 @@ def _profile_plot_two_way(
         levels_a = sorted(cell_means[factor_a].unique(), key=str)
 
         fig, ax = plt.subplots(figsize=(7, 4.5))
-        colors = plt.cm.tab10.colors
+        colors = plt.cm.tab10.colors  # type: ignore[attr-defined]
         for i, lvl_b in enumerate(levels_b):
             sub = cell_means[cell_means[factor_b] == lvl_b].set_index(factor_a)
             y_vals = [float(sub.loc[la, dep_var]) if la in sub.index else float("nan") for la in levels_a]

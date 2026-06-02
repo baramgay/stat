@@ -273,7 +273,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         if np.isnan(F) or df2_c <= 0:
             return "-"
         p_c = float(1 - stats.f.cdf(F, df1_c, df2_c))
-        return format_pvalue(p_c)
+        return str(format_pvalue(p_c))
 
     within_rows = [
         {

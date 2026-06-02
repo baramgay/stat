@@ -243,7 +243,7 @@ def _rotate(loadings: np.ndarray, method: str) -> np.ndarray:
         L = loadings.copy()
         p, k = L.shape
         if k < 2:
-            return L
+            return np.asarray(L)
         if method == "varimax":
             for _ in range(200):
                 old_L = L.copy()
@@ -278,7 +278,7 @@ def _rotate(loadings: np.ndarray, method: str) -> np.ndarray:
                 L = L @ coef / norms
             except Exception:
                 pass
-        return L
+        return np.asarray(L)
     except Exception:
         return loadings
 

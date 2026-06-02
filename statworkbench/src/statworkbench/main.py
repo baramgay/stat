@@ -15,7 +15,7 @@ def main() -> int:
         return 1
 
     app = StatWorkbenchApp()
-    return app.run()
+    return int(app.run())
 
 
 if __name__ == "__main__":  # pragma: no cover

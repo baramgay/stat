@@ -319,6 +319,7 @@ def _manual_classification_table(
                     fpr_list.append(fp / neg)
                 tpr_list.append(1.0)
                 fpr_list.append(1.0)
+                assert _trapz is not None  # numpy는 항상 trapz/trapezoid 제공
                 auc = float(_trapz(tpr_list, fpr_list))
                 auc_df = pd.DataFrame([{
                     "통계량": "ROC AUC (근사)",

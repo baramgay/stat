@@ -63,9 +63,9 @@ def read_sav(path: str | Path) -> Dataset:
                 measure=measure,
             )
 
-            # 값 레이블
+            # 값 레이블 (dict 키 타입 불변성으로 인한 mypy 경계 — 런타임 정상)
             if meta.variable_value_labels and col in meta.variable_value_labels:
-                var_meta.value_labels = meta.variable_value_labels[col]
+                var_meta.value_labels = meta.variable_value_labels[col]  # type: ignore[assignment]
 
             # 결측치 정의
             if meta.missing_ranges and col in meta.missing_ranges:

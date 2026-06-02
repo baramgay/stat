@@ -483,7 +483,7 @@ def _profile_plot_mixed(
         ensure_korean_font()
 
         groups = sorted(data[between_var].unique(), key=str)
-        colors = plt.cm.tab10.colors
+        colors = plt.cm.tab10.colors  # type: ignore[attr-defined]
         fig, ax = plt.subplots(figsize=(7, 4.5))
         for i, g in enumerate(groups):
             sub = data[data[between_var] == g][within_vars]

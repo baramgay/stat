@@ -220,7 +220,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 "Variable": col_name,
                 "B": format_number(b, 4),
                 "SE": format_number(se, 4),
-                "Beta": format_number(beta, 4) if beta != "" else "",
+                "Beta": format_number(float(beta), 4) if beta != "" else "",
                 "t": format_number(t, 3),
                 "p-value": format_pvalue(p),
                 "CI": format_ci(ci_low, ci_high, level=confidence_level),

@@ -91,10 +91,20 @@ skip_covered = false
 
 [tool.mypy]
 python_version = "3.10"
+mypy_path = "src"
+explicit_package_bases = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
+
+# UI 레이어(PySide6/Qt)는 Qt 스텁 한계로 타입 검사 노이즈가 큼
+# (enum 별칭·QAbstractItemModel override·Qt 슬롯 시그니처 등 런타임 정상이나 스텁 미흡).
+# 커버리지 제외(src/statworkbench/ui/*)와 동일 논리로 mypy 검사에서 제외하고
+# 핵심 로직(analysis/core/io/syntax/reporting)에 타입 검사를 집중한다.
+[[tool.mypy.overrides]]
+module = "statworkbench.ui.*"
+ignore_errors = true
 
 [tool.ruff]
 line-length = 100

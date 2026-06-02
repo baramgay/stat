@@ -183,7 +183,9 @@ class AnalysisRegistry:
         # Register built-in planned analyses as lightweight wrappers
         for info in _BUILTIN_ANALYSES:
             if not info["implemented"]:
-                self._plugins[info["id"]] = _PlannedAnalysis(
+                # _PlannedAnalysis는 미구현 분석용 경량 래퍼 — run()이 None을 반환하므로
+                # AnalysisPlugin Protocol을 부분 충족(레지스트리 조회 메타데이터만 제공).
+                self._plugins[info["id"]] = _PlannedAnalysis(  # type: ignore[assignment]
                     id=info["id"],
                     name=info["name"],
                     category=info["category"],
@@ -439,7 +441,7 @@ class _ModulePlugin:
         """Delegate to the module's designated function."""
         self._load()
         fn = getattr(self._module, self._function_name)
-        return fn(dataset, spec)  # type: ignore[union-attr]
+        return fn(dataset, spec)  # type: ignore[union-attr, no-any-return]
 
 
 def _register_new_plugins(registry: AnalysisRegistry) -> None:
