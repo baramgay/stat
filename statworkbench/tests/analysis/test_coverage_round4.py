@@ -195,7 +195,7 @@ class TestRegistryNonRequiredSkip:
 class TestLogisticManualAUCExcept:
 
     def test_trapezoid_exception_silenced(self):
-        """np.trapezoid raise → lines 320-321 except pass."""
+        """수동 AUC 계산 예외 → lines 320-321 except pass."""
         from statworkbench.analysis.logistic_regression import run_analysis
 
         rng = np.random.default_rng(42)
@@ -207,8 +207,11 @@ class TestLogisticManualAUCExcept:
         ds.variables["y"].measure = MeasureType.BINARY
         ds.variables["x"].measure = MeasureType.SCALE
 
+        # production 호환 shim(_trapz)을 패치 — numpy.trapezoid 직접 패치는
+        # numpy 1.x(trapz만 존재)에서 AttributeError를 일으켜 버전 취약함
         with patch("statworkbench.analysis.logistic_regression._SKLEARN_AVAILABLE", False), \
-             patch("numpy.trapezoid", side_effect=ValueError("trapezoid fail")):
+             patch("statworkbench.analysis.logistic_regression._trapz",
+                   side_effect=ValueError("trapezoid fail")):
             result = run_analysis(ds, {"variables": {"dependent": "y", "predictors": ["x"]}})
 
         # 예외가 pass 처리됨 → 결과는 생성됨
