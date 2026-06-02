@@ -9,12 +9,15 @@ description = "Menu-based desktop statistical package — SPSS/MedCalc alternati
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
+keywords = ["statistics", "SPSS", "data-analysis", "GUI", "PySide6", "ANOVA", "regression", "survival-analysis"]
 authors = [
     {name = "Hermes Agent", email = "hermes@statworkbench.local"},
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -57,6 +60,11 @@ viz = [
     "wordcloud>=1.9,<2",
     "python-docx>=1.1,<2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/baramgay/stat"
+Repository = "https://github.com/baramgay/stat"
+Issues = "https://github.com/baramgay/stat/issues"
 
 [project.scripts]
 statworkbench = "statworkbench.main:main"

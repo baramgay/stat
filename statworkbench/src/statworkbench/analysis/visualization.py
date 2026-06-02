@@ -281,10 +281,12 @@ class VisualizationEngine:
                     else:
                         sns.barplot(data=df, x=x, y=y, hue=hue, ax=ax, palette=self.COLOR_PALETTE)
                 else:
+                    # seaborn 0.14+: palette 사용 시 hue 필수 → 범주축 변수를 hue로 지정하고
+                    # 범례는 숨겨 기존(범주별 색상) 외형을 유지한다.
                     if orientation == "horizontal":
-                        sns.barplot(data=df, y=x, x=y, ax=ax, palette=self.COLOR_PALETTE)
+                        sns.barplot(data=df, y=x, x=y, hue=x, legend=False, ax=ax, palette=self.COLOR_PALETTE)
                     else:
-                        sns.barplot(data=df, x=x, y=y, ax=ax, palette=self.COLOR_PALETTE)
+                        sns.barplot(data=df, x=x, y=y, hue=x, legend=False, ax=ax, palette=self.COLOR_PALETTE)
             else:
                 counts = df[x].value_counts()
                 if orientation == "horizontal":

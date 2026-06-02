@@ -104,7 +104,7 @@ def decision_tree_classifier(
     if len(data) == 0:
         raise ValueError("유효한 데이터가 없습니다.")
 
-    X = data[features]
+    X = data[features].copy()  # 슬라이스 뷰가 아닌 복사본 — 아래 컬럼 인코딩 시 SettingWithCopy 방지
     y = data[target]
 
     # 범주형 변수 인코딩

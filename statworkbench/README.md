@@ -14,7 +14,7 @@
 
 Unlike spreadsheet tools, StatWorkbench is **variable-centric**. Each column carries rich metadata (measurement scale, value labels, missing rules, role) that enables the system to recommend appropriate analyses and prevent statistical mistakes.
 
-## Features (v3.0.0 — 37 Analysis Modules)
+## Features (v3.3.1 — 27 Analysis Modules)
 
 ### Data Management
 - **Data Import**: CSV, TXT, TSV, Excel (.xlsx), SPSS (.sav), Clipboard
@@ -111,8 +111,8 @@ statworkbench/
 ├── src/statworkbench/
 │   ├── core/           # Dataset, VariableMeta, enums, validation
 │   ├── io/             # CSV/Excel/SPSS import, project storage
-│   ├── analysis/       # 37 statistical analysis modules
-│   ├── ui/             # PySide6 GUI (43 dialogs, main window)
+│   ├── analysis/       # statistical analysis modules
+│   ├── ui/             # PySide6 GUI (dialogs, main window)
 │   ├── syntax/         # Syntax logging and execution
 │   └── viz_bridge/     # Visualization bridge
 ├── tests/
