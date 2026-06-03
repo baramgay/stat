@@ -8,6 +8,8 @@ on:
 # PyPI Trusted Publishing(OIDC) 사용 — API 토큰 시크릿 불필요.
 # 사전 설정(1회): PyPI 프로젝트 → Publishing → Add a new pending publisher
 #   Owner=baramgay, Repository=stat, Workflow=release.yml, Environment=pypi
+# 게시 활성화: 위 설정 후 저장소 Variables에 PYPI_PUBLISH=true 추가.
+#   미설정 시 빌드만 수행하고 게시는 건너뛴다(릴리스 워크플로 정상 통과).
 jobs:
   build-and-publish:
     name: Build & Publish to PyPI
@@ -33,6 +35,7 @@ jobs:
           python -m build
 
       - name: Publish to PyPI (Trusted Publishing)
+        if: ${{ vars.PYPI_PUBLISH == 'true' }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: statworkbench/dist/
