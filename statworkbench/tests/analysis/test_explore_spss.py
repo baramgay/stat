@@ -119,6 +119,12 @@ class TestDescriptivesAccuracySPSS:
         """분석 결과가 None이 아님."""
         assert result is not None
 
+    def test_empty_variables_warns(self, dataset):
+        """분석 변수 미지정 시 빈 테이블 대신 명확한 경고를 반환한다."""
+        res = run_analysis(dataset, {"variables": {"target": []}, "options": {}})
+        assert res.tables == []
+        assert any("지정되지 않았" in w for w in res.warnings)
+
     def test_descriptives_table_exists(self, result):
         """'Descriptives' 테이블 존재 확인."""
         titles = [t.title for t in result.tables]

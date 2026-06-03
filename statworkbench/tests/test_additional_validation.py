@@ -679,7 +679,7 @@ class TestExtremeValues:
 
         df = pd.DataFrame({"x": [1e15, 2e15, 3e15, 4e15, 5e15]})
         ds = _ds(df)
-        spec = {"variables": {"variables": ["x"]}, "missing_policy": MissingPolicy.LISTWISE}
+        spec = {"variables": {"scale": ["x"]}, "missing_policy": MissingPolicy.LISTWISE}
         result = run_analysis(ds, spec)
         assert len(result.tables) >= 1
 
@@ -689,7 +689,7 @@ class TestExtremeValues:
 
         df = pd.DataFrame({"x": [1e-15, 2e-15, 3e-15, 4e-15, 5e-15]})
         ds = _ds(df)
-        spec = {"variables": {"variables": ["x"]}, "missing_policy": MissingPolicy.LISTWISE}
+        spec = {"variables": {"scale": ["x"]}, "missing_policy": MissingPolicy.LISTWISE}
         result = run_analysis(ds, spec)
         assert len(result.tables) >= 1
 
@@ -699,7 +699,7 @@ class TestExtremeValues:
 
         df = pd.DataFrame({"x": [1.0, float("inf"), 3.0, 4.0, 5.0]})
         ds = _ds(df)
-        spec = {"variables": {"variables": ["x"]}, "missing_policy": MissingPolicy.LISTWISE}
+        spec = {"variables": {"scale": ["x"]}, "missing_policy": MissingPolicy.LISTWISE}
         try:
             result = run_analysis(ds, spec)
             assert result is not None
@@ -810,7 +810,7 @@ class TestKoreanVariableNames:
             "소득": [200, 250, 300, 350, 400, 450, 500, 550],
         })
         ds = _ds(df, {"나이": MeasureType.SCALE, "소득": MeasureType.SCALE})
-        spec = {"variables": {"variables": ["나이", "소득"]}, "missing_policy": MissingPolicy.LISTWISE}
+        spec = {"variables": {"scale": ["나이", "소득"]}, "missing_policy": MissingPolicy.LISTWISE}
         result = run_analysis(ds, spec)
         assert len(result.tables) >= 1
 

@@ -901,6 +901,8 @@ class TestAnalysisErrorRecovery:
         ds = self._simple_ds()
         res = desc_run(ds, {"variables": {"scale": []}, "confidence_level": 0.95})
         assert res is not None
+        assert res.tables == []
+        assert any("지정되지 않았" in w for w in res.warnings)
 
     def test_regression_n_less_than_predictors(self):
         """N < 예측변수 수 회귀: 경고 반환."""
