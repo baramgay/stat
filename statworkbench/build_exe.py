@@ -13,34 +13,16 @@ def build_executable():
     
     # 프로젝트 루트
     project_root = os.path.dirname(os.path.abspath(__file__))
-    src_dir = os.path.join(project_root, "src")
-    
-    # PyInstaller 명령 구성
+
+    # StatWorkbench.spec를 사용한다 — spec이 collect_submodules로 전체 분석 모듈과
+    # 외부 의존성(scipy/statsmodels/lifelines/pyreadstat/wordcloud/docx 등)을 누락 없이
+    # 번들한다. 수동 --hidden-import 나열 방식은 레지스트리 동적 import를 놓쳐 불완전했다.
+    spec_path = os.path.join(project_root, "StatWorkbench.spec")
     cmd = [
         sys.executable, "-m", "PyInstaller",
-        "--name", "StatWorkbench",
-        "--onefile",
-        "--windowed",
+        spec_path,
         "--clean",
         "--noconfirm",
-        # 아이콘 (기본)
-        "--icon", "NONE",
-        # 숨김 파일 임포트
-        "--hidden-import", "pandas",
-        "--hidden-import", "numpy",
-        "--hidden-import", "scipy",
-        "--hidden-import", "statsmodels",
-        "--hidden-import", "openpyxl",
-        "--hidden-import", "pydantic",
-        "--hidden-import", "tabulate",
-        "--hidden-import", "PySide6.QtCore",
-        "--hidden-import", "PySide6.QtGui",
-        "--hidden-import", "PySide6.QtWidgets",
-        # 데이터 파일 포함
-        "--add-data", f"{src_dir}/statworkbench/ui/theme.py:statworkbench/ui",
-        "--add-data", f"{src_dir}/statworkbench/ui/icons.py:statworkbench/ui",
-        # 메인 스크립트
-        os.path.join(src_dir, "statworkbench", "main.py"),
     ]
     
     print("=" * 60)
@@ -56,11 +38,11 @@ def build_executable():
         print("=" * 60)
         print("빌드 완료!")
         print("=" * 60)
-        print(f"실행 파일 위치: {project_root}/dist/StatWorkbench.exe")
+        print(f"실행 파일 위치: {project_root}/dist/StatWorkbench/StatWorkbench.exe")
         print()
         print("실행 방법:")
-        print("  Windows: dist/StatWorkbench.exe")
-        print("  WSL:     wine dist/StatWorkbench.exe")
+        print("  Windows: dist/StatWorkbench/StatWorkbench.exe")
+        print("  배포:    dist/StatWorkbench 폴더 전체를 배포")
     else:
         print()
         print("=" * 60)
