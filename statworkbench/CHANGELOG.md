@@ -26,6 +26,25 @@
 - 추가 검증 테스트 268개(Round 1~4) 보강 — 전체 4420 통과, 커버리지 100% 유지
 - 저장소 정리: 임시 산출물·캐시 제거, 개발 추적 문서를 `docs/`·`_archive/`로 재배치
 
+### 품질·배포 (추가)
+
+- **타입 안전성**: mypy 399건 → 0(Success). 핵심 로직 13건 실수정, UI(PySide6 Qt
+  스텁 한계)는 검사 제외. `continue-on-error` 제거로 하드 게이트 승격
+- **입력 일관성**: normality·frequencies·descriptive·explore가 변수 미지정 시
+  무경고 빈 테이블 반환하던 갭 수정 — 전 분석 일관된 경고 반환
+- **데이터 입력 최적화**: 대량 붙여넣기 `SPSSGridModel.batch_update()` 도입으로
+  셀별 전체 재구축 신호를 1회로 합쳐 7× 가속(O(n²)→O(n))
+- **CI 현행화**: 액션 Node 24 최신화(checkout v6·setup-python v6·upload-artifact v7),
+  PySide6 헤드리스 시스템 의존성(libegl1 등) 보강, 버전 취약 테스트
+  (scheffe·trapezoid·KM 중앙값) 안정화
+- **의존성 완결**: tabulate·pyreadstat·wordcloud·python-docx 선언 누락 해소
+- **경고 정리**: ml_engine SettingWithCopy, visualization seaborn FutureWarning 제거
+- **Windows 실행파일**: PyInstaller spec을 `collect_submodules`로 완결화(139개 모듈),
+  빌드·스모크 검증 통과, 용량 최적화 1.1GB → 428MB(61% 감축)
+- **최종 검증**: 전 기능 영역 종단 28/28 + 단위 4483 통과, 분석 정확성
+  scipy/statsmodels/lifelines 교차검증 일치
+- PyPI 메타데이터(keywords·urls·classifier) 보강, release 워크플로 OIDC 전환
+
 ---
 
 ## [v3.3.0] - 2026-05-29
