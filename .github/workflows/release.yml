@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read   # checkout에 필요 (permissions 선언 시 미명시 권한은 none이 됨)
       id-token: write  # OIDC 신뢰 게시에 필요
     defaults:
       run:
