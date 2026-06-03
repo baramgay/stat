@@ -45,6 +45,17 @@ class TestFrequencies:
         total_freq = df["Frequency"].sum()
         assert total_freq == 7  # 8 rows minus 1 NaN
 
+    def test_empty_variables_warns(self, freq_dataset):
+        """분석 변수 미지정 시 빈 테이블 대신 명확한 경고를 반환한다."""
+        spec = {
+            "variables": {"target": []},
+            "options": {},
+            "missing_policy": MissingPolicy.LISTWISE,
+        }
+        result = run_analysis(freq_dataset, spec)
+        assert result.tables == []
+        assert any("지정되지 않았" in w for w in result.warnings)
+
     def test_multiple_variables(self, freq_dataset):
         """Test frequencies with multiple variables."""
         spec = {
