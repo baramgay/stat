@@ -46,3 +46,6 @@ coverage.xml
 *.tmp
 *.bak
 *.log
+
+# 아카이브 바이너리 (저장소 추적 제외)
+_archive/*.skill

@@ -5,10 +5,16 @@ on:
     tags:
       - "v*.*.*"
 
+# PyPI Trusted Publishing(OIDC) 사용 — API 토큰 시크릿 불필요.
+# 사전 설정(1회): PyPI 프로젝트 → Publishing → Add a new pending publisher
+#   Owner=baramgay, Repository=stat, Workflow=release.yml, Environment=pypi
 jobs:
   build-and-publish:
     name: Build & Publish to PyPI
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # OIDC 신뢰 게시에 필요
     defaults:
       run:
         working-directory: statworkbench
@@ -21,15 +27,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install build tools
-        run: |
-          pip install --upgrade pip build twine
-
       - name: Build distributions
-        run: python -m build
+        run: |
+          pip install --upgrade pip build
+          python -m build
 
-      - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload dist/*
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: statworkbench/dist/
