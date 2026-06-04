@@ -1,4 +1,4 @@
-# SPEC.md — StatWorkbench
+# SPEC.md — NuriStat
 
 > HERMES.md 기반 상세 명세. 모든 에이전트는 이 문서를 single source of truth로 따른다.
 
@@ -6,7 +6,7 @@
 
 ## 1. 프로젝트 개요
 
-**제품명:** StatWorkbench  
+**제품명:** NuriStat  
 **유형:** 데스크톱 통계 패키지 (PySide6 기반)  
 **목표:** SPSS/MedCalc 스타일의 메뉴 기반 통계 분석 도구
 
@@ -30,11 +30,11 @@
 ## 3. 프로젝트 구조
 
 ```
-statworkbench/
+nuristat/
 ├── pyproject.toml
 ├── README.md
 ├── HERMES.md
-├── src/statworkbench/
+├── src/nuristat/
 │   ├── __init__.py
 │   ├── app.py              # QApplication 진입점
 │   ├── main.py             # CLI 진입점

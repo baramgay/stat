@@ -1,0 +1,17 @@
+"""Local conftest for core tests - overrides parent conftest."""
+
+import sys
+from pathlib import Path
+
+# Ensure src/ is on the path
+src_path = str(Path(__file__).parent.parent.parent / "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+import pytest
+import pandas as pd
+import numpy as np
+
+from nuristat.core.dataset import Dataset
+from nuristat.core.variable import VariableMeta
+from nuristat.core.typing import StorageType, MeasureType, Role

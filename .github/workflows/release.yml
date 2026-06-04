@@ -20,7 +20,7 @@ jobs:
       id-token: write  # OIDC 신뢰 게시에 필요
     defaults:
       run:
-        working-directory: statworkbench
+        working-directory: nuristat
 
     steps:
       - uses: actions/checkout@v6
@@ -39,4 +39,4 @@ jobs:
         if: ${{ vars.PYPI_PUBLISH == 'true' }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: statworkbench/dist/
+          packages-dir: nuristat/dist/

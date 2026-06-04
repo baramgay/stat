@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: statworkbench
+        working-directory: nuristat
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +45,7 @@ jobs:
         run: ruff check src/
 
       - name: Type check (mypy)
-        run: mypy src/statworkbench/ --ignore-missing-imports
+        run: mypy src/nuristat/ --ignore-missing-imports
 
       - name: Run tests (headless)
         env:
@@ -56,7 +56,7 @@ jobs:
           sleep 1
           python -m pytest tests/ \
             --tb=short -q \
-            --cov=statworkbench \
+            --cov=nuristat \
             --cov-report=xml \
             --cov-report=term-missing
 
@@ -64,7 +64,7 @@ jobs:
         if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v6
         with:
-          files: ./statworkbench/coverage.xml
+          files: ./nuristat/coverage.xml
           flags: unittests
           fail_ci_if_error: false
 
@@ -74,7 +74,7 @@ jobs:
     needs: test
     defaults:
       run:
-        working-directory: statworkbench
+        working-directory: nuristat
 
     steps:
       - uses: actions/checkout@v6
@@ -93,5 +93,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: dist-wheel
-          path: statworkbench/dist/
+          path: nuristat/dist/
           retention-days: 7

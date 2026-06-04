@@ -1,6 +1,6 @@
 # HERMES.md — 메뉴 기반 스프레드시트형 통계 패키지 개발 지시서
 
-> **프로젝트 코드명:** `StatWorkbench`  
+> **프로젝트 코드명:** `NuriStat`  
 > **목표 제품:** SPSS/MedCalc처럼 데이터를 스프레드시트 방식으로 입력·관리하고, 메뉴 기반으로 통계분석을 실행할 수 있는 데스크톱 통계 패키지  
 > **개발 에이전트:** Hermes Agent  
 > **작성일:** 2026-05-17  
@@ -43,14 +43,14 @@ Hermes Agent는 다음 순서를 우선한다.
 
 ### 1.1 한 문장 정의
 
-`StatWorkbench`는 연구자, 임상의, 데이터 분석가가 코드를 직접 작성하지 않고도 데이터를 불러오고 변수 특성을 정의한 뒤, 변수의 척도와 역할에 맞는 통계분석을 메뉴 방식으로 실행할 수 있는 데스크톱 통계 패키지다.
+`NuriStat`는 연구자, 임상의, 데이터 분석가가 코드를 직접 작성하지 않고도 데이터를 불러오고 변수 특성을 정의한 뒤, 변수의 척도와 역할에 맞는 통계분석을 메뉴 방식으로 실행할 수 있는 데스크톱 통계 패키지다.
 
 ### 1.2 핵심 차별점
 
 이 제품은 단순 스프레드시트가 아니다.
 
 일반 스프레드시트는 셀 중심이다.  
-StatWorkbench는 **변수 중심**이다.
+NuriStat는 **변수 중심**이다.
 
 즉, 각 열은 단순 문자열/숫자 열이 아니라 다음 정보를 가진 통계 변수다.
 
@@ -215,12 +215,12 @@ Python 중심으로 구현한다.
 Hermes Agent는 아래 구조를 기본으로 생성한다.
 
 ```text
-statworkbench/
+nuristat/
 ├── HERMES.md
 ├── README.md
 ├── pyproject.toml
 ├── src/
-│   └── statworkbench/
+│   └── nuristat/
 │       ├── __init__.py
 │       ├── app.py
 │       ├── main.py
@@ -861,8 +861,8 @@ UI Dialog → AnalysisSpec → AnalysisPlugin.run() → AnalysisResult → Outpu
 
 ```python
 from typing import Protocol
-from statworkbench.core.dataset import Dataset
-from statworkbench.analysis.result import AnalysisResult
+from nuristat.core.dataset import Dataset
+from nuristat.analysis.result import AnalysisResult
 
 class AnalysisPlugin(Protocol):
     id: str
@@ -1470,7 +1470,7 @@ class SyntaxCommand(BaseModel):
 
 기본 프로젝트 확장자는 `.swb`로 한다.
 
-`StatWorkbench Project Bundle`의 약자다.
+`NuriStat Project Bundle`의 약자다.
 
 ### 15.2 내부 구조
 
@@ -1812,7 +1812,7 @@ Hermes Agent는 다음 기준을 만족하지 못하면 작업을 완료로 간�
 
 완료 기준:
 
-- `python -m statworkbench` 실행 가능
+- `python -m nuristat` 실행 가능
 - 빈 MainWindow 표시
 - `pytest` 통과
 
@@ -1982,7 +1982,7 @@ Hermes Agent에게 처음 줄 수 있는 지시:
 우선 Phase 0과 Phase 1을 구현하라.
 
 요구사항:
-1. pyproject.toml을 만들고 src/statworkbench 패키지 구조를 생성한다.
+1. pyproject.toml을 만들고 src/nuristat 패키지 구조를 생성한다.
 2. PySide6 기반으로 빈 MainWindow가 실행되게 한다.
 3. core/variable.py와 core/dataset.py에 VariableMeta, Dataset 모델을 구현한다.
 4. 변수명 검증, 측정척도 enum, 저장 타입 enum, 결측값 규칙을 구현한다.
@@ -2041,13 +2041,13 @@ Hermes Agent는 초기 구현 시 다음 형태를 기준으로 작성한다.
 
 ```toml
 [project]
-name = "statworkbench"
+name = "nuristat"
 version = "0.1.0"
 description = "Spreadsheet-style statistical analysis workbench with variable metadata management."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-  { name = "StatWorkbench Contributors" }
+  { name = "NuriStat Contributors" }
 ]
 dependencies = [
   "numpy>=1.26",
@@ -2076,7 +2076,7 @@ viz = [
 ]
 
 [project.scripts]
-statworkbench = "statworkbench.main:main"
+nuristat = "nuristat.main:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -2743,22 +2743,22 @@ GUI가 멈추지 않도록 분석 실행은 worker로 처리한다.
 ### 38.1 예외 계층
 
 ```python
-class StatWorkbenchError(Exception):
+class NuriStatError(Exception):
     pass
 
-class DataImportError(StatWorkbenchError):
+class DataImportError(NuriStatError):
     pass
 
-class VariableValidationError(StatWorkbenchError):
+class VariableValidationError(NuriStatError):
     pass
 
-class AnalysisValidationError(StatWorkbenchError):
+class AnalysisValidationError(NuriStatError):
     pass
 
-class AnalysisExecutionError(StatWorkbenchError):
+class AnalysisExecutionError(NuriStatError):
     pass
 
-class ProjectStorageError(StatWorkbenchError):
+class ProjectStorageError(NuriStatError):
     pass
 ```
 
@@ -2828,8 +2828,8 @@ Phase 2 기준:
 
 패키징:
 
-- 개발 실행: `python -m statworkbench`
-- CLI 실행: `statworkbench`
+- 개발 실행: `python -m nuristat`
+- CLI 실행: `nuristat`
 - 데스크톱 배포: PyInstaller
 - Windows/macOS/Linux 빌드 스크립트는 Phase 3
 
@@ -2924,7 +2924,7 @@ Hermes Agent가 이 파일을 읽고 바로 시작한다면, 다음 작업부터
 
 - `pyproject.toml`
 - `README.md`
-- `src/statworkbench`
+- `src/nuristat`
 - `tests`
 - `examples`
 - `docs`
