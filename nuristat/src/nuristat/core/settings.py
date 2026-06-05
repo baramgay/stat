@@ -65,6 +65,17 @@ class SettingsManager:
         val = self._settings.value("theme/dark_mode", False)
         return bool(val) if not isinstance(val, bool) else val
 
+    # ── 분석 결과 출력 언어 ────────────────────────────────────────────────
+
+    def save_language(self, lang: str) -> None:
+        """분석 결과 출력 언어 저장 ("ko" | "en")."""
+        self._settings.setValue("output/language", "ko" if str(lang).lower().startswith("ko") else "en")
+
+    def load_language(self) -> str:
+        """저장된 출력 언어 반환 (기본 한국어)."""
+        val = self._settings.value("output/language", "ko")
+        return "ko" if str(val).lower().startswith("ko") else "en"
+
     # ── 최근 파일 ──────────────────────────────────────────────────────────
 
     def add_recent_file(self, path: str) -> None:

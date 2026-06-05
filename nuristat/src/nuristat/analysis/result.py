@@ -9,6 +9,8 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
+from nuristat.core import i18n
+
 
 class ResultTable(BaseModel):
     """A single table inside an analysis result.
@@ -59,7 +61,7 @@ class ResultTable(BaseModel):
                 b64 = base64.b64encode(img_bytes).decode("utf-8")
                 return (
                     f'<div style="margin:8px 0;">'
-                    f'<h4 style="margin:4px 0;font-size:13px;">{self.title}</h4>'
+                    f'<h4 style="margin:4px 0;font-size:13px;">{i18n.tr_title(self.title)}</h4>'
                     f'<img src="data:image/png;base64,{b64}" '
                     f'style="max-width:100%;border:1px solid #ddd;border-radius:4px;"/>'
                     f'</div>'
@@ -68,13 +70,15 @@ class ResultTable(BaseModel):
                 pass
             return f'<p><em>[이미지 렌더링 실패: {self.title}]</em></p>'
 
+        # 출력 언어에 따라 제목·컬럼·라벨 번역 (내부 데이터는 불변, 표시용 사본만)
+        disp = i18n.tr_frame(self.dataframe)
         html = '<table class="result-table">\n'
-        html += f"<caption>{self.title}</caption>\n"
-        html += self.dataframe.to_html(index=True, border=0) or ""
+        html += f"<caption>{i18n.tr_title(self.title)}</caption>\n"
+        html += disp.to_html(index=True, border=0) or ""
         if self.footnotes:
             html += '<tfoot>\n'
             for note in self.footnotes:
-                html += f"<tr><td colspan='{len(self.dataframe.columns)}'>"
+                html += f"<tr><td colspan='{len(disp.columns)}'>"
                 html += f"<small>{note}</small></td></tr>\n"
             html += '</tfoot>\n'
         html += '</table>'
@@ -82,8 +86,8 @@ class ResultTable(BaseModel):
 
     def to_markdown(self) -> str:
         """Render the table as Markdown."""
-        md = f"### {self.title}\n\n"
-        md += self.dataframe.to_markdown(index=True) or ""
+        md = f"### {i18n.tr_title(self.title)}\n\n"
+        md += i18n.tr_frame(self.dataframe).to_markdown(index=True) or ""
         if self.footnotes:
             md += "\n\n"
             for note in self.footnotes:

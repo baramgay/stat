@@ -61,6 +61,10 @@ class MainWindow(QMainWindow):
         # 설정 관리자
         self._settings = SettingsManager()
 
+        # 분석 결과 출력 언어 적용 (저장된 설정, 기본 한국어)
+        from nuristat.core import i18n as _i18n
+        _i18n.set_language(self._settings.load_language())
+
         # 결과 창 (단일 인스턴스)
         self._output_window: OutputWindow | None = None
 
@@ -276,6 +280,21 @@ class MainWindow(QMainWindow):
         self._theme_action.setToolTip("다크 모드를 전환합니다 (Ctrl+Shift+D)")
         self._theme_action.triggered.connect(self._toggle_theme)
         view_menu.addAction(self._theme_action)
+
+        # 분석 결과 출력 언어 (한국어/English)
+        from PySide6.QtGui import QActionGroup
+        lang_menu = view_menu.addMenu("🌐 분석 결과 언어")
+        self._lang_group = QActionGroup(self)
+        cur_lang = self._settings.load_language()
+        self._lang_ko_action = QAction("한국어", self, checkable=True)
+        self._lang_en_action = QAction("English", self, checkable=True)
+        self._lang_ko_action.setChecked(cur_lang == "ko")
+        self._lang_en_action.setChecked(cur_lang == "en")
+        self._lang_ko_action.triggered.connect(lambda: self._set_output_language("ko"))
+        self._lang_en_action.triggered.connect(lambda: self._set_output_language("en"))
+        for a in (self._lang_ko_action, self._lang_en_action):
+            self._lang_group.addAction(a)
+            lang_menu.addAction(a)
 
         view_menu.addSeparator()
 
@@ -691,6 +710,19 @@ class MainWindow(QMainWindow):
         self._dark_mode = not self._dark_mode
         self._theme_action.setChecked(self._dark_mode)
         self._apply_theme()
+
+    def _set_output_language(self, lang: str) -> None:
+        """분석 결과 출력 언어 전환 — 설정 저장 + 즉시 적용.
+
+        이후 실행하는 분석 결과부터 선택 언어로 표시된다(내부 데이터는 불변).
+        """
+        from nuristat.core import i18n
+        i18n.set_language(lang)
+        self._settings.save_language(lang)
+        self.statusbar.showMessage(
+            "분석 결과 언어: 한국어 (이후 분석부터 적용)" if lang == "ko"
+            else "분석 결과 언어: English (applies to next analysis)"
+        )
 
     def _load_settings(self) -> None:
         """저장된 설정 불러오기."""

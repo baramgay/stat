@@ -28,6 +28,19 @@ import numpy as np
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def _reset_output_language():
+    """매 테스트마다 분석 결과 출력 언어를 영어로 리셋 — 테스트 격리.
+
+    앱은 기본 한국어지만, MainWindow 생성 등으로 i18n 전역이 'ko'로 바뀌어
+    다른 테스트(영문 출력 단정)에 누수되지 않도록 고정한다.
+    """
+    from nuristat.core import i18n
+    i18n.set_language("en")
+    yield
+    i18n.set_language("en")
+
+
 @pytest.fixture
 def empty_dataset():
     """Return an empty dataset."""
