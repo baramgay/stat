@@ -5,6 +5,29 @@
 
 ---
 
+## [v3.3.2] - 2026-06-05
+
+### 변경 (Rebranding)
+
+- **패키지 전면 리네임: StatWorkbench → 누리스탯(NuriStat)** — 공공·공무원 활용
+  통계패키지 정체성에 맞춘 리브랜딩. 폴더·import(`nuristat.*`)·pyproject·
+  PyInstaller spec·CI/release 워크플로·문서·표시명 전부 통일. 창 제목 "누리스탯".
+  (BREAKING: import 경로 `statworkbench.*` → `nuristat.*`)
+
+### 수정 (Bug Fixes)
+
+- **데이터 입력 키 입력 동작**: 셀에서 키 입력 시 ① 숫자 입력 후 다음 키가 기존
+  값을 대체하던 문제, ② 텍스트가 편집모드에서만 입력되던 문제 수정. Qt 표준
+  `AnyKeyPressed` 편집 트리거로 전환해 숫자·텍스트 모두 즉시 입력·누적되도록 함
+  (편집기 포커스 미전달하던 커스텀 처리 제거)
+
+### 검증
+
+- 전체 4485 passed·커버리지 100%, ruff·mypy(하드게이트)·CI/release 워크플로 그린
+- UI 키 입력 테스트 보강(편집기 포커스 보유·누적·텍스트 즉시입력)
+
+---
+
 ## [v3.3.1] - 2026-06-02
 
 ### 수정 (Bug Fixes)
