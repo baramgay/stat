@@ -1,5 +1,5 @@
 # ============================================================
-# StatWorkbench R Reference Validation Script
+# NuriStat R Reference Validation Script
 # 동일 고정 데이터로 R 기준값 산출
 # ============================================================
 
