@@ -114,6 +114,34 @@ class TestImmediateEntry:
         QTest.keyClick(view.table, Qt.Key.Key_Escape)
         _wait(30)
 
+    def test_editor_has_focus_after_keystroke(self, view):
+        """첫 키 입력 후 편집기가 포커스를 가져야 함 — 안 그러면 다음 키가 값을 대체(보고된 버그)."""
+        _select_cell(view, 0, 0)
+        _type_char(view, '1')
+
+        editor = _current_editor(view)
+        assert editor is not None
+        assert QApplication.focusWidget() is editor, (
+            f"편집기가 포커스를 가져야 함, got {type(QApplication.focusWidget()).__name__}"
+        )
+        # 포커스된 편집기에 후속 입력 → 누적(대체 아님)
+        QTest.keyClick(QApplication.focusWidget(), Qt.Key.Key_2)
+        QApplication.processEvents()
+        assert editor.text() == '12', f"누적되어 '12'여야 함(기존 숫자 대체 버그), got '{editor.text()}'"
+        QTest.keyClick(editor, Qt.Key.Key_Escape)
+        QApplication.processEvents()
+
+    def test_text_key_opens_editor(self, view):
+        """텍스트(문자)도 숫자처럼 키 입력 시 즉시 편집 시작."""
+        _select_cell(view, 0, 0)
+        _type_char(view, 'a')
+
+        editor = _current_editor(view)
+        assert editor is not None, "문자 입력 시 편집기가 즉시 열려야 함"
+        assert editor.text() == 'a', f"편집기에 'a' 표시되어야 함, got '{editor.text()}'"
+        QTest.keyClick(editor, Qt.Key.Key_Escape)
+        QApplication.processEvents()
+
 
 # ─────────────────────────────────────────────────────────
 # 2. 커밋 + 네비게이션

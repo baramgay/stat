@@ -116,10 +116,13 @@ class DataView(QWidget):
         self.table.setItemDelegate(self.cell_delegate)
         self.cell_delegate.closeEditor.connect(self._on_editor_closed)
 
-        # 편집 트리거: 더블클릭, F2만 허용 — 직접타이핑은 eventFilter에서 처리
+        # 편집 트리거: 더블클릭·F2·임의 키 입력. AnyKeyPressed가 키 입력 시 편집기를
+        # 열고 포커스를 주며 첫 글자를 전달 — 숫자·텍스트 모두 즉시 입력되고 후속 글자가
+        # 올바르게 누적된다(커스텀 처리는 포커스 미전달로 두 번째 글자가 값을 대체했음).
         self.table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.AnyKeyPressed
         )
 
         # 탭 네비게이션 활성화
@@ -277,16 +280,8 @@ class DataView(QWidget):
             if key == Qt.Key.Key_Right:
                 return self._navigate(1, 0)
 
-            # 출력 가능한 문자: 즉시 편집 시작 (기존 값 지우고 입력)
-            if (key_event.text()
-                    and key_event.text().isprintable()
-                    and not (modifiers & Qt.KeyboardModifier.ControlModifier)
-                    and not (modifiers & Qt.KeyboardModifier.AltModifier)):
-                current = self.table.currentIndex()
-                if current.isValid():
-                    self.cell_delegate.set_initial_text(key_event.text())
-                    self.table.edit(current)
-                return True
+            # 출력 가능한 문자: AnyKeyPressed 편집 트리거가 편집 시작·포커스·첫 글자
+            # 전달을 처리하도록 가로채지 않고 통과시킨다 (숫자·텍스트 모두 누적 입력).
 
         return super().eventFilter(obj, event)
 
