@@ -323,6 +323,18 @@ class SPSSGridModel(QAbstractTableModel):
             return str(value)
         return str(value)
 
+    def value_labels_for_col(self, col: int) -> dict | None:
+        """해당 열 변수의 값 라벨 사전을 반환 (없으면 None).
+
+        데이터 셀 편집기가 범주형 변수에 드롭다운(코드=라벨)을 제공하는 데 사용.
+        """
+        if col < 0 or col >= len(self._dataframe.columns):
+            return None
+        col_name = self._dataframe.columns[col]
+        var = self._variables.get(col_name)
+        labels = getattr(var, "value_labels", None) if var is not None else None
+        return labels if labels else None
+
     def _get_value_label(self, value: Any, col: int) -> str | None:
         """값 라벨 모드에서 표시할 텍스트 반환 (없으면 None)."""
         if col >= len(self._dataframe.columns):

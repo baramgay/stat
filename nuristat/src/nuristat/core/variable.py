@@ -37,10 +37,13 @@ class VariableMeta:
 
     # Display
     width: int = 8
-    """Display width."""
+    """Storage width (number of characters/digits, SPSS 'Width')."""
 
     decimals: int = 2
     """Number of decimal places to display."""
+
+    column_width: int = 8
+    """Display column width in the data grid (SPSS 'Columns')."""
 
     align: str = "left"
     """Alignment: left, right, center."""
@@ -137,6 +140,7 @@ class VariableMeta:
             "role": self.role.value,
             "width": self.width,
             "decimals": self.decimals,
+            "column_width": self.column_width,
             "align": self.align,
             "value_labels": {
                 str(k): v for k, v in self.value_labels.items()
@@ -171,6 +175,7 @@ class VariableMeta:
             role=Role(data.get("role", "none")),
             width=data.get("width", 8),
             decimals=data.get("decimals", 2),
+            column_width=data.get("column_width", data.get("width", 8)),
             align=data.get("align", "left"),
             value_labels=data.get("value_labels", {}),
             missing_values=data.get("missing_values", []),
