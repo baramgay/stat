@@ -4,7 +4,7 @@
 
 [![Tests](https://img.shields.io/badge/tests-4420%20passed-brightgreen)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](tests/)
-[![Version](https://img.shields.io/badge/version-3.3.2-blue)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-3.4.0-blue)](pyproject.toml)
 
 ## Overview
 
