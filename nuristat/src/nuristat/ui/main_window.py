@@ -1039,8 +1039,21 @@ class MainWindow(QMainWindow):
 
     # ── 편집 메뉴 ───────────────────────────────────────────────────────────
 
+    def _grid_focused(self) -> bool:
+        """현재 포커스가 데이터 뷰 그리드(또는 그 뷰포트)에 있는지."""
+        if not hasattr(self, 'data_view'):
+            return False
+        table = getattr(self.data_view, 'table', None)
+        if table is None:
+            return False
+        focused = QApplication.focusWidget()
+        return focused is table or focused is table.viewport()
+
     def _edit_undo(self) -> None:
-        """실행 취소."""
+        """실행 취소 — 데이터 그리드 우선, 그 외 포커스 위젯."""
+        if self._grid_focused():
+            self.data_view.undo()
+            return
         focused = QApplication.focusWidget()
         if focused is self.syntax_editor or (hasattr(focused, 'parent') and focused is getattr(self, 'syntax_editor', None)):
             self.syntax_editor.undo()
@@ -1048,7 +1061,10 @@ class MainWindow(QMainWindow):
             focused.undo()
 
     def _edit_redo(self) -> None:
-        """다시 실행."""
+        """다시 실행 — 데이터 그리드 우선."""
+        if self._grid_focused():
+            self.data_view.redo()
+            return
         focused = QApplication.focusWidget()
         if focused is self.syntax_editor or (hasattr(focused, 'parent') and focused is getattr(self, 'syntax_editor', None)):
             self.syntax_editor.redo()
@@ -1056,19 +1072,28 @@ class MainWindow(QMainWindow):
             focused.redo()
 
     def _edit_cut(self) -> None:
-        """잘라내기."""
+        """잘라내기 — 데이터 그리드 우선."""
+        if self._grid_focused():
+            self.data_view.cut_selection()
+            return
         current_widget = QApplication.focusWidget()
         if hasattr(current_widget, 'cut'):
             current_widget.cut()
 
     def _edit_copy(self) -> None:
-        """복사."""
+        """복사 — 데이터 그리드 우선."""
+        if self._grid_focused():
+            self.data_view._copy_selection()
+            return
         current_widget = QApplication.focusWidget()
         if hasattr(current_widget, 'copy'):
             current_widget.copy()
 
     def _edit_paste(self) -> None:
-        """붙여넣기."""
+        """붙여넣기 — 데이터 그리드 우선."""
+        if self._grid_focused():
+            self.data_view._paste_selection()
+            return
         current_widget = QApplication.focusWidget()
         if hasattr(current_widget, 'paste'):
             current_widget.paste()

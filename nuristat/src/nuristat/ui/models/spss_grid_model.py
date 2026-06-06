@@ -9,6 +9,7 @@ Virtual grid: cells exist conceptually but only store data when actually entered
 
 from __future__ import annotations
 
+import copy
 import logging
 from contextlib import contextmanager
 from typing import Any
@@ -153,8 +154,69 @@ class SPSSGridModel(QAbstractTableModel):
         self._batch_min_row = self._batch_min_col = -1
         self._batch_max_row = self._batch_max_col = -1
 
+        # 실행 취소/다시 실행 스택 (SPSS 데이터 편집기 동등 기능)
+        #   사용자 액션 1건당 스냅샷 1개를 push한다. 대량 붙여넣기/채우기는
+        #   batch_update 진입 시 1회만 push되어 한 번에 되돌려진다.
+        self._undo_stack: list[tuple] = []
+        self._redo_stack: list[tuple] = []
+        self._undo_limit: int = 50
+
     def _invalidate_col_cache(self) -> None:
         self._numeric_col_cache.clear()
+
+    # ── 실행 취소 / 다시 실행 ────────────────────────────────────────────────
+
+    def _snapshot(self) -> tuple:
+        """현재 상태를 되돌릴 수 있는 스냅샷으로 캡처."""
+        return (
+            self._dataframe.copy(deep=True),
+            copy.deepcopy(self._variables),
+            self._last_data_row,
+            self._var_counter,
+            set(self._measure_initialized),
+        )
+
+    def _push_undo(self) -> None:
+        """변경 직전 상태를 undo 스택에 적재하고 redo 스택을 비운다."""
+        self._undo_stack.append(self._snapshot())
+        if len(self._undo_stack) > self._undo_limit:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+
+    def _restore(self, snap: tuple) -> None:
+        """스냅샷으로 모델 상태를 복원하고 뷰를 갱신한다."""
+        df, variables, ldr, vc, mi = snap
+        self.beginResetModel()
+        self._dataframe = df
+        self._variables = variables
+        self._last_data_row = ldr
+        self._var_counter = vc
+        self._measure_initialized = mi
+        self._invalidate_col_cache()
+        self.endResetModel()
+        self.data_changed.emit()
+
+    def can_undo(self) -> bool:
+        return bool(self._undo_stack)
+
+    def can_redo(self) -> bool:
+        return bool(self._redo_stack)
+
+    def undo(self) -> bool:
+        """마지막 사용자 액션을 취소한다."""
+        if not self._undo_stack:
+            return False
+        self._redo_stack.append(self._snapshot())
+        self._restore(self._undo_stack.pop())
+        return True
+
+    def redo(self) -> bool:
+        """취소한 액션을 다시 실행한다."""
+        if not self._redo_stack:
+            return False
+        self._undo_stack.append(self._snapshot())
+        self._restore(self._redo_stack.pop())
+        return True
 
     @contextmanager
     def batch_update(self):
@@ -165,6 +227,8 @@ class SPSSGridModel(QAbstractTableModel):
         dataChanged/data_changed(전체 DataFrame 재구축 유발)를 영역 1회로 합쳐
         O(n²) → O(n) 로 줄인다.
         """
+        if self._batch_depth == 0:
+            self._push_undo()   # 대량 편집을 1건의 실행 취소 단위로 묶음
         self._batch_depth += 1
         try:
             yield
@@ -425,6 +489,10 @@ class SPSSGridModel(QAbstractTableModel):
                     )
                     return False
 
+        # 단일 셀 편집을 실행 취소 단위로 기록 (배치 모드는 진입 시 이미 push됨)
+        if self._batch_depth == 0:
+            self._push_undo()
+
         if col >= len(self._dataframe.columns):
             self._create_variable_at_col(col)
 
@@ -596,6 +664,7 @@ class SPSSGridModel(QAbstractTableModel):
             logger.warning("Variable name '%s' already exists", new_name)
             return False
 
+        self._push_undo()
         self._dataframe.rename(columns={old_name: new_name}, inplace=True)
 
         if old_name in self._variables:
@@ -698,6 +767,7 @@ class SPSSGridModel(QAbstractTableModel):
         """열 기준 정렬. beginResetModel 없이 dataChanged 시그널로 뷰 갱신해 포커스 보존."""
         if col >= len(self._dataframe.columns):
             return
+        self._push_undo()
         col_name = self._dataframe.columns[col]
         self._dataframe.sort_values(by=col_name, ascending=ascending, inplace=True)
         self._dataframe.reset_index(drop=True, inplace=True)
@@ -721,6 +791,7 @@ class SPSSGridModel(QAbstractTableModel):
 
     def add_row(self, values: dict[str, Any] | None = None) -> None:
         """Add a new row."""
+        self._push_undo()
         current_rows = len(self._dataframe)
         self.beginInsertRows(QModelIndex(), current_rows, current_rows)
 
@@ -742,6 +813,7 @@ class SPSSGridModel(QAbstractTableModel):
     def remove_row(self, row: int) -> bool:
         """Remove a row."""
         if 0 <= row < len(self._dataframe):
+            self._push_undo()
             self.beginRemoveRows(QModelIndex(), row, row)
             self._dataframe = self._dataframe.drop(self._dataframe.index[row]).reset_index(drop=True)
             self.endRemoveRows()
@@ -752,6 +824,7 @@ class SPSSGridModel(QAbstractTableModel):
 
     def add_column(self, name: str, values: list[Any] | None = None) -> None:
         """Add a new column."""
+        self._push_undo()
         col_idx = len(self._dataframe.columns)
         old_virtual = self.columnCount()
         new_virtual = max(self.DEFAULT_COLS, col_idx + 11)
@@ -783,6 +856,7 @@ class SPSSGridModel(QAbstractTableModel):
     def remove_column(self, col: int) -> bool:
         """Remove a column."""
         if 0 <= col < len(self._dataframe.columns):
+            self._push_undo()
             col_name = self._dataframe.columns[col]
             old_virtual = self.columnCount()
             # 제거 후 가상 크기 예측 (제거 전 컬럼 수 - 1 기준)
@@ -805,3 +879,62 @@ class SPSSGridModel(QAbstractTableModel):
             self.data_changed.emit()
             return True
         return False
+
+    # ── 위치 삽입 (SPSS: 변수/케이스 삽입) ───────────────────────────────────
+
+    def insert_row_at(self, row: int) -> bool:
+        """지정 위치에 빈 행(케이스)을 삽입한다 (SPSS '케이스 삽입').
+
+        기존 행들은 아래로 밀린다. 추가(append)만 가능하던 한계를 해소.
+        """
+        if len(self._dataframe.columns) == 0:
+            return False
+        self._push_undo()
+        row = max(0, min(row, len(self._dataframe)))
+        self.beginResetModel()
+        blank = pd.DataFrame([{c: pd.NA for c in self._dataframe.columns}])
+        self._dataframe = pd.concat(
+            [self._dataframe.iloc[:row], blank, self._dataframe.iloc[row:]],
+            ignore_index=True,
+        )
+        self._invalidate_col_cache()
+        self._update_last_data_row()
+        self.endResetModel()
+        self.data_changed.emit()
+        return True
+
+    def insert_column_at(self, col: int, name: str | None = None) -> str | None:
+        """지정 위치에 빈 변수(열)를 삽입한다 (SPSS '변수 삽입').
+
+        기존 변수들은 오른쪽으로 밀린다. 삽입된 변수명을 반환.
+        """
+        ncols = len(self._dataframe.columns)
+        col = max(0, min(col, ncols))
+
+        if name is None:
+            name = generate_var_name(self._var_counter)
+            while name in self._dataframe.columns:
+                self._var_counter += 1
+                name = generate_var_name(self._var_counter)
+        self._var_counter += 1
+        if name in self._dataframe.columns:
+            return None
+
+        self._push_undo()
+        self.beginResetModel()
+        if ncols == 0:
+            self._dataframe = pd.DataFrame({name: [pd.NA]})
+        else:
+            self._dataframe.insert(col, name, pd.NA)
+        self._variables[name] = VariableMeta(
+            name=name,
+            label=name,
+            storage_type=StorageType.STRING,
+            measure=MeasureType.NOMINAL,
+        )
+        self._measure_initialized.discard(name)
+        self._invalidate_col_cache()
+        self.endResetModel()
+        self.variable_added.emit(name)
+        self.data_changed.emit()
+        return name

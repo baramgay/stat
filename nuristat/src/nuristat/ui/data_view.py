@@ -62,11 +62,12 @@ class DataView(QWidget):
         formula_layout.setContentsMargins(4, 3, 4, 3)
         formula_layout.setSpacing(4)
 
-        # 이름 상자 (Name Box): "행번호:변수명"
+        # 이름 상자 (Name Box): "행번호:변수명" — 행번호 입력 후 Enter로 케이스 이동
         self.name_box = QLineEdit()
-        self.name_box.setReadOnly(True)
-        self.name_box.setPlaceholderText("셀 주소")
+        self.name_box.setPlaceholderText("케이스 번호로 이동")
+        self.name_box.setToolTip("행 번호를 입력하고 Enter를 누르면 해당 케이스로 이동합니다")
         self.name_box.setFixedWidth(130)
+        self.name_box.returnPressed.connect(self._name_box_goto)
         self.name_box.setStyleSheet(
             "QLineEdit {"
             "  font-size: 12px; font-weight: bold;"
@@ -245,14 +246,29 @@ class DataView(QWidget):
                 self._paste_selection()
                 return True
 
+            # Ctrl+X: 잘라내기 (복사 후 지우기)
+            if key == Qt.Key.Key_X and modifiers & Qt.KeyboardModifier.ControlModifier:
+                self.cut_selection()
+                return True
+
             # Ctrl+D: 위 셀 값 복사 (Fill Down)
             if key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
                 self._fill_down()
                 return True
 
-            # Ctrl+Z: 실행 취소 (향후 Undo 스택 연동 가능)
+            # Ctrl+Shift+Z / Ctrl+Y: 다시 실행
+            if ((key == Qt.Key.Key_Z
+                 and modifiers & Qt.KeyboardModifier.ControlModifier
+                 and modifiers & Qt.KeyboardModifier.ShiftModifier)
+                    or (key == Qt.Key.Key_Y
+                        and modifiers & Qt.KeyboardModifier.ControlModifier)):
+                self.redo()
+                return True
+
+            # Ctrl+Z: 실행 취소
             if key == Qt.Key.Key_Z and modifiers & Qt.KeyboardModifier.ControlModifier:
-                return True  # 현재는 pass-through
+                self.undo()
+                return True
 
             # Enter: 아래로 이동 (auto-repeat 무시 — Windows에서 키 유지 시 다중 이동 방지)
             if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -340,6 +356,29 @@ class DataView(QWidget):
         self.table.setFocus()
         self._navigate(0, 1)
 
+    def _name_box_goto(self) -> None:
+        """이름 상자에 입력한 케이스(행) 번호로 이동 (SPSS Go to Case).
+
+        '12' 또는 '12:변수명' 형식을 허용 — 앞부분 행 번호만 사용한다.
+        """
+        if self._model is None:
+            return
+        text = self.name_box.text().strip()
+        row_part = text.split(":")[0].strip()
+        try:
+            row = int(row_part) - 1
+        except ValueError:
+            self.table.setFocus()
+            return
+        row = max(0, min(row, self._model.rowCount() - 1))
+        cur = self.table.currentIndex()
+        col = cur.column() if cur.isValid() else 0
+        idx = self._model.index(row, col)
+        if idx.isValid():
+            self.table.setCurrentIndex(idx)
+            self.table.scrollTo(idx)
+        self.table.setFocus()
+
     def _formula_bar_cancel(self) -> None:
         """Formula Bar Escape → 원래 값으로 복원, 포커스 반환."""
         current = self.table.currentIndex()
@@ -379,12 +418,48 @@ class DataView(QWidget):
     # ── 편집 기능 ────────────────────────────────────────────────────────────
 
     def _clear_selection(self) -> None:
-        """선택된 셀 값을 지운다."""
+        """선택된 셀 값을 지운다 (1회 실행 취소 단위)."""
         if self._model is None:
             return
         indexes = self.table.selectedIndexes()
-        for idx in indexes:
-            self._model.setData(idx, "", Qt.ItemDataRole.EditRole)
+        if not indexes:
+            return
+        with self._model.batch_update():
+            for idx in indexes:
+                self._model.setData(idx, "", Qt.ItemDataRole.EditRole)
+
+    # ── 실행 취소 / 잘라내기 (SPSS 데이터 편집기) ───────────────────────────
+
+    def undo(self) -> None:
+        """마지막 데이터 편집을 취소한다."""
+        if self._model is not None and self._model.undo():
+            self._restore_focus()
+
+    def redo(self) -> None:
+        """취소한 편집을 다시 실행한다."""
+        if self._model is not None and self._model.redo():
+            self._restore_focus()
+
+    def cut_selection(self) -> None:
+        """선택 영역을 복사한 뒤 지운다 (Ctrl+X)."""
+        if self._model is None:
+            return
+        self._copy_selection()
+        self._clear_selection()
+
+    def _restore_focus(self) -> None:
+        """undo/redo(모델 리셋) 후 유효한 현재 셀과 포커스를 복원한다."""
+        if self._model is None:
+            return
+        current = self.table.currentIndex()
+        row = current.row() if current.isValid() else 0
+        col = current.column() if current.isValid() else 0
+        row = max(0, min(row, self._model.rowCount() - 1))
+        col = max(0, min(col, self._model.columnCount() - 1))
+        idx = self._model.index(row, col)
+        if idx.isValid():
+            self.table.setCurrentIndex(idx)
+        self.table.setFocus()
 
     def _copy_selection(self) -> None:
         """선택된 영역을 탭/줄바꿈 구분 텍스트로 클립보드에 복사 (Excel 호환)."""
@@ -486,7 +561,21 @@ class DataView(QWidget):
         index = self.table.indexAt(position)
         menu = QMenu(self)
 
-        # 복사/붙여넣기
+        # 실행 취소 / 다시 실행
+        undo_action = menu.addAction("실행 취소 (Ctrl+Z)")
+        undo_action.triggered.connect(self.undo)
+        undo_action.setEnabled(self._model.can_undo())
+
+        redo_action = menu.addAction("다시 실행 (Ctrl+Y)")
+        redo_action.triggered.connect(self.redo)
+        redo_action.setEnabled(self._model.can_redo())
+
+        menu.addSeparator()
+
+        # 복사/잘라내기/붙여넣기
+        cut_action = menu.addAction("잘라내기 (Ctrl+X)")
+        cut_action.triggered.connect(self.cut_selection)
+
         copy_action = menu.addAction("복사 (Ctrl+C)")
         copy_action.triggered.connect(self._copy_selection)
 
@@ -503,10 +592,18 @@ class DataView(QWidget):
 
         menu.addSeparator()
 
-        add_row_action = menu.addAction("행 추가")
+        # 삽입 (커서 위치) — SPSS '케이스 삽입' / '변수 삽입'
+        if index.isValid():
+            insert_row_action = menu.addAction("위에 행 삽입")
+            insert_row_action.triggered.connect(self._insert_row)
+
+            insert_col_action = menu.addAction("앞에 변수 삽입")
+            insert_col_action.triggered.connect(self._insert_column)
+
+        add_row_action = menu.addAction("행 추가 (맨 끝)")
         add_row_action.triggered.connect(self._add_row)
 
-        add_col_action = menu.addAction("변수 추가")
+        add_col_action = menu.addAction("변수 추가 (맨 끝)")
         add_col_action.triggered.connect(self._add_column)
 
         if index.isValid():
@@ -536,6 +633,22 @@ class DataView(QWidget):
         if self._model is not None:
             var_name = generate_var_name(len(self._model.get_full_dataframe().columns) + 1)
             self._model.add_column(var_name)
+
+    def _insert_row(self) -> None:
+        """현재 행 위에 빈 행 삽입 (SPSS 케이스 삽입)."""
+        if self._model is None:
+            return
+        index = self.table.currentIndex()
+        row = index.row() if index.isValid() else 0
+        self._model.insert_row_at(row)
+
+    def _insert_column(self) -> None:
+        """현재 변수 앞에 빈 변수 삽입 (SPSS 변수 삽입)."""
+        if self._model is None:
+            return
+        index = self.table.currentIndex()
+        col = index.column() if index.isValid() else 0
+        self._model.insert_column_at(col)
 
     def _delete_row(self) -> None:
         if self._model is None:
