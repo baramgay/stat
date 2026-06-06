@@ -61,11 +61,14 @@ class ValueLabelsDialog(QDialog):
         self,
         value_labels: dict,
         parent: QWidget | None = None,
+        existing_values: list | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Value Labels / 값 라벨 편집")
-        self.setMinimumSize(400, 350)
+        self.setMinimumSize(420, 380)
         self._result: dict = dict(value_labels)
+        # 데이터에 실제 존재하는 고유값 (SPSS처럼 라벨 미지정 값도 표시해 바로 라벨 부여)
+        self._existing_values: list = list(existing_values) if existing_values else []
         self._setup_ui()
         self._load_data()
 
@@ -99,11 +102,36 @@ class ValueLabelsDialog(QDialog):
         self.remove_btn.clicked.connect(self._remove_selected)
 
     def _load_data(self) -> None:
+        # 표시 순서: 데이터의 실제 고유값(라벨 있으면 채우고 없으면 빈칸) → 데이터에 없는
+        # 기존 라벨값. SPSS처럼 라벨을 부여할 실제 값들이 바로 보이게 한다.
+        shown: set = set()
+        for value in self._existing_values:
+            key = self._match_key(value)
+            label = self._result.get(key, self._result.get(value, ""))
+            self._append_row(value, label)
+            shown.add(str(value))
         for value, label in self._result.items():
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(str(value)))
-            self.table.setItem(row, 1, QTableWidgetItem(str(label)))
+            if str(value) not in shown:
+                self._append_row(value, label)
+
+    def _match_key(self, value):
+        """기존 라벨 dict에서 데이터 값에 대응하는 키 탐색 (타입 차이 흡수)."""
+        if value in self._result:
+            return value
+        for k in self._result:
+            if str(k) == str(value):
+                return k
+        return value
+
+    def _append_row(self, value, label) -> None:
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        # 정수형 float(예: 1.0) → '1'로 깔끔하게 표시
+        vtext = str(value)
+        if isinstance(value, float) and value.is_integer():
+            vtext = str(int(value))
+        self.table.setItem(row, 0, QTableWidgetItem(vtext))
+        self.table.setItem(row, 1, QTableWidgetItem(str(label) if label else ""))
 
     def _add_row(self) -> None:
         row = self.table.rowCount()

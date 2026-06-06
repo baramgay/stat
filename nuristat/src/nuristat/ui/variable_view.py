@@ -69,7 +69,14 @@ _ROLE_OPTIONS = ["입력", "목표", "가중치", "ID", "분리", "빈도", "없
 
 
 class VariableViewDelegate(QStyledItemDelegate):
-    """Variable View 전용 delegate: 콤보박스(유형/측정/정렬/역할) + 스핀박스(너비/소수/열)."""
+    """Variable View 전용 delegate: 콤보박스(유형/측정/정렬/역할) + 스핀박스(너비/소수/열).
+
+    편집기에서 Enter/위/아래로 인접 행 이동 후 즉시 편집(데이터 입력과 동일 UX).
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pending_navigate: tuple[int, int, int, int] | None = None  # (dc, dr, src_row, src_col)
 
     def createEditor(self, parent, option, index):
         col = index.column()
@@ -131,6 +138,33 @@ class VariableViewDelegate(QStyledItemDelegate):
 
     def updateEditorGeometry(self, editor, option, index):
         editor.setGeometry(option.rect)
+
+    def eventFilter(self, editor, event):
+        """편집기에서 Enter/위/아래 → 커밋 후 인접 행 이동(+즉시 편집)."""
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            nohint = QStyledItemDelegate.EndEditHint.NoHint
+
+            def _commit_move(dc: int, dr: int) -> bool:
+                table = self.parent()
+                src = table.currentIndex() if table is not None else None
+                src_row = src.row() if src is not None and src.isValid() else -1
+                src_col = src.column() if src is not None and src.isValid() else -1
+                self._pending_navigate = (dc, dr, src_row, src_col)
+                self.commitData.emit(editor)
+                self.closeEditor.emit(editor, nohint)
+                return True
+
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                return _commit_move(0, 1)
+            # 콤보박스는 위/아래로 항목을 선택하므로 이동 키로 가로채지 않는다.
+            if not isinstance(editor, QComboBox):
+                if key == Qt.Key.Key_Down:
+                    return _commit_move(0, 1)
+                if key == Qt.Key.Key_Up:
+                    return _commit_move(0, -1)
+        return super().eventFilter(editor, event)
 
 
 class VariablePropertiesModel(QAbstractTableModel):
@@ -465,12 +499,17 @@ class VariableView(QWidget):
         self._var_delegate = VariableViewDelegate(self.table)
         self.table.setItemDelegate(self._var_delegate)
 
-        # 편집 트리거: 더블클릭 또는 현재 항목 활성화 시
+        # 편집 트리거: 더블클릭·클릭·F2 + 임의 키 입력(즉시 편집). 데이터 입력처럼
+        # 셀에서 바로 타이핑하면 편집이 시작된다(두 번 클릭 불필요).
         self.table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked |
             QAbstractItemView.EditTrigger.SelectedClicked |
-            QAbstractItemView.EditTrigger.EditKeyPressed
+            QAbstractItemView.EditTrigger.EditKeyPressed |
+            QAbstractItemView.EditTrigger.AnyKeyPressed
         )
+
+        # 편집 후 Enter/방향키로 인접 셀 이동 + 즉시 편집 (delegate가 신호)
+        self._var_delegate.closeEditor.connect(self._on_editor_closed)
 
         # Values(5), Missing(6) 셀은 더블클릭 시 전용 다이얼로그로 처리
         self.table.doubleClicked.connect(self._on_cell_double_clicked)
@@ -577,6 +616,28 @@ class VariableView(QWidget):
         self._model.move_variable(row, row + 1)
         self.table.selectRow(row + 1)
 
+    def _on_editor_closed(self, editor, hint=None) -> None:
+        """편집기 닫힌 후 인접 행으로 이동하고 즉시 편집 상태로 전환.
+
+        라벨·변수명 등을 입력하고 Enter/아래키를 누르면 아래 행이 바로 편집 가능해져
+        데이터 입력처럼 연속 작업할 수 있다.
+        """
+        nav = getattr(self._var_delegate, "_pending_navigate", None)
+        if not nav or self._model is None:
+            return
+        dc, dr, src_row, src_col = nav
+        self._var_delegate._pending_navigate = None
+        if src_row < 0:
+            return
+        new_row = max(0, min(self._model.rowCount() - 1, src_row + dr))
+        new_col = max(0, min(self._model.columnCount() - 1, src_col + dc))
+        idx = self._model.index(new_row, new_col)
+        self.table.setCurrentIndex(idx)
+        # 값(5)·결측(6)은 다이얼로그 전용이라 인라인 편집 제외
+        if new_col not in (5, 6):
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self.table.edit(idx))
+
     def _on_cell_double_clicked(self, index: QModelIndex) -> None:
         """Values(5) 또는 Missing(6) 셀 더블클릭 시 전용 다이얼로그를 엽니다."""
         col = index.column()
@@ -585,13 +646,35 @@ class VariableView(QWidget):
         elif col == 6:
             self._show_missing_dialog(index.row())
 
+    def _distinct_values(self, var_name: str, limit: int = 100) -> list:
+        """데이터 컬럼의 고유값을 정렬해 반환 (라벨 부여 대상).
+
+        연속형 변수의 과도한 목록을 막기 위해 고유값이 limit 초과면 빈 목록 반환.
+        """
+        ds = getattr(self, "_dataset", None)
+        if ds is None or var_name not in ds.data.columns:
+            return []
+        try:
+            ser = ds.data[var_name].dropna()
+            uniq = ser.unique()
+            if len(uniq) == 0 or len(uniq) > limit:
+                return []
+            try:
+                return sorted(uniq.tolist())
+            except TypeError:
+                return list(uniq.tolist())
+        except Exception:
+            return []
+
     def _show_values_dialog(self, row: int) -> None:
         """값 라벨 편집 다이얼로그를 엽니다."""
         if self._model is None or row >= len(self._model._variables):
             return
         from nuristat.ui.dialogs.variable_editor import ValueLabelsDialog
         var = self._model._variables[row]
-        dlg = ValueLabelsDialog(dict(var.value_labels), self)
+        # 데이터에 실제 존재하는 고유값을 추출해 다이얼로그에 전달 (SPSS처럼 자동 표시)
+        existing_values = self._distinct_values(var.name)
+        dlg = ValueLabelsDialog(dict(var.value_labels), self, existing_values=existing_values)
         if dlg.exec() == dlg.DialogCode.Accepted:
             var.value_labels = dlg.get_value_labels()
             idx = self._model.index(row, 5)
