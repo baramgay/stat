@@ -89,7 +89,7 @@ class _PreviewCanvas(FigureCanvas):
         self._fig.clear()
         # figure를 PNG 버퍼로 렌더링 후 캔버스에 이미지로 표시
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="white")
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
         buf.seek(0)
         from matplotlib.image import imread
         img = imread(buf)
@@ -121,6 +121,7 @@ class ChartBuilderDialog(QDialog):
         super().__init__(parent)
         self._dataset = dataset
         self._engine = VisualizationEngine()
+        self._engine.set_labels(dataset)   # 변수 label·값 label을 차트에 반영
         self._current_fig: Figure | None = None
 
         self.setWindowTitle("차트 빌더")

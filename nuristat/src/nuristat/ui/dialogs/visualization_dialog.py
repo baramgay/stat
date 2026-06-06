@@ -55,6 +55,7 @@ class VisualizationDialog(QDialog):
         super().__init__(parent)
         self.dataset = dataset
         self.engine = VisualizationEngine()
+        self.engine.set_labels(dataset)   # 변수 label·값 label을 차트에 반영
         self._current_image: str | None = None  # base64 data-URI
 
         self.setWindowTitle("시각화")
@@ -309,10 +310,10 @@ class VisualizationDialog(QDialog):
         try:
             fig = self._build_figure(chart_type, df, x, y, hue, title)
 
-            # base64로 변환
+            # base64로 변환 (300 DPI — 논문 인쇄 품질)
             import io as _io
             buf = _io.BytesIO()
-            fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+            fig.savefig(buf, format="png", dpi=300, bbox_inches="tight",
                         facecolor="white")
             buf.seek(0)
             b64 = base64.b64encode(buf.read()).decode("utf-8")
@@ -355,8 +356,11 @@ class VisualizationDialog(QDialog):
         eng = self.engine
 
         if chart_type == "bar":
-            img = eng.bar_chart(df, x, y if y != "(선택)" else None, hue, title)
-            return self._base64_to_figure(img)
+            fig = eng.plot_bar(df, x, y_var=y if y != "(선택)" else None,
+                               error_bars=self.error_bars_check.isChecked())
+            if title:
+                fig.axes[0].set_title(title, fontweight="bold")
+            return fig
 
         elif chart_type == "hist":
             return eng.plot_histogram(df, x,
@@ -382,32 +386,16 @@ class VisualizationDialog(QDialog):
         elif chart_type == "violin":
             if y == "(선택)":
                 raise ValueError("바이올린 플롯은 Y 변수가 필요합니다.")
-            img = eng.violin_plot(df, x, y, hue, title)
-            return self._base64_to_figure(img)
+            fig = eng.plot_violin(df, x, y, group_var=hue)
+            if title:
+                fig.axes[0].set_title(title, fontweight="bold")
+            return fig
 
         elif chart_type == "qq":
             return eng.plot_qq(df, x)
 
         else:
             raise ValueError(f"지원하지 않는 차트 유형: {chart_type}")
-
-    @staticmethod
-    def _base64_to_figure(img_uri: str):
-        """base64 data-URI를 matplotlib Figure로 역변환 (표시 전용)."""
-        import io as _io
-
-        from matplotlib.figure import Figure as _Fig
-        from matplotlib.image import imread as _imread
-
-        b64 = img_uri.split(",", 1)[1] if "," in img_uri else img_uri
-        buf = _io.BytesIO(base64.b64decode(b64))
-        img_arr = _imread(buf)
-        fig, ax = _Fig(figsize=(10, 6)), None
-        ax = fig.add_subplot(111)
-        ax.imshow(img_arr)
-        ax.axis("off")
-        fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        return fig
 
     # ── 저장 ─────────────────────────────────────────────────────────────────
 

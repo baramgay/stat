@@ -80,39 +80,56 @@ class VizFontSize:
     FOOTNOTE   = 10   # 각주·캡션
 
 
-# ── 세련된 기본 테마 ───────────────────────────────────────────────────────
+# ── 논문 출판 수준 기본 테마 ─────────────────────────────────────────────────
+# 학술지 그림 기준: 흰 배경, 가벼운 가로 그리드, 얇고 절제된 외곽선,
+# 고해상도(저장 300 DPI). 데이터-잉크 비율을 높여 깔끔하게.
+_EXPORT_DPI = 300   # 저장·내보내기 해상도 (논문 인쇄 품질)
 sns.set_theme(
     style="ticks",
-    context="notebook",
+    context="paper",
     rc={
         "font.family": _FONT_NAME,
+        "font.size": 12,
         "axes.unicode_minus": False,
         "axes.spines.top": False,
         "axes.spines.right": False,
+        "axes.linewidth": 0.9,
         "axes.grid": True,
-        "grid.alpha": 0.3,
-        "grid.linestyle": "--",
-        "grid.color": "#d0d0d0",
+        "axes.axisbelow": True,          # 그리드를 데이터 아래로
+        "grid.alpha": 0.35,
+        "grid.linewidth": 0.6,
+        "grid.linestyle": "-",
+        "grid.color": "#e3e3e3",
         "axes.titlesize": VizFontSize.TITLE,
         "axes.titleweight": "bold",
-        "axes.titlepad": 18,
+        "axes.titlepad": 16,
+        "axes.titlecolor": "#1a1a1a",
         "axes.labelsize": VizFontSize.AXIS_LABEL,
-        "axes.labelcolor": "#2a2a2a",
-        "axes.edgecolor": "#aaaaaa",
+        "axes.labelweight": "medium",
+        "axes.labelcolor": "#222222",
+        "axes.edgecolor": "#444444",
         "xtick.labelsize": VizFontSize.TICK,
         "ytick.labelsize": VizFontSize.TICK,
-        "xtick.color": "#555555",
-        "ytick.color": "#555555",
+        "xtick.color": "#333333",
+        "ytick.color": "#333333",
+        "xtick.major.width": 0.9,
+        "ytick.major.width": 0.9,
         "legend.fontsize": VizFontSize.LEGEND,
         "legend.title_fontsize": VizFontSize.LEGEND,
-        "legend.framealpha": 0.9,
-        "legend.edgecolor": "#dddddd",
+        "legend.framealpha": 0.92,
+        "legend.edgecolor": "#cccccc",
+        "legend.fancybox": False,
         "figure.facecolor": "white",
-        "axes.facecolor": "#f8f9fa",
-        "figure.dpi": 130,
+        "axes.facecolor": "white",       # 논문용: 순백 배경
+        "figure.dpi": 120,               # 화면 미리보기 기준
+        "savefig.dpi": _EXPORT_DPI,
+        "savefig.bbox": "tight",
+        "savefig.facecolor": "white",
         "figure.titlesize": VizFontSize.SUBTITLE,
         "figure.titleweight": "bold",
-        "patch.linewidth": 0.6,
+        "patch.linewidth": 0.7,
+        "lines.linewidth": 2.0,
+        "lines.solid_capstyle": "round",
     },
 )
 # set_theme 이후 unicode_minus 재설정
@@ -156,26 +173,84 @@ class VisualizationEngine:
     def __init__(self) -> None:
         self._figure_count = 0
         self._labels: dict[str, str] = {}
+        self._value_labels: dict[str, dict] = {}
 
     def set_labels(self, dataset: Any) -> None:
-        """데이터셋의 변수 label을 차트 표시에 사용하도록 설정한다.
+        """데이터셋의 변수 label·값 label을 차트 표시에 사용하도록 설정한다.
+
+        - 변수 label: 축 제목·차트 제목·범례 제목에서 변수명을 대체한다.
+        - 값 label: 범주축 눈금·범례 항목·그룹명에서 코드값(0,1)을
+          라벨(예: 남, 여)로 대체한다. (SPSS 동작과 동일)
 
         Args:
-            dataset: Dataset 인스턴스. variables 딕셔너리에서 label을 추출한다.
+            dataset: Dataset 인스턴스. variables 딕셔너리에서 label과
+                value_labels를 추출한다.
         """
         self._labels = {}
+        self._value_labels = {}
         if dataset is not None and hasattr(dataset, "variables"):
             for col, meta in dataset.variables.items():
                 label = getattr(meta, "label", None)
                 if label and label != col:
                     self._labels[col] = label
+                vlabels = getattr(meta, "value_labels", None)
+                if vlabels:
+                    self._value_labels[col] = dict(vlabels)
 
     def _lbl(self, col: str) -> str:
-        """컬럼명에 대응하는 표시용 label을 반환한다.
+        """컬럼명에 대응하는 표시용 변수 label을 반환한다.
 
         label이 없거나 같으면 컬럼명을 그대로 반환한다.
         """
         return self._labels.get(col, col)
+
+    @staticmethod
+    def _vlabel_key(value: Any) -> Any:
+        """값 label 매핑 시 타입 차이를 흡수하는 키. 정수형 실수는 int로."""
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return value
+
+    def _map_value(self, col: str, value: Any) -> str:
+        """단일 코드값을 해당 변수의 값 label로 변환. 없으면 원래 표기."""
+        mapping = self._value_labels.get(col)
+        if not mapping:
+            return str(value)
+        if value in mapping:
+            return str(mapping[value])
+        key = self._vlabel_key(value)
+        if key in mapping:
+            return str(mapping[key])
+        # 문자열 키로 저장된 경우 대비
+        skey = str(key)
+        if skey in mapping:
+            return str(mapping[skey])
+        return self._fmt_clean(value)
+
+    @staticmethod
+    def _fmt_clean(value: Any) -> str:
+        """정수형 실수(1.0)는 '1'로 깔끔하게 표기."""
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+
+    def _apply_value_labels(self, df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+        """지정한 (범주형) 컬럼의 코드값을 값 label로 치환한 사본을 반환한다.
+
+        값 label이 정의된 컬럼만 치환하며, 정의가 없으면 원본을 유지한다.
+        반환된 사본만 플로팅에 사용해 내부 데이터는 보존한다.
+        """
+        if not self._value_labels:
+            return df
+        target = [c for c in cols if c and c in self._value_labels and c in df.columns]
+        if not target:
+            return df
+        out = df.copy()
+        for col in target:
+            out[col] = df[col].map(
+                lambda v, _c=col: self._map_value(_c, v) if pd.notna(v) else v
+            )
+        return out
 
     @staticmethod
     def set_font_scale(scale: float = 1.0) -> None:
@@ -271,6 +346,7 @@ class VisualizationEngine:
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
 
+        df = self._apply_value_labels(df, [x, hue] if hue else [x])
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
 
         try:
@@ -295,10 +371,10 @@ class VisualizationEngine:
                     counts.plot(kind="bar", ax=ax, color=self.COLOR_PALETTE[0])
 
             # 가독성 최적화
-            self._apply_readability(ax, title or f"막대 차트: {x}", x, y or "빈도")
+            self._apply_readability(ax, title or f"막대 차트: {self._lbl(x)}", x, y or "빈도")
 
             if hue:
-                ax.legend(title=hue, bbox_to_anchor=(1.05, 1), loc="upper left")
+                ax.legend(title=self._lbl(hue), bbox_to_anchor=(1.05, 1), loc="upper left")
 
             plt.tight_layout()
             return self._fig_to_base64(fig)
@@ -344,7 +420,7 @@ class VisualizationEngine:
                        label=f"중위수: {median:.2f}", alpha=0.9)
             ax.legend(frameon=True, framealpha=0.85)
 
-            self._apply_readability(ax, title or f"히스토그램: {x}", x, "빈도")
+            self._apply_readability(ax, title or f"히스토그램: {self._lbl(x)}", x, "빈도")
             plt.tight_layout()
             return self._fig_to_base64(fig)
 
@@ -369,6 +445,7 @@ class VisualizationEngine:
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
 
+        df = self._apply_value_labels(df, [c for c in (hue, size_var) if c])
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
 
         try:
@@ -378,6 +455,10 @@ class VisualizationEngine:
             else:
                 sns.scatterplot(data=df, x=x, y=y, hue=hue, size=size_var,
                               ax=ax, palette=self.COLOR_PALETTE, alpha=0.7)
+                if hue:
+                    leg = ax.get_legend()
+                    if leg is not None:
+                        leg.set_title(self._lbl(hue))
 
             # 상관계수 표시
             if pd.api.types.is_numeric_dtype(df[x]) and pd.api.types.is_numeric_dtype(df[y]):
@@ -388,7 +469,7 @@ class VisualizationEngine:
                        bbox=dict(boxstyle="round,pad=0.4", facecolor="#fff8e7",
                                  edgecolor="#ddb", alpha=0.85))
 
-            self._apply_readability(ax, title or f"산점도: {x} vs {y}", x, y)
+            self._apply_readability(ax, title or f"산점도: {self._lbl(x)} vs {self._lbl(y)}", x, y)
             plt.tight_layout()
             return self._fig_to_base64(fig)
 
@@ -414,15 +495,20 @@ class VisualizationEngine:
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
 
+        df = self._apply_value_labels(df, [c for c in (x, hue) if c])
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
 
         try:
             if x:
                 sns.boxplot(data=df, x=x, y=y, hue=hue, ax=ax, palette=self.COLOR_PALETTE)
+                if hue:
+                    leg = ax.get_legend()
+                    if leg is not None:
+                        leg.set_title(self._lbl(hue))
             else:
                 sns.boxplot(data=df, y=y, ax=ax, color=self.COLOR_PALETTE[0])
 
-            self._apply_readability(ax, title or f"상자 그림: {y}", x or "", y)
+            self._apply_readability(ax, title or f"상자 그림: {self._lbl(y)}", x or "", y)
             plt.tight_layout()
             return self._fig_to_base64(fig)
 
@@ -454,10 +540,10 @@ class VisualizationEngine:
                     group_sorted = group.sort_values(x)
                     ax.plot(group_sorted[x], group_sorted[y],
                            marker="o" if marker else None,
-                           label=str(name),
+                           label=self._map_value(hue, name),
                            color=self.COLOR_PALETTE[i % len(self.COLOR_PALETTE)],
                            linewidth=2)
-                ax.legend(title=hue)
+                ax.legend(title=self._lbl(hue))
             else:
                 df_sorted = df.sort_values(x)
                 ax.plot(df_sorted[x], df_sorted[y],
@@ -465,7 +551,9 @@ class VisualizationEngine:
                        color=self.COLOR_PALETTE[0],
                        linewidth=2)
 
-            self._apply_readability(ax, title or f"선 차트: {y} by {x}", x, y)
+            self._apply_readability(
+                ax, title or f"선 차트: {self._lbl(y)} (기준: {self._lbl(x)})", x, y
+            )
             plt.tight_layout()
             return self._fig_to_base64(fig)
 
@@ -498,10 +586,12 @@ class VisualizationEngine:
         try:
             corr = numeric_df.corr()
             mask = np.triu(np.ones_like(corr, dtype=bool))
+            disp_labels = [self._lbl(c) for c in corr.columns]
 
             sns.heatmap(corr, mask=mask, annot=annot, fmt=".2f",
                        cmap="RdBu_r", center=0, ax=ax,
                        square=True, linewidths=0.5,
+                       xticklabels=disp_labels, yticklabels=disp_labels,
                        cbar_kws={"shrink": 0.8})
 
             self._apply_readability(ax, title or "상관관계 히트맵", "", "")
@@ -527,13 +617,20 @@ class VisualizationEngine:
         if not validation["valid"]:
             return self._error_image("\n".join(validation["errors"]))
 
+        df = self._apply_value_labels(df, [c for c in (x, hue) if c])
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
 
         try:
             sns.violinplot(data=df, x=x, y=y, hue=hue, ax=ax,
                           palette=self.COLOR_PALETTE, split=(hue is not None))
+            if hue:
+                leg = ax.get_legend()
+                if leg is not None:
+                    leg.set_title(self._lbl(hue))
 
-            self._apply_readability(ax, title or f"바이올린 플롯: {y} by {x}", x, y)
+            self._apply_readability(
+                ax, title or f"바이올린 플롯: {self._lbl(y)} (집단: {self._lbl(x)})", x, y
+            )
             plt.tight_layout()
             return self._fig_to_base64(fig)
 
@@ -541,6 +638,50 @@ class VisualizationEngine:
             return self._error_image(str(exc))
         finally:
             plt.close(fig)
+
+    def plot_violin(
+        self,
+        data: pd.DataFrame,
+        x_var: str,
+        y_var: str,
+        group_var: str | None = None,
+    ) -> Figure:
+        """바이올린 플롯 (Figure 반환). 분포 형태 + 사분위 표시.
+
+        Parameters
+        ----------
+        data:      DataFrame
+        x_var:     범주형 X 변수 (집단)
+        y_var:     수치형 Y 변수
+        group_var: 색상 구분(hue) 변수
+        """
+        validation = self._validate_data(data, [x_var, y_var])
+        if not validation["valid"]:
+            return self._make_error_figure("\n".join(validation["errors"]))
+
+        data = self._apply_value_labels(data, [c for c in (x_var, group_var) if c])
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        try:
+            sns.violinplot(
+                data=data, x=x_var, y=y_var, hue=group_var, ax=ax,
+                palette=self.COLOR_PALETTE,
+                split=(group_var is not None),
+                inner="quart",
+                linewidth=1.2, saturation=0.9,
+            )
+            if group_var:
+                leg = ax.get_legend()
+                if leg is not None:
+                    leg.set_title(self._lbl(group_var))
+            title = f"바이올린 플롯: {self._lbl(y_var)} (집단: {self._lbl(x_var)})"
+            self._apply_readability(ax, title, x_var, y_var)
+            fig.tight_layout()
+        except Exception as exc:  # pragma: no cover
+            logger.exception("plot_violin 오류")
+            return self._make_error_figure(str(exc))
+
+        return fig
 
     # ── SPSS 수준 추가 차트 ────────────────────────────────────────────────
 
@@ -614,7 +755,7 @@ class VisualizationEngine:
                 horizontalalignment="right",
                 bbox=dict(boxstyle="round,pad=0.4", facecolor="#f0f4f8", alpha=0.9))
 
-        self._apply_readability(ax, f"히스토그램: {variable}", variable,
+        self._apply_readability(ax, f"히스토그램: {self._lbl(variable)}", variable,
                                 "밀도" if normal_curve else "빈도")
         fig.tight_layout()
         return fig
@@ -639,6 +780,7 @@ class VisualizationEngine:
 
         try:
             if by_group and y_var and y_var in data.columns:
+                data = self._apply_value_labels(data, [x_var])
                 sns.boxplot(
                     data=data, x=x_var, y=y_var, ax=ax,
                     palette=self.COLOR_PALETTE,
@@ -650,7 +792,7 @@ class VisualizationEngine:
                     data=data, x=x_var, y=y_var, ax=ax,
                     color="black", alpha=0.25, size=3, jitter=True,
                 )
-                title = f"상자 그림: {y_var} (by {x_var})"
+                title = f"상자 그림: {self._lbl(y_var)} (집단: {self._lbl(x_var)})"
                 xlabel, ylabel = x_var, y_var
             else:
                 sns.boxplot(
@@ -658,7 +800,7 @@ class VisualizationEngine:
                     color=self.COLOR_PALETTE[0], width=0.4, linewidth=1.5,
                     flierprops=dict(marker="o", markersize=5, alpha=0.6),
                 )
-                title = f"상자 그림: {x_var}"
+                title = f"상자 그림: {self._lbl(x_var)}"
                 xlabel, ylabel = "", x_var
 
             self._apply_readability(ax, title, xlabel, ylabel)
@@ -701,7 +843,8 @@ class VisualizationEngine:
                     ax.scatter(
                         subset[x_var], subset[y_var],
                         color=self.COLOR_PALETTE[i % len(self.COLOR_PALETTE)],
-                        label=str(grp), alpha=0.7, s=50, edgecolors="white", linewidths=0.5,
+                        label=self._map_value(color_var, grp),
+                        alpha=0.7, s=50, edgecolors="white", linewidths=0.5,
                     )
                     if fit_line:
                         _x = subset[x_var].dropna()
@@ -713,7 +856,7 @@ class VisualizationEngine:
                             ax.plot(xr, m * xr + b,
                                     color=self.COLOR_PALETTE[i % len(self.COLOR_PALETTE)],
                                     linewidth=1.5, alpha=0.8)
-                ax.legend(title=color_var, fontsize=VizFontSize.LEGEND)
+                ax.legend(title=self._lbl(color_var), fontsize=VizFontSize.LEGEND)
             else:
                 ax.scatter(
                     data[x_var], data[y_var],
@@ -742,7 +885,9 @@ class VisualizationEngine:
                         bbox=dict(boxstyle="round,pad=0.4", facecolor="#fff8e7",
                                   edgecolor="#ddb", alpha=0.85))
 
-            self._apply_readability(ax, f"산점도: {x_var} vs {y_var}", x_var, y_var)
+            self._apply_readability(
+                ax, f"산점도: {self._lbl(x_var)} vs {self._lbl(y_var)}", x_var, y_var
+            )
             fig.tight_layout()
         except Exception as exc:  # pragma: no cover
             logger.exception("plot_scatter 오류")
@@ -770,6 +915,7 @@ class VisualizationEngine:
         if not validation["valid"]:
             return self._make_error_figure("\n".join(validation["errors"]))
 
+        data = self._apply_value_labels(data, [x_var])
         fig, ax = plt.subplots(figsize=(10, 6))
 
         try:
@@ -781,7 +927,7 @@ class VisualizationEngine:
                     capsize=0.08,
                 )
                 ylabel = y_var
-                title = f"막대 그래프: {y_var} by {x_var}"
+                title = f"막대 그래프: {self._lbl(y_var)} (집단: {self._lbl(x_var)})"
             else:
                 counts = data[x_var].value_counts()
                 bars = ax.bar(
@@ -797,7 +943,7 @@ class VisualizationEngine:
                         str(val), ha="center", va="bottom", fontsize=VizFontSize.ANNOTATION,
                     )
                 ylabel = "빈도"
-                title = f"막대 그래프: {x_var}"
+                title = f"막대 그래프: {self._lbl(x_var)}"
 
             self._apply_readability(ax, title, x_var, ylabel)
             fig.tight_layout()
@@ -837,9 +983,9 @@ class VisualizationEngine:
                         grp_sorted[x_var], grp_sorted[y_var],
                         marker="o", markersize=5,
                         color=self.COLOR_PALETTE[i % len(self.COLOR_PALETTE)],
-                        linewidth=2, label=str(name),
+                        linewidth=2, label=self._map_value(by_group, name),
                     )
-                ax.legend(title=by_group, fontsize=VizFontSize.LEGEND)
+                ax.legend(title=self._lbl(by_group), fontsize=VizFontSize.LEGEND)
             else:
                 df_sorted = data.sort_values(x_var)
                 ax.plot(
@@ -849,7 +995,7 @@ class VisualizationEngine:
                 )
 
             self._apply_readability(
-                ax, f"선 그래프: {y_var} by {x_var}", x_var, y_var
+                ax, f"선 그래프: {self._lbl(y_var)} (기준: {self._lbl(x_var)})", x_var, y_var
             )
             fig.tight_layout()
         except Exception as exc:  # pragma: no cover
@@ -889,7 +1035,7 @@ class VisualizationEngine:
                    [slope * min_x + intercept, slope * max_x + intercept],
                    color="#d62728", linewidth=2.0, label="이론적 정규선")
         ax_qq.legend(fontsize=VizFontSize.LEGEND)
-        self._apply_readability(ax_qq, f"Q-Q 플롯: {variable}", "이론적 분위수", "관측 분위수")
+        self._apply_readability(ax_qq, f"Q-Q 플롯: {self._lbl(variable)}", "이론적 분위수", "관측 분위수")
 
         # 정규성 검정 결과 표시
         stat_sw, p_sw = stats.shapiro(series[:5000])  # Shapiro 최대 5000
@@ -913,9 +1059,9 @@ class VisualizationEngine:
         ax_hist.plot(x_curve, stats.norm.pdf(x_curve, series.mean(), series.std()),
                      color="#d62728", linewidth=2.0, label="정규 분포 곡선")
         ax_hist.legend(fontsize=VizFontSize.LEGEND)
-        self._apply_readability(ax_hist, f"분포: {variable}", variable, "밀도")
+        self._apply_readability(ax_hist, f"분포: {self._lbl(variable)}", variable, "밀도")
 
-        fig.suptitle(f"정규성 검정: {variable}", fontsize=VizFontSize.SUBTITLE,
+        fig.suptitle(f"정규성 검정: {self._lbl(variable)}", fontsize=VizFontSize.SUBTITLE,
                      fontweight="bold", y=1.02)
         fig.tight_layout()
         return fig
@@ -953,10 +1099,12 @@ class VisualizationEngine:
         fig, ax = plt.subplots(figsize=(fig_size, fig_size * 0.85))
 
         mask = np.triu(np.ones_like(corr, dtype=bool))
+        disp_labels = [self._lbl(c) for c in numeric_cols]
         sns.heatmap(
             corr, mask=mask, annot=True, fmt=".2f",
             cmap="RdBu_r", center=0, ax=ax,
             square=True, linewidths=0.6,
+            xticklabels=disp_labels, yticklabels=disp_labels,
             cbar_kws={"shrink": 0.75, "label": "Pearson r"},
             annot_kws={"size": 9},
         )
@@ -1113,14 +1261,14 @@ class VisualizationEngine:
         fig.tight_layout()
         return fig
 
-    def save_figure(self, fig: Figure, path: str, dpi: int = 150) -> None:
-        """Figure를 파일로 저장.
+    def save_figure(self, fig: Figure, path: str, dpi: int = _EXPORT_DPI) -> None:
+        """Figure를 파일로 저장 (기본 300 DPI, 논문 인쇄 품질).
 
         Parameters
         ----------
         fig:  matplotlib Figure
         path: 저장 경로 (확장자로 형식 결정: .png, .svg, .pdf)
-        dpi:  해상도 (PNG 한정)
+        dpi:  해상도 (PNG 한정, 기본 300)
         """
         fmt = path.rsplit(".", 1)[-1].lower() if "." in path else "png"
         fig.savefig(path, format=fmt, dpi=dpi if fmt == "png" else None,
@@ -1137,7 +1285,7 @@ class VisualizationEngine:
         from PySide6.QtGui import QImage, QPixmap
 
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
                     facecolor="white", edgecolor="none")
         buf.seek(0)
         image = QImage.fromData(buf.read())
@@ -1196,9 +1344,9 @@ class VisualizationEngine:
                 plt.setp(ax.get_xticklabels(), rotation=40, ha="right")
 
     def _fig_to_base64(self, fig: Figure) -> str:
-        """Figure를 Base64 PNG로 변환."""
+        """Figure를 Base64 PNG로 변환 (200 DPI — 결과창·내보내기 고품질)."""
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
                    facecolor="white", edgecolor="none")
         buf.seek(0)
         img_base64 = base64.b64encode(buf.read()).decode("utf-8")
