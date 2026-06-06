@@ -212,7 +212,7 @@ class ChartBuilderDialog(QDialog):
         for col in self._dataset.data.columns:
             dtype = self._dataset.data[col].dtype
             icon = "[수]" if pd.api.types.is_numeric_dtype(dtype) else "[범]"
-            item = QListWidgetItem(f"{icon} {col}")
+            item = QListWidgetItem(f"{icon} {self._var_display(col)}")
             item.setData(Qt.UserRole, col)
             self._var_list.addItem(item)
         var_lay.addWidget(self._var_list)
@@ -224,20 +224,17 @@ class ChartBuilderDialog(QDialog):
 
         axis_lay.addWidget(QLabel("X 축:"), 0, 0)
         self._x_combo = QComboBox()
-        self._x_combo.addItem("(없음)")
-        self._x_combo.addItems(self._dataset.data.columns)
+        self._populate_var_combo(self._x_combo)
         axis_lay.addWidget(self._x_combo, 0, 1)
 
         axis_lay.addWidget(QLabel("Y 축:"), 1, 0)
         self._y_combo = QComboBox()
-        self._y_combo.addItem("(없음)")
-        self._y_combo.addItems(self._dataset.data.columns)
+        self._populate_var_combo(self._y_combo)
         axis_lay.addWidget(self._y_combo, 1, 1)
 
         axis_lay.addWidget(QLabel("그룹:"), 2, 0)
         self._group_combo = QComboBox()
-        self._group_combo.addItem("(없음)")
-        self._group_combo.addItems(self._dataset.data.columns)
+        self._populate_var_combo(self._group_combo)
         axis_lay.addWidget(self._group_combo, 2, 1)
 
         lay.addWidget(axis_grp)
@@ -345,10 +342,27 @@ class ChartBuilderDialog(QDialog):
         # 차트 유형 초기 반영
         self._on_chart_type_changed()
 
+    def _var_display(self, name: str) -> str:
+        """콤보·목록 표시용 — 라벨이 있으면 '변수명 (라벨)', 없으면 변수명.
+
+        라벨이 변수의 실질적 이름이므로 선택 시 라벨을 함께 보여 준다.
+        """
+        var = self._dataset.variables.get(name) if self._dataset.variables else None
+        label = getattr(var, "label", "") if var else ""
+        if label and label != name:
+            return f"{name} ({label})"
+        return name
+
+    def _populate_var_combo(self, combo) -> None:
+        """변수 콤보를 '변수명 (라벨)' 표시로 채운다. 실제 값은 컬럼명(userData)."""
+        combo.addItem("(없음)", None)
+        for name in self._dataset.data.columns:
+            combo.addItem(self._var_display(name), name)
+
     def _on_var_double_clicked(self, item: QListWidgetItem) -> None:
         """변수 목록 더블클릭 → X축에 자동 할당."""
         var = item.data(Qt.UserRole)
-        idx = self._x_combo.findText(var)
+        idx = self._x_combo.findData(var)
         if idx >= 0:
             self._x_combo.setCurrentIndex(idx)
 
@@ -371,15 +385,12 @@ class ChartBuilderDialog(QDialog):
     def _generate_preview(self) -> None:
         """선택된 변수·옵션으로 차트를 생성하고 캔버스에 표시."""
         key = self._current_chart_key()
-        x_var = self._x_combo.currentText()
-        y_var = self._y_combo.currentText()
-        group = self._group_combo.currentText()
         title = self._title_edit.text().strip()
         df = self._dataset.data
 
-        x = None if x_var == "(없음)" else x_var
-        y = None if y_var == "(없음)" else y_var
-        grp = None if group == "(없음)" else group
+        x = self._x_combo.currentData()
+        y = self._y_combo.currentData()
+        grp = self._group_combo.currentData()
 
         try:
             fig = self._build_figure(key, df, x, y, grp, title)

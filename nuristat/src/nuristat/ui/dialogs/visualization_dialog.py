@@ -126,24 +126,21 @@ class VisualizationDialog(QDialog):
         x_layout = QHBoxLayout()
         x_layout.addWidget(QLabel("X 변수:"))
         self.x_combo = QComboBox()
-        self.x_combo.addItem("(선택)")
-        self.x_combo.addItems(self.dataset.data.columns)
+        self._populate_var_combo(self.x_combo, "(선택)")
         x_layout.addWidget(self.x_combo)
         vars_layout.addLayout(x_layout)
 
         y_layout = QHBoxLayout()
         y_layout.addWidget(QLabel("Y 변수:"))
         self.y_combo = QComboBox()
-        self.y_combo.addItem("(선택)")
-        self.y_combo.addItems(self.dataset.data.columns)
+        self._populate_var_combo(self.y_combo, "(선택)")
         y_layout.addWidget(self.y_combo)
         vars_layout.addLayout(y_layout)
 
         hue_layout = QHBoxLayout()
         hue_layout.addWidget(QLabel("그룹 변수:"))
         self.hue_combo = QComboBox()
-        self.hue_combo.addItem("(없음)")
-        self.hue_combo.addItems(self.dataset.data.columns)
+        self._populate_var_combo(self.hue_combo, "(없음)")
         hue_layout.addWidget(self.hue_combo)
         vars_layout.addLayout(hue_layout)
 
@@ -244,6 +241,27 @@ class VisualizationDialog(QDialog):
 
     # ── 유틸리티 ──────────────────────────────────────────────────────────────
 
+    def _var_display(self, name: str) -> str:
+        """콤보 표시용 텍스트 — 라벨이 있으면 '변수명 (라벨)', 없으면 변수명.
+
+        라벨이 변수의 실질적 이름이므로 선택 시 라벨을 함께 보여 준다.
+        """
+        var = self.dataset.variables.get(name) if self.dataset.variables else None
+        label = getattr(var, "label", "") if var else ""
+        if label and label != name:
+            return f"{name} ({label})"
+        return name
+
+    def _populate_var_combo(self, combo, sentinel: str) -> None:
+        """변수 콤보를 채운다. 표시는 '변수명 (라벨)', 실제 값은 컬럼명(userData)."""
+        combo.addItem(sentinel, None)
+        for name in self.dataset.data.columns:
+            combo.addItem(self._var_display(name), name)
+
+    def _combo_col(self, combo) -> str | None:
+        """콤보에서 선택된 실제 컬럼명을 반환 (sentinel이면 None)."""
+        return combo.currentData()
+
     def _get_selected_chart_type(self) -> str:
         for btn in self.chart_type_group.buttons():
             if btn.isChecked():
@@ -262,22 +280,22 @@ class VisualizationDialog(QDialog):
 
     def _validate_selection(self) -> dict:
         chart_type = self._get_selected_chart_type()
-        x = self.x_combo.currentText()
-        y = self.y_combo.currentText()
+        x = self._combo_col(self.x_combo)
+        y = self._combo_col(self.y_combo)
         result = {"valid": True, "errors": [], "warnings": []}
 
         if chart_type in ("bar", "hist", "qq"):
-            if x == "(선택)":
+            if x is None:
                 result["valid"] = False
                 result["errors"].append("X 변수를 선택하세요")
 
         elif chart_type in ("scatter", "line"):
-            if x == "(선택)" or y == "(선택)":
+            if x is None or y is None:
                 result["valid"] = False
                 result["errors"].append("X, Y 변수를 모두 선택하세요")
 
         elif chart_type in ("box", "violin"):
-            if x == "(선택)":
+            if x is None:
                 result["valid"] = False
                 result["errors"].append("X 변수를 선택하세요 (Y는 선택사항)")
 
@@ -300,10 +318,9 @@ class VisualizationDialog(QDialog):
             return
 
         chart_type = self._get_selected_chart_type()
-        x = self.x_combo.currentText()
-        y = self.y_combo.currentText()
-        hue = self.hue_combo.currentText()
-        hue = None if hue == "(없음)" else hue
+        x = self._combo_col(self.x_combo)
+        y = self._combo_col(self.y_combo)
+        hue = self._combo_col(self.hue_combo)
         title = self.title_edit.text().strip()
         df = self.dataset.data
 
@@ -352,50 +369,44 @@ class VisualizationDialog(QDialog):
         hue: str | None,
         title: str,
     ):
-        """VisualizationEngine 메서드 호출."""
+        """VisualizationEngine 메서드 호출. 사용자 제목은 모든 차트에 적용."""
         eng = self.engine
 
         if chart_type == "bar":
-            fig = eng.plot_bar(df, x, y_var=y if y != "(선택)" else None,
+            fig = eng.plot_bar(df, x, y_var=y,
                                error_bars=self.error_bars_check.isChecked())
-            if title:
-                fig.axes[0].set_title(title, fontweight="bold")
-            return fig
-
         elif chart_type == "hist":
-            return eng.plot_histogram(df, x,
-                                      bins=self.bins_spin.value(),
-                                      normal_curve=self.kde_check.isChecked())
-
+            fig = eng.plot_histogram(df, x,
+                                     bins=self.bins_spin.value(),
+                                     normal_curve=self.kde_check.isChecked())
         elif chart_type == "scatter":
-            return eng.plot_scatter(df, x, y, color_var=hue,
-                                    fit_line=self.reg_check.isChecked())
-
+            fig = eng.plot_scatter(df, x, y, color_var=hue,
+                                   fit_line=self.reg_check.isChecked())
         elif chart_type == "box":
-            return eng.plot_boxplot(df, x,
-                                    y_var=y if y != "(선택)" else None,
-                                    by_group=(y != "(선택)"))
-
+            fig = eng.plot_boxplot(df, x, y_var=y, by_group=(y is not None))
         elif chart_type == "line":
-            return eng.plot_line(df, x, y, by_group=hue)
-
+            fig = eng.plot_line(df, x, y, by_group=hue)
         elif chart_type == "heatmap":
             cols = list(df.select_dtypes(include=[np.number]).columns)
-            return eng.plot_correlation_heatmap(df, cols)
-
+            fig = eng.plot_correlation_heatmap(df, cols)
         elif chart_type == "violin":
-            if y == "(선택)":
+            if y is None:
                 raise ValueError("바이올린 플롯은 Y 변수가 필요합니다.")
             fig = eng.plot_violin(df, x, y, group_var=hue)
-            if title:
-                fig.axes[0].set_title(title, fontweight="bold")
-            return fig
-
         elif chart_type == "qq":
-            return eng.plot_qq(df, x)
-
+            fig = eng.plot_qq(df, x)
         else:
             raise ValueError(f"지원하지 않는 차트 유형: {chart_type}")
+
+        # 사용자 지정 제목을 모든 차트 유형에 일관 적용
+        if title:
+            if chart_type == "qq":
+                # Q-Q는 2개 서브플롯 → 전체 제목(suptitle)로 표시
+                fig.suptitle(title, fontsize=15, fontweight="bold")
+            else:
+                fig.axes[0].set_title(title, fontweight="bold")
+
+        return fig
 
     # ── 저장 ─────────────────────────────────────────────────────────────────
 

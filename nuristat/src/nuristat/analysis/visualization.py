@@ -935,7 +935,7 @@ class VisualizationEngine:
                     color=self.COLOR_PALETTE[:len(counts)], edgecolor="white",
                 )
                 ax.set_xticks(range(len(counts)))
-                ax.set_xticklabels(counts.index, rotation=45, ha="right")
+                ax.set_xticklabels(counts.index)
                 # 빈도값 레이블
                 for bar, val in zip(bars, counts.values):
                     ax.text(
@@ -1336,12 +1336,7 @@ class VisualizationEngine:
         ax.tick_params(axis="both", labelsize=VizFontSize.TICK,
                        colors="#555555", length=4, width=0.8)
 
-        # 긴 레이블 회전
-        if xlabel:
-            x_labels = [str(lbl) for lbl in ax.get_xticklabels()]
-            max_len = max((len(lbl) for lbl in x_labels), default=0)
-            if max_len > 8:
-                plt.setp(ax.get_xticklabels(), rotation=40, ha="right")
+        # x축 눈금 라벨은 기울이지 않는다 (사용자 요청: 가독성 위해 수평 유지)
 
     def _fig_to_base64(self, fig: Figure) -> str:
         """Figure를 Base64 PNG로 변환 (200 DPI — 결과창·내보내기 고품질)."""
