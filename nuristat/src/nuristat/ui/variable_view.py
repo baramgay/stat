@@ -6,10 +6,11 @@ Name, Type, Width, Decimals, Label, Values, Missing, Columns, Align, Measure, Ro
 
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
@@ -514,12 +515,17 @@ class VariableView(QWidget):
         # Values(5), Missing(6) 셀은 더블클릭 시 전용 다이얼로그로 처리
         self.table.doubleClicked.connect(self._on_cell_double_clicked)
 
+        # 속성 셀 복사/붙여넣기(Ctrl+C/V) — 한 변수의 속성을 여러 변수에 일괄 적용
+        self.table.installEventFilter(self)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
+
         layout.addWidget(self.table)
 
         # 안내 문구
         self.help_label = QLabel(
             "💡 팁: 셀을 더블클릭하여 편집 | "
-            "변수명, 유형, 측정 척도 등을 설정 | "
+            "유형·측정·소수 등 속성을 Ctrl+C/Ctrl+V로 다른 변수에 일괄 적용 | "
             "행을 선택하고 Delete 키로 삭제"
         )
         self.help_label.setStyleSheet("color: #7a7a8a; font-size: 11px; padding: 4px;")
@@ -615,6 +621,99 @@ class VariableView(QWidget):
 
         self._model.move_variable(row, row + 1)
         self.table.selectRow(row + 1)
+
+    # ── 속성 셀 복사 / 붙여넣기 (SPSS 변수 보기 일괄 적용) ─────────────────────
+
+    def eventFilter(self, obj, event):
+        """변수 보기 그리드에서 Ctrl+C/Ctrl+V로 속성 셀 복사·붙여넣기."""
+        if (getattr(self, "table", None) is obj
+                and event.type() == QEvent.Type.KeyPress
+                and self.table.state() != QAbstractItemView.State.EditingState):
+            key = event.key()
+            mods = event.modifiers()
+            if mods & Qt.KeyboardModifier.ControlModifier:
+                if key == Qt.Key.Key_C:
+                    self._copy_props()
+                    return True
+                if key == Qt.Key.Key_V:
+                    self._paste_props()
+                    return True
+        return super().eventFilter(obj, event)
+
+    def _copy_props(self) -> None:
+        """선택한 속성 셀을 탭/줄바꿈 텍스트로 클립보드에 복사."""
+        if self._model is None:
+            return
+        indexes = self.table.selectedIndexes()
+        if not indexes:
+            return
+        rows = sorted({i.row() for i in indexes})
+        cols = sorted({i.column() for i in indexes})
+        lines = []
+        for r in rows:
+            cells = [
+                str(self._model.data(self._model.index(r, c), Qt.ItemDataRole.DisplayRole) or "")
+                for c in cols
+            ]
+            lines.append("\t".join(cells))
+        QApplication.clipboard().setText("\n".join(lines))
+
+    def _paste_props(self) -> None:
+        """클립보드 속성을 붙여넣는다.
+
+        - 단일 값 복사 + 다중 셀 선택 → 선택한 모든 셀을 그 값으로 채움(SPSS식 일괄).
+        - 그 외 → 현재 셀 기준 격자 붙여넣기.
+        변수명(0열)은 중복 위험이 있어 붙여넣기 대상에서 제외한다.
+        """
+        if self._model is None:
+            return
+        text = QApplication.clipboard().text()
+        if not text:
+            return
+        grid = [line.split("\t") for line in text.split("\n") if line != ""]
+        if not grid:
+            return
+
+        selected = self.table.selectedIndexes()
+        is_single = len(grid) == 1 and len(grid[0]) == 1
+
+        if is_single and len(selected) > 1:
+            val = grid[0][0]
+            for idx in selected:
+                if idx.column() == 0:   # 변수명 제외
+                    continue
+                self._model.setData(idx, val, Qt.ItemDataRole.EditRole)
+            return
+
+        cur = self.table.currentIndex()
+        if not cur.isValid():
+            return
+        base_r, base_c = cur.row(), cur.column()
+        for dr, line in enumerate(grid):
+            for dc, val in enumerate(line):
+                c = base_c + dc
+                if c == 0:   # 변수명 제외
+                    continue
+                idx = self._model.index(base_r + dr, c)
+                if idx.isValid():
+                    self._model.setData(idx, val, Qt.ItemDataRole.EditRole)
+
+    def _show_context_menu(self, position) -> None:
+        """변수 보기 우클릭 메뉴: 복사/붙여넣기/삽입/삭제."""
+        if self._model is None:
+            return
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        copy_act = menu.addAction("속성 복사 (Ctrl+C)")
+        copy_act.triggered.connect(self._copy_props)
+        paste_act = menu.addAction("속성 붙여넣기 (Ctrl+V)")
+        paste_act.triggered.connect(self._paste_props)
+        menu.addSeparator()
+        add_act = menu.addAction("변수 추가")
+        add_act.triggered.connect(self._add_variable)
+        del_act = menu.addAction("변수 삭제")
+        del_act.triggered.connect(self._delete_variable)
+        menu.exec(self.table.viewport().mapToGlobal(position))
 
     def _on_editor_closed(self, editor, hint=None) -> None:
         """편집기 닫힌 후 인접 행으로 이동하고 즉시 편집 상태로 전환.
