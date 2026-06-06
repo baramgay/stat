@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nuristat"
-version = "3.4.1"
+version = "3.4.2"
 description = "Menu-based desktop statistical package — SPSS/MedCalc alternative"
 readme = "README.md"
 license = {text = "MIT"}
