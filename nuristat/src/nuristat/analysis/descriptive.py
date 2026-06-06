@@ -139,7 +139,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                     if var in grp_df.columns:
                         try:
                             desc = _compute_descriptives(
-                                grp_df[var].apply(pd.to_numeric, errors="coerce"),
+                                pd.to_numeric(grp_df[var], errors="coerce"),
                                 confidence_level=confidence_level,
                             )
                         except Exception as exc:
@@ -172,7 +172,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 if var in df.columns:
                     try:
                         desc = _compute_descriptives(
-                            df[var].apply(pd.to_numeric, errors="coerce"),
+                            pd.to_numeric(df[var], errors="coerce"),
                             confidence_level=confidence_level,
                         )
                     except Exception as exc:
