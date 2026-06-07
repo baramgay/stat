@@ -691,6 +691,7 @@ class VisualizationEngine:
         variable: str,
         bins: int = 20,
         normal_curve: bool = True,
+        show_stats: bool = True,
     ) -> Figure:
         """히스토그램 (정규 분포 곡선 선택적 오버레이).
 
@@ -740,20 +741,21 @@ class VisualizationEngine:
                    label=f"중위수: {median_val:.3f}")
         ax.legend(fontsize=VizFontSize.LEGEND)
 
-        # 통계 정보 박스
-        skew_val = series.skew()
-        kurt_val = series.kurtosis()
-        stats_text = (
-            f"N = {len(series):,}\n"
-            f"평균 = {mean_val:.3f}\n"
-            f"표준편차 = {series.std():.3f}\n"
-            f"왜도 = {skew_val:.3f}\n"
-            f"첨도 = {kurt_val:.3f}"
-        )
-        ax.text(0.98, 0.97, stats_text, transform=ax.transAxes,
-                fontsize=VizFontSize.ANNOTATION, verticalalignment="top",
-                horizontalalignment="right",
-                bbox=dict(boxstyle="round,pad=0.4", facecolor="#f0f4f8", alpha=0.9))
+        # 통계 정보 박스 (사용자가 끌 수 있음)
+        if show_stats:
+            skew_val = series.skew()
+            kurt_val = series.kurtosis()
+            stats_text = (
+                f"N = {len(series):,}\n"
+                f"평균 = {mean_val:.3f}\n"
+                f"표준편차 = {series.std():.3f}\n"
+                f"왜도 = {skew_val:.3f}\n"
+                f"첨도 = {kurt_val:.3f}"
+            )
+            ax.text(0.98, 0.97, stats_text, transform=ax.transAxes,
+                    fontsize=VizFontSize.ANNOTATION, verticalalignment="top",
+                    horizontalalignment="right",
+                    bbox=dict(boxstyle="round,pad=0.4", facecolor="#f0f4f8", alpha=0.9))
 
         self._apply_readability(ax, f"히스토그램: {self._lbl(variable)}", variable,
                                 "밀도" if normal_curve else "빈도")
@@ -818,6 +820,7 @@ class VisualizationEngine:
         y_var: str,
         color_var: str | None = None,
         fit_line: bool = True,
+        show_stats: bool = True,
     ) -> Figure:
         """산점도 (회귀선 + 상관계수 선택적 표시).
 
@@ -872,9 +875,10 @@ class VisualizationEngine:
                                 label=f"회귀선: y={m:.3f}x+{b:.3f}")
                         ax.legend(fontsize=VizFontSize.LEGEND)
 
-            # 상관계수
+            # 상관계수 (사용자가 끌 수 있음)
             valid2 = data[[x_var, y_var]].dropna()
-            if (pd.api.types.is_numeric_dtype(data[x_var])
+            if (show_stats
+                    and pd.api.types.is_numeric_dtype(data[x_var])
                     and pd.api.types.is_numeric_dtype(data[y_var])
                     and len(valid2) >= 2):
                 r, p = stats.pearsonr(valid2[x_var], valid2[y_var])
@@ -1259,6 +1263,67 @@ class VisualizationEngine:
 
         fig.suptitle("회귀 진단 플롯", fontsize=VizFontSize.SUBTITLE, fontweight="bold")
         fig.tight_layout()
+        return fig
+
+    def apply_edits(
+        self,
+        fig: Figure,
+        *,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        font_scale: float = 1.0,
+        figsize: tuple[float, float] | None = None,
+        show_grid: bool | None = None,
+        show_legend: bool | None = None,
+    ) -> Figure:
+        """생성된 차트에 사용자 편집을 후처리로 적용한다 (SPSS 차트 편집기 스타일).
+
+        - title/xlabel/ylabel: 빈 문자열이 아니면 첫 번째 축의 텍스트를 교체
+        - font_scale: 그림 내 모든 텍스트 글꼴 크기를 비율로 조정
+        - figsize: 그림 크기(인치) 변경
+        - show_grid / show_legend: 격자·범례 표시 토글
+
+        반환값은 입력과 동일한 Figure (제자리 수정).
+        """
+        axes = fig.axes
+        ax0 = axes[0] if axes else None
+
+        if figsize is not None:
+            fig.set_size_inches(*figsize)
+
+        if ax0 is not None:
+            if title is not None and title != "":
+                ax0.set_title(title, fontweight="bold")
+            if xlabel is not None and xlabel != "":
+                ax0.set_xlabel(xlabel)
+            if ylabel is not None and ylabel != "":
+                ax0.set_ylabel(ylabel)
+
+        if show_grid is not None:
+            for ax in axes:
+                ax.grid(show_grid)
+
+        if show_legend is not None:
+            for ax in axes:
+                leg = ax.get_legend()
+                if leg is not None and not show_legend:
+                    leg.remove()
+
+        # 글꼴 배율: 모든 Text 객체에 적용 (제목·축·눈금·범례·주석 포함)
+        if font_scale and abs(font_scale - 1.0) > 1e-6:
+            import matplotlib.text as _mtext
+            for obj in fig.findobj(_mtext.Text):
+                try:
+                    cur = float(obj.get_fontsize())   # 'medium' 등 문자열 크기 방지
+                    obj.set_fontsize(cur * font_scale)
+                except (ValueError, TypeError):
+                    pass
+
+        try:
+            fig.tight_layout()
+        except Exception:
+            pass
         return fig
 
     def save_figure(self, fig: Figure, path: str, dpi: int = _EXPORT_DPI) -> None:

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -179,6 +180,62 @@ class VisualizationDialog(QDialog):
 
         left_layout.addWidget(options_group)
 
+        # ── 차트 편집 (생성 후 사용자 수정) ──────────────────────────────────
+        edit_group = QGroupBox("차트 편집")
+        edit_layout = QVBoxLayout(edit_group)
+
+        xlabel_layout = QHBoxLayout()
+        xlabel_layout.addWidget(QLabel("X축 제목:"))
+        self.xlabel_edit = QLineEdit()
+        self.xlabel_edit.setPlaceholderText("비우면 자동")
+        xlabel_layout.addWidget(self.xlabel_edit)
+        edit_layout.addLayout(xlabel_layout)
+
+        ylabel_layout = QHBoxLayout()
+        ylabel_layout.addWidget(QLabel("Y축 제목:"))
+        self.ylabel_edit = QLineEdit()
+        self.ylabel_edit.setPlaceholderText("비우면 자동")
+        ylabel_layout.addWidget(self.ylabel_edit)
+        edit_layout.addLayout(ylabel_layout)
+
+        font_layout = QHBoxLayout()
+        font_layout.addWidget(QLabel("글꼴 배율:"))
+        self.font_scale_spin = QDoubleSpinBox()
+        self.font_scale_spin.setRange(0.5, 2.5)
+        self.font_scale_spin.setSingleStep(0.1)
+        self.font_scale_spin.setValue(1.0)
+        font_layout.addWidget(self.font_scale_spin)
+        edit_layout.addLayout(font_layout)
+
+        size_layout = QHBoxLayout()
+        size_layout.addWidget(QLabel("크기(인치) 너비:"))
+        self.fig_w_spin = QDoubleSpinBox()
+        self.fig_w_spin.setRange(4.0, 20.0)
+        self.fig_w_spin.setSingleStep(0.5)
+        self.fig_w_spin.setValue(10.0)
+        size_layout.addWidget(self.fig_w_spin)
+        size_layout.addWidget(QLabel("높이:"))
+        self.fig_h_spin = QDoubleSpinBox()
+        self.fig_h_spin.setRange(3.0, 16.0)
+        self.fig_h_spin.setSingleStep(0.5)
+        self.fig_h_spin.setValue(6.0)
+        size_layout.addWidget(self.fig_h_spin)
+        edit_layout.addLayout(size_layout)
+
+        self.grid_check = QCheckBox("격자 표시")
+        self.grid_check.setChecked(True)
+        edit_layout.addWidget(self.grid_check)
+
+        self.legend_check = QCheckBox("범례 표시")
+        self.legend_check.setChecked(True)
+        edit_layout.addWidget(self.legend_check)
+
+        self.stats_check = QCheckBox("통계 상자/상관계수 표시 (산점도·히스토그램)")
+        self.stats_check.setChecked(True)
+        edit_layout.addWidget(self.stats_check)
+
+        left_layout.addWidget(edit_group)
+
         # 검증 정보
         self.validation_group = QGroupBox("검증")
         self.validation_layout = QVBoxLayout(self.validation_group)
@@ -327,6 +384,20 @@ class VisualizationDialog(QDialog):
         try:
             fig = self._build_figure(chart_type, df, x, y, hue, title)
 
+            # 사용자 편집(축 제목·글꼴 배율·크기·격자·범례) 후처리 적용.
+            # 크기는 기본값(10×6)에서 바꿨을 때만 적용 — 히트맵·Q-Q 등 고유 비율 보존.
+            w, h = self.fig_w_spin.value(), self.fig_h_spin.value()
+            figsize = (w, h) if (w, h) != (10.0, 6.0) else None
+            self.engine.apply_edits(
+                fig,
+                xlabel=self.xlabel_edit.text().strip(),
+                ylabel=self.ylabel_edit.text().strip(),
+                font_scale=self.font_scale_spin.value(),
+                figsize=figsize,
+                show_grid=self.grid_check.isChecked(),
+                show_legend=self.legend_check.isChecked(),
+            )
+
             # base64로 변환 (300 DPI — 논문 인쇄 품질)
             import io as _io
             buf = _io.BytesIO()
@@ -378,10 +449,12 @@ class VisualizationDialog(QDialog):
         elif chart_type == "hist":
             fig = eng.plot_histogram(df, x,
                                      bins=self.bins_spin.value(),
-                                     normal_curve=self.kde_check.isChecked())
+                                     normal_curve=self.kde_check.isChecked(),
+                                     show_stats=self.stats_check.isChecked())
         elif chart_type == "scatter":
             fig = eng.plot_scatter(df, x, y, color_var=hue,
-                                   fit_line=self.reg_check.isChecked())
+                                   fit_line=self.reg_check.isChecked(),
+                                   show_stats=self.stats_check.isChecked())
         elif chart_type == "box":
             fig = eng.plot_boxplot(df, x, y_var=y, by_group=(y is not None))
         elif chart_type == "line":
