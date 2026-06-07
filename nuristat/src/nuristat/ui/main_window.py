@@ -221,6 +221,12 @@ class MainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
+        # 최근 파일 (SPSS: 파일 > 최근 사용 데이터) — 열기/가져오기/저장 시 자동 기록
+        self._recent_menu = file_menu.addMenu("🕘 최근 파일(&R)")
+        self._rebuild_recent_menu()
+
+        file_menu.addSeparator()
+
         exit_action = QAction("🚪 끝내기", self)
         exit_action.setShortcut(QKeySequence.Quit)
         exit_action.setToolTip("프로그램을 종료합니다 (Ctrl+Q)")
@@ -888,6 +894,72 @@ class MainWindow(QMainWindow):
         self._update_statusbar()
         self.statusbar.showMessage("새 프로젝트가 생성되었습니다.")
 
+    # ── 최근 파일 ────────────────────────────────────────────────────────────
+
+    def _rebuild_recent_menu(self) -> None:
+        """최근 파일 서브메뉴를 설정에서 다시 채운다."""
+        if not hasattr(self, "_recent_menu"):
+            return
+        self._recent_menu.clear()
+        files = self._settings.load_recent_files()
+        if not files:
+            empty = self._recent_menu.addAction("(없음)")
+            empty.setEnabled(False)
+            return
+        import os
+        for i, path in enumerate(files, start=1):
+            name = os.path.basename(path)
+            act = self._recent_menu.addAction(f"{i}. {name}")
+            act.setToolTip(path)
+            act.triggered.connect(lambda _checked=False, p=path: self._open_recent(p))
+        self._recent_menu.addSeparator()
+        clear_act = self._recent_menu.addAction("최근 파일 목록 지우기")
+        clear_act.triggered.connect(self._clear_recent)
+
+    def _remember_recent(self, path: str) -> None:
+        """열기/가져오기/저장 성공 시 최근 파일에 기록하고 메뉴를 갱신."""
+        self._settings.add_recent_file(path)
+        self._rebuild_recent_menu()
+
+    def _clear_recent(self) -> None:
+        self._settings.clear_recent_files()
+        self._rebuild_recent_menu()
+
+    def _open_recent(self, path: str) -> None:
+        """최근 파일을 확장자에 따라 적절한 로더로 다시 연다."""
+        import os
+        if not os.path.exists(path):
+            QMessageBox.warning(self, "파일 없음", f"파일을 찾을 수 없습니다:\n{path}")
+            return
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            if ext == ".swb":
+                self.project = load_project(path)
+                if self.project.datasets:
+                    self.current_dataset = self.project.datasets[0]
+                    self._on_dataset_changed(self.current_dataset)
+            elif ext == ".csv":
+                self._load_dataset(read_csv(path))
+            elif ext in (".xlsx", ".xls"):
+                self._load_dataset(read_excel(path))
+            elif ext == ".sav":
+                self._load_dataset(read_sav(path))
+            else:
+                QMessageBox.warning(self, "지원하지 않음", f"지원하지 않는 형식입니다: {ext}")
+                return
+            self._remember_recent(path)
+            self.statusbar.showMessage(f"열었습니다: {path}")
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"파일 열기 실패:\n{exc}")
+
+    def _load_dataset(self, dataset) -> None:
+        """가져온 데이터셋을 모든 뷰에 반영하는 공통 처리."""
+        self.current_dataset = dataset
+        self.data_view.set_dataset(dataset)
+        self.variable_view.set_dataset(dataset)
+        self.syntax_editor.set_dataset(dataset)
+        self._update_statusbar()
+
     def _open_project(self) -> None:
         """프로젝트 열기."""
         path, _ = QFileDialog.getOpenFileName(
@@ -902,6 +974,7 @@ class MainWindow(QMainWindow):
                     self.variable_view.set_dataset(self.current_dataset)
                     self.syntax_editor.set_dataset(self.current_dataset)
                 self._update_statusbar()
+                self._remember_recent(path)
                 self.statusbar.showMessage(f"프로젝트를 열었습니다: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"프로젝트 열기 실패:\n{exc}")
@@ -936,6 +1009,7 @@ class MainWindow(QMainWindow):
                 save_project(self.project, path)
                 self.project.file_path = path
                 self.project.clear_dirty()
+                self._remember_recent(path)
                 self.statusbar.showMessage(f"저장되었습니다: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
@@ -976,11 +1050,8 @@ class MainWindow(QMainWindow):
         if path:
             try:
                 dataset = read_csv(path)
-                self.current_dataset = dataset
-                self.data_view.set_dataset(dataset)
-                self.variable_view.set_dataset(dataset)
-                self.syntax_editor.set_dataset(dataset)
-                self._update_statusbar()
+                self._load_dataset(dataset)
+                self._remember_recent(path)
                 self.statusbar.showMessage(f"CSV 가져오기 완료: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"CSV 가져오기 실패:\n{exc}")
@@ -995,6 +1066,7 @@ class MainWindow(QMainWindow):
                 dataset = read_excel(path)
                 self.current_dataset = dataset
                 self._on_dataset_changed(dataset)
+                self._remember_recent(path)
                 self.statusbar.showMessage(f"Excel 가져오기 완료: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"Excel 가져오기 실패:\n{exc}")
@@ -1009,6 +1081,7 @@ class MainWindow(QMainWindow):
                 dataset = read_sav(path)
                 self.current_dataset = dataset
                 self._on_dataset_changed(dataset)
+                self._remember_recent(path)
                 self.statusbar.showMessage(f"SPSS 가져오기 완료: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"SPSS 가져오기 실패:\n{exc}")

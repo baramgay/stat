@@ -91,9 +91,17 @@ class SettingsManager:
         self._settings.setValue("recent/files", recent_files)
 
     def load_recent_files(self) -> list[str]:
-        """최근 파일 목록 반환."""
+        """최근 파일 목록 반환 (존재하는 파일만).
+
+        QSettings는 단일 원소 리스트를 문자열로 반환하는 플랫폼이 있어
+        문자열도 1개짜리 리스트로 정규화한다.
+        """
         files = self._settings.value("recent/files", [])
-        if not isinstance(files, list):
+        if files is None:
+            return []
+        if isinstance(files, str):
+            files = [files]
+        if not isinstance(files, (list, tuple)):
             return []
         return [f for f in files if isinstance(f, str) and Path(f).exists()]
 
