@@ -1,6 +1,6 @@
 """Frequencies Dialog — SPSS 스타일 빈도분석 다이얼로그."""
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._dialog_helpers import display_label, measure_icon
 
 
 class FrequenciesDialog(QDialog):
@@ -39,14 +40,17 @@ class FrequenciesDialog(QDialog):
         self.var_list = QListWidget()
         self.var_list.setSelectionMode(QListWidget.ExtendedSelection)
 
-        # variables 메타데이터 우선, 없으면 data.columns 사용
+        # 변수명 + 라벨 표시 (다른 다이얼로그와 동일한 "아이콘 라벨 (변수명)" 형식)
         vars_to_show = (
             list(self._dataset.variables.keys())
             if self._dataset.variables
             else list(self._dataset.data.columns)
         )
         for var in vars_to_show:
-            item = QListWidgetItem(var)
+            icon = measure_icon(self._dataset, var)
+            label = display_label(self._dataset, var)
+            item = QListWidgetItem(f"{icon} {label}" if icon else label)
+            item.setData(Qt.ItemDataRole.UserRole, var)  # 실제 변수명 저장
             self.var_list.addItem(item)
 
         var_layout.addWidget(self.var_list)
@@ -96,7 +100,11 @@ class FrequenciesDialog(QDialog):
 
     def _run(self):
         """빈도분석 실행."""
-        selected = [item.text() for item in self.var_list.selectedItems()]
+        # UserRole에 저장된 실제 변수명 우선 사용 (표시 텍스트는 라벨 포함)
+        selected = [
+            item.data(Qt.ItemDataRole.UserRole) or item.text()
+            for item in self.var_list.selectedItems()
+        ]
         if not selected:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "경고", "변수를 선택하세요.")

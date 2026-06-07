@@ -161,8 +161,17 @@ class SPSSGridModel(QAbstractTableModel):
         self._redo_stack: list[tuple] = []
         self._undo_limit: int = 50
 
+        # dtype 변환 캐시: 구조·값이 바뀌지 않으면 재변환 없이 반환
+        self._typed_df_cache: pd.DataFrame | None = None
+        self._cache_dirty: bool = True
+
     def _invalidate_col_cache(self) -> None:
         self._numeric_col_cache.clear()
+
+    def _invalidate_df_cache(self) -> None:
+        """dtype 변환 캐시 무효화 — 데이터·구조 변경 시 호출."""
+        self._cache_dirty = True
+        self._typed_df_cache = None
 
     # ── 실행 취소 / 다시 실행 ────────────────────────────────────────────────
 
@@ -193,6 +202,7 @@ class SPSSGridModel(QAbstractTableModel):
         self._var_counter = vc
         self._measure_initialized = mi
         self._invalidate_col_cache()
+        self._invalidate_df_cache()
         self.endResetModel()
         self.data_changed.emit()
 
@@ -256,6 +266,7 @@ class SPSSGridModel(QAbstractTableModel):
         bottom_right = self.index(self._batch_max_row, self._batch_max_col)
         self._batch_min_row = self._batch_min_col = -1
         self._batch_max_row = self._batch_max_col = -1
+        self._invalidate_df_cache()
         self.dataChanged.emit(
             top_left, bottom_right,
             [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole],
@@ -528,6 +539,7 @@ class SPSSGridModel(QAbstractTableModel):
             if self._batch_depth > 0:
                 self._track_dirty(row, col)
             else:
+                self._invalidate_df_cache()
                 self.dataChanged.emit(
                     index, index,
                     [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole],
@@ -686,6 +698,7 @@ class SPSSGridModel(QAbstractTableModel):
             self._variables[new_name] = var_meta
 
         self._numeric_col_cache.pop(section, None)
+        self._invalidate_df_cache()
         self.headerDataChanged.emit(orientation, section, section)
         self.variable_renamed.emit(old_name, new_name)
         return True
@@ -730,6 +743,7 @@ class SPSSGridModel(QAbstractTableModel):
         # 새 데이터셋: 모든 변수를 초기화 완료 상태로 표시
         self._measure_initialized = set(self._variables.keys())
         self._invalidate_col_cache()
+        self._invalidate_df_cache()
         self._update_last_data_row()
         self.endResetModel()
         self.data_changed.emit()
@@ -739,7 +753,11 @@ class SPSSGridModel(QAbstractTableModel):
 
         dtype은 variables 메타데이터 기준으로 변환 — object 컬럼에 숫자가 담긴
         경우 is_numeric_dtype 체크가 False가 되는 문제를 방지한다.
+        캐시 유효 시(_cache_dirty=False) dtype 변환 없이 즉시 반환 — O(N×cols) 회피.
         """
+        if not self._cache_dirty and self._typed_df_cache is not None:
+            return self._typed_df_cache.copy()
+
         if self._dataframe.empty:
             return self._dataframe.copy()
 
@@ -758,7 +776,9 @@ class SPSSGridModel(QAbstractTableModel):
             ):
                 df[col_name] = pd.to_numeric(df[col_name], errors="coerce")
 
-        return df
+        self._typed_df_cache = df
+        self._cache_dirty = False
+        return df.copy()
 
     def get_full_dataframe(self) -> pd.DataFrame:
         """Return full DataFrame."""
@@ -783,6 +803,7 @@ class SPSSGridModel(QAbstractTableModel):
         col_name = self._dataframe.columns[col]
         self._dataframe.sort_values(by=col_name, ascending=ascending, inplace=True)
         self._dataframe.reset_index(drop=True, inplace=True)
+        self._invalidate_df_cache()
         self._update_last_data_row()
         top_left = self.index(0, 0)
         bottom_right = self.index(self.rowCount() - 1, len(self._dataframe.columns) - 1)
@@ -820,6 +841,7 @@ class SPSSGridModel(QAbstractTableModel):
         new_df = pd.DataFrame([new_row])
         self._dataframe = pd.concat([self._dataframe, new_df], ignore_index=True)
 
+        self._invalidate_df_cache()
         self.endInsertRows()
         self.data_changed.emit()
         self._update_last_data_row()
@@ -833,6 +855,7 @@ class SPSSGridModel(QAbstractTableModel):
             self._push_undo()
             self.beginRemoveRows(QModelIndex(), row, row)
             self._dataframe = self._dataframe.drop(self._dataframe.index[row]).reset_index(drop=True)
+            self._invalidate_df_cache()
             self.endRemoveRows()
             self.data_changed.emit()
             self._update_last_data_row()
@@ -868,6 +891,7 @@ class SPSSGridModel(QAbstractTableModel):
         else:
             self.headerDataChanged.emit(Qt.Orientation.Horizontal, col_idx, col_idx)
 
+        self._invalidate_df_cache()
         self.data_changed.emit()
 
     def remove_column(self, col: int) -> bool:
@@ -887,6 +911,7 @@ class SPSSGridModel(QAbstractTableModel):
             if col_name in self._variables:
                 del self._variables[col_name]
             self._invalidate_col_cache()
+            self._invalidate_df_cache()
 
             if new_virtual < old_virtual:
                 self.endRemoveColumns()
@@ -915,6 +940,7 @@ class SPSSGridModel(QAbstractTableModel):
             ignore_index=True,
         )
         self._invalidate_col_cache()
+        self._invalidate_df_cache()
         self._update_last_data_row()
         self.endResetModel()
         self.data_changed.emit()
@@ -951,6 +977,7 @@ class SPSSGridModel(QAbstractTableModel):
         )
         self._measure_initialized.discard(name)
         self._invalidate_col_cache()
+        self._invalidate_df_cache()
         self.endResetModel()
         self.variable_added.emit(name)
         self.data_changed.emit()

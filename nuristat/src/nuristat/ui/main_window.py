@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
         # 구문 편집기 (숨김)
         self.syntax_editor = SyntaxEditor()
         self.syntax_editor.syntax_executed.connect(self._on_syntax_executed)
+        self.syntax_editor.analysis_ready.connect(self._on_analysis_result)
         self.syntax_editor.hide()
         data_layout.addWidget(self.syntax_editor)
 
@@ -361,7 +362,8 @@ class MainWindow(QMainWindow):
         sort_cases_action.triggered.connect(self._open_sort_dialog)
         data_menu.addAction(sort_cases_action)
 
-        transpose_action = QAction("행렬 전치...", self)
+        transpose_action = QAction("↔️ 행렬 전치...", self)
+        transpose_action.triggered.connect(self._transpose_dataset)
         data_menu.addAction(transpose_action)
 
         merge_files_action = QAction("🔗 파일 병합...", self)
@@ -622,14 +624,13 @@ class MainWindow(QMainWindow):
 
         utilities_menu.addSeparator()
 
-        var_info_action = QAction("변수 정보...", self)
+        var_info_action = QAction("📋 변수 정보...", self)
+        var_info_action.triggered.connect(self._show_variable_info)
         utilities_menu.addAction(var_info_action)
 
-        file_info_action = QAction("파일 정보...", self)
+        file_info_action = QAction("📁 파일 정보...", self)
+        file_info_action.triggered.connect(self._show_file_info)
         utilities_menu.addAction(file_info_action)
-
-        define_sets_action = QAction("집합 정의...", self)
-        utilities_menu.addAction(define_sets_action)
 
         # 9. 창 메뉴
         menubar.addMenu("창(&W)")
@@ -836,6 +837,57 @@ class MainWindow(QMainWindow):
         if self._output_window is None or not self._output_window.isVisible():
             self._show_output_window()
         return self._output_window
+
+    # ── 데이터 유틸리티 ─────────────────────────────────────────────────────
+
+    def _transpose_dataset(self) -> None:
+        """행렬 전치 — 행↔열 교환. 전치 후 새 데이터셋으로 로드."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from nuristat.core.dataset import Dataset
+        df = self.current_dataset.data
+        if df.empty:
+            QMessageBox.warning(self, "경고", "데이터가 비어 있습니다.")
+            return
+        transposed = df.T.reset_index()
+        transposed.columns = [f"VAR{i+1:05d}" for i in range(len(transposed.columns))]
+        new_ds = Dataset(name=f"{self.current_dataset.name}_전치", data=transposed)
+        self._load_dataset(new_ds)
+        self.statusbar.showMessage(f"행렬 전치 완료: {df.shape[0]}행×{df.shape[1]}열 → {transposed.shape[0]}행×{transposed.shape[1]}열")
+
+    def _show_variable_info(self) -> None:
+        """변수 정보 요약 표시 (이름·유형·측도·라벨 목록)."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        lines = [f"{'변수명':<20} {'유형':<8} {'측도':<8} {'라벨'}"]
+        lines.append("-" * 60)
+        for name, var in self.current_dataset.variables.items():
+            st = var.storage_type.value if hasattr(var.storage_type, "value") else str(var.storage_type)
+            ms = var.measure.value if hasattr(var.measure, "value") else str(var.measure)
+            label = var.label if var.label and var.label != name else ""
+            lines.append(f"{name:<20} {st:<8} {ms:<8} {label}")
+        QMessageBox.information(self, f"변수 정보 — {self.current_dataset.name}", "\n".join(lines))
+
+    def _show_file_info(self) -> None:
+        """현재 파일(프로젝트) 정보 표시."""
+        ds = self.current_dataset
+        if ds is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        path = self.project.file_path if self.project and self.project.file_path else "(미저장)"
+        n_rows = len(ds.data) if ds.data is not None else 0
+        n_cols = len(ds.data.columns) if ds.data is not None else 0
+        n_vars = len(ds.variables)
+        info = (
+            f"데이터셋: {ds.name}\n"
+            f"파일 경로: {path}\n"
+            f"행(케이스): {n_rows:,}\n"
+            f"열(변수): {n_cols}\n"
+            f"메타데이터 변수 수: {n_vars}\n"
+        )
+        QMessageBox.information(self, "파일 정보", info)
 
     # ── 프로젝트 관리 ───────────────────────────────────────────────────────
 

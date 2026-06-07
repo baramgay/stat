@@ -5,7 +5,7 @@ load data, define variable properties, and run statistical analyses through a
 menu-driven interface without writing code.
 """
 
-__version__ = "3.4.3"
+__version__ = "3.5.0"
 __author__ = "Hermes Agent"
 
 # Re-export key types for convenience

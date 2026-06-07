@@ -1,0 +1,70 @@
+"""구문 편집기 실제 실행 테스트 — T-TEST, RECODE, SELECT IF."""
+
+import pandas as pd
+import pytest
+
+from nuristat.core.dataset import Dataset
+from nuristat.core.variable import VariableMeta
+from nuristat.core.typing import StorageType, MeasureType
+from nuristat.ui.syntax_editor import SyntaxEditor
+
+
+@pytest.fixture
+def dataset():
+    df = pd.DataFrame({
+        "score": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
+        "sex":   [0, 0, 0, 1, 1, 1],
+        "age":   [20, 25, 30, 35, 40, 45],
+    })
+    variables = {
+        "score": VariableMeta(name="score", label="점수", storage_type=StorageType.FLOAT, measure=MeasureType.SCALE),
+        "sex":   VariableMeta(name="sex",   label="성별", storage_type=StorageType.INTEGER, measure=MeasureType.NOMINAL),
+        "age":   VariableMeta(name="age",   label="나이", storage_type=StorageType.INTEGER, measure=MeasureType.SCALE),
+    }
+    return Dataset(name="test", data=df, variables=variables)
+
+
+@pytest.fixture
+def editor(qapp, dataset):
+    ed = SyntaxEditor()
+    ed.set_dataset(dataset)
+    return ed
+
+
+def test_recode_simple(editor):
+    """RECODE var (old=new) → INTO 없으면 원본 변수를 덮어써야 한다."""
+    result = editor._execute_recode("RECODE sex (0=100) (1=200)")
+    assert "완료" in result
+    assert editor._dataset.data["sex"].iloc[0] == 100
+
+
+def test_recode_into_new_var(editor):
+    """RECODE var (old=new) INTO new_var → 새 변수 생성해야 한다."""
+    result = editor._execute_recode("RECODE sex (0=10) (1=20) INTO sex_recoded")
+    assert "완료" in result
+    assert "sex_recoded" in editor._dataset.data.columns
+    assert editor._dataset.data["sex_recoded"].iloc[3] == 20
+
+
+def test_select_if_filters_rows(editor):
+    """SELECT IF (score > 30) → 조건 충족 케이스만 남아야 한다."""
+    before = len(editor._dataset.data)
+    result = editor._execute_select_if("SELECT IF (score > 30)")
+    after = len(editor._dataset.data)
+    assert after < before
+    assert "완료" in result or "→" in result
+
+
+def test_ttest_emits_analysis_result(editor):
+    """T-TEST GROUPS=sex(0 1) /VARIABLES=score → analysis_ready 시그널 방출 검증."""
+    emitted = []
+    editor.analysis_ready.connect(lambda r: emitted.append(r))
+    syntax = "T-TEST GROUPS=sex(0 1) /VARIABLES=score"
+    editor._parse_and_execute(syntax)
+    assert len(emitted) >= 1
+
+
+def test_recode_invalid_var_returns_error(editor):
+    """존재하지 않는 변수 RECODE → 오류 메시지 반환해야 한다."""
+    result = editor._execute_recode("RECODE nonexistent (0=1)")
+    assert "없음" in result or "오류" in result

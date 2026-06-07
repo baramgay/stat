@@ -140,7 +140,8 @@ class SPSSSyntaxHighlighter(QSyntaxHighlighter):
 class SyntaxEditor(QWidget):
     """SPSS Syntax Editor 위젯."""
 
-    syntax_executed = Signal(str, str)  # 명령어, 결과
+    syntax_executed = Signal(str, str)   # 명령어, 결과 텍스트
+    analysis_ready  = Signal(object)     # AnalysisResult — 결과창 전달용
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -307,7 +308,8 @@ class SyntaxEditor(QWidget):
         self._add_to_history(syntax)
 
     def _parse_and_execute(self, syntax: str) -> str:
-        """구문 파싱 및 실행."""
+        """구문 파싱 및 실행 — 분석 모듈 실제 호출."""
+        import re
         if not self._dataset or self._dataset.data is None:
             raise ValueError("데이터셋이 없습니다")
 
@@ -315,43 +317,89 @@ class SyntaxEditor(QWidget):
         results = []
 
         for line in lines:
-            line = line.strip()
+            line = line.strip().rstrip('.')
             if not line or line.startswith('*'):
                 continue
-
             upper = line.upper()
-            df = self._dataset.data
 
-            # FREQUENCIES
+            # ── FREQUENCIES VARIABLES=v1 v2 ─────────────────────────────
             if upper.startswith('FREQUENCIES'):
-                vars = self._extract_variables(line)
-                from nuristat.analysis.descriptive import run_frequencies
-                run_frequencies(df, vars)
-                results.append(f"Frequencies: {len(vars)}개 변수")
+                vars_list = self._extract_variables(line)
+                if vars_list:
+                    from nuristat.analysis.frequencies import run_analysis as _freq
+                    spec = {"variables": {"target": vars_list}, "options": {"include_missing": False, "show_cumulative": True}}
+                    result = _freq(self._dataset, spec)
+                    self.analysis_ready.emit(result)
+                    results.append(f"빈도분석: {len(vars_list)}개 변수")
 
-            # DESCRIPTIVES
+            # ── DESCRIPTIVES VARIABLES=v1 v2 ────────────────────────────
             elif upper.startswith('DESCRIPTIVES'):
-                vars = self._extract_variables(line)
-                from nuristat.analysis.descriptive import run_descriptives
-                run_descriptives(df, vars)
-                results.append(f"Descriptives: {len(vars)}개 변수")
+                vars_list = self._extract_variables(line)
+                if vars_list:
+                    from nuristat.analysis.frequencies import run_analysis as _desc
+                    spec = {"variables": {"target": vars_list}, "options": {}}
+                    try:
+                        from nuristat.analysis.descriptives import run_analysis as _desc2
+                        result = _desc2(self._dataset, spec)
+                    except ImportError:
+                        result = _desc(self._dataset, spec)
+                    self.analysis_ready.emit(result)
+                    results.append(f"기술통계: {len(vars_list)}개 변수")
 
-            # T-TEST
+            # ── T-TEST GROUPS=var(v1 v2) /VARIABLES=dep ──────────────────
             elif upper.startswith('T-TEST'):
-                results.append("T-Test: 실행됨")
+                m_groups = re.search(r'GROUPS\s*=\s*(\w+)\s*\(\s*([^\)]+)\)', line, re.IGNORECASE)
+                dep_vars = self._extract_variables(line)
+                if m_groups and dep_vars:
+                    grp_var = m_groups.group(1)
+                    grp_vals_raw = m_groups.group(2).split()
+                    grp_vals = []
+                    for v in grp_vals_raw[:2]:
+                        try:
+                            grp_vals.append(int(v))
+                        except ValueError:
+                            try:
+                                grp_vals.append(float(v))
+                            except ValueError:
+                                grp_vals.append(v)
+                    from nuristat.analysis.ttests import run_analysis as _ttest
+                    spec = {
+                        "variables": {"dependent": dep_vars, "group": grp_var},
+                        "options": {"group_values": grp_vals, "equal_var": "auto"},
+                    }
+                    result = _ttest(self._dataset, spec)
+                    self.analysis_ready.emit(result)
+                    results.append(f"독립표본 T검정: {dep_vars[0]} (집단: {grp_var})")
+                else:
+                    results.append("T-TEST: GROUPS=var(v1 v2) /VARIABLES=dep 형식 필요")
 
-            # COMPUTE
+            # ── ONEWAY dep BY factor ─────────────────────────────────────
+            elif upper.startswith('ONEWAY'):
+                m = re.match(r'ONEWAY\s+(\w+)\s+BY\s+(\w+)', line, re.IGNORECASE)
+                if m:
+                    dep, fac = m.group(1), m.group(2)
+                    from nuristat.analysis.anova import run_analysis as _anova
+                    spec = {"variables": {"dependent": dep, "factor": fac}, "options": {"posthoc": "tukey"}}
+                    result = _anova(self._dataset, spec)
+                    self.analysis_ready.emit(result)
+                    results.append(f"일원분산분석: {dep} by {fac}")
+                else:
+                    results.append("ONEWAY: ONEWAY dep BY factor 형식 필요")
+
+            # ── COMPUTE new_var = expr ────────────────────────────────────
             elif upper.startswith('COMPUTE'):
                 self._execute_compute(line)
-                results.append("Compute: 변수 계산 완료")
+                results.append("변수 계산 완료")
 
-            # RECODE
+            # ── RECODE var (old=new) ... [INTO new_var] ──────────────────
             elif upper.startswith('RECODE'):
-                results.append("Recode: 실행됨")
+                msg = self._execute_recode(line)
+                results.append(msg)
 
-            # SELECT IF
-            elif upper.startswith('SELECT'):
-                results.append("Select: 실행됨")
+            # ── SELECT IF (condition) ────────────────────────────────────
+            elif upper.startswith('SELECT IF') or upper.startswith('SELECT'):
+                msg = self._execute_select_if(line)
+                results.append(msg)
 
             else:
                 results.append(f"알 수 없는 명령어: {line}")
@@ -388,6 +436,60 @@ class SyntaxEditor(QWidget):
                     self._dataset.data[var_name] = result
             except Exception:
                 pass
+
+    def _execute_recode(self, line: str) -> str:
+        """RECODE var (old=new) ... [INTO new_var] 실행."""
+        import re
+        m_into = re.match(r'RECODE\s+(\w+)\s+(.+?)\s+INTO\s+(\w+)', line, re.IGNORECASE)
+        m_plain = re.match(r'RECODE\s+(\w+)\s+(.+)', line, re.IGNORECASE)
+        if not (m_into or m_plain):
+            return "RECODE: 형식 오류"
+        if m_into:
+            src_var, rules_str, tgt_var = m_into.group(1), m_into.group(2), m_into.group(3)
+        else:
+            src_var = m_plain.group(1)
+            rules_str = m_plain.group(2)
+            tgt_var = src_var
+        df = self._dataset.data
+        if src_var not in df.columns:
+            return f"RECODE: 변수 '{src_var}' 없음"
+        pairs = re.findall(r'\(([^=]+)=([^\)]+)\)', rules_str)
+        rules: dict = {}
+        for old_s, new_s in pairs:
+            old_s, new_s = old_s.strip(), new_s.strip()
+            def _cast(s):
+                try:
+                    return int(s)
+                except ValueError:
+                    try:
+                        return float(s)
+                    except ValueError:
+                        return s
+            rules[_cast(old_s)] = _cast(new_s)
+        if not rules:
+            return "RECODE: 규칙 파싱 실패"
+        df[tgt_var] = df[src_var].replace(rules)
+        n = len(rules)
+        return f"RECODE '{src_var}' → '{tgt_var}' ({n}개 규칙) 완료"
+
+    def _execute_select_if(self, line: str) -> str:
+        """SELECT IF (condition) 실행 — 조건에 맞는 케이스만 유지."""
+        import re
+        m = re.match(r'SELECT\s+IF\s*\((.+)\)', line, re.IGNORECASE)
+        if not m:
+            m = re.match(r'SELECT\s+IF\s+(.+)', line, re.IGNORECASE)
+        if not m:
+            return "SELECT IF: 조건 파싱 실패"
+        condition = m.group(1).strip()
+        df = self._dataset.data
+        try:
+            mask = df.eval(condition)
+            before = len(df)
+            self._dataset.data = df[mask].reset_index(drop=True)
+            after = len(self._dataset.data)
+            return f"SELECT IF: {before}→{after}개 케이스 (조건: {condition})"
+        except Exception as exc:
+            return f"SELECT IF 오류: {exc}"
 
     def _log(self, message: str):
         """로그 출력."""

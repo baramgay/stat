@@ -5,6 +5,36 @@
 
 ---
 
+## [v3.5.0] - 2026-06-08
+
+### 추가 (Features) — 종합 개선·최적화
+
+- **FrequenciesDialog 라벨 표시**: 변수 선택 목록에 측도 아이콘 + 라벨(변수명) 형식 적용 (다른 분석 다이얼로그와 일관성 확보)
+- **행렬 전치**: 데이터 메뉴 > 행렬 전치 — 행↔열 교환 후 새 데이터셋으로 로드
+- **변수 정보 / 파일 정보**: 유틸리티 메뉴에서 변수 속성 목록 및 데이터셋 경로·크기 확인
+- **구문 편집기 실행 강화**: T-TEST·ONEWAY·RECODE·SELECT IF 명령어가 실제 분석 모듈을 호출해 결과창에 출력
+- **값 라벨 중복 체크**: 같은 코드값 재입력 시 경고 후 덮어쓰기 확인
+
+### 개선 (Improvements)
+
+- **get_dataframe() 캐싱**: dtype 변환 결과를 캐시(_typed_df_cache)로 보관 — 데이터 미변경 시 재변환 없이 즉시 반환(대용량 데이터 분석 속도 향상)
+- **선택 셀 상태바**: 다중 선택 시 "N행 × M열 선택" 표시
+- **column_width 실제 적용**: 변수 보기 '열' 속성이 데이터 뷰 열 너비에 반영
+- **toggle_value_labels 최적화**: 가상 그리드 전체 방출 → 실제 데이터 범위만 방출
+
+### 수정 (Bug Fixes)
+
+- **Excel/SAV 가져오기 data_view 미갱신**: _on_dataset_changed 대신 _load_dataset 사용
+- **seaborn palette deprecated 경고 제거**: violinplot·boxplot·barplot에 hue/palette 패턴 수정
+- **Figure 메모리 누수**: visualization_dialog·chart_builder에서 plt.close() 추가
+
+### 테스트
+
+- 신규 테스트 22개 추가 (FrequenciesDialog 라벨, 캐싱, 구문 실행, 값라벨 편집기)
+- 총 **4,691** passed
+
+---
+
 ## [v3.4.3] - 2026-06-07
 
 ### 추가 (Features) — 기본 기능 SPSS 편의성 강화

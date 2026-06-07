@@ -147,7 +147,8 @@ class ValueLabelsDialog(QDialog):
             self.table.removeRow(row)
 
     def _on_ok(self) -> None:
-        self._result = {}
+        new_result: dict = {}
+        duplicates: list[str] = []
         for row in range(self.table.rowCount()):
             val_item = self.table.item(row, 0)
             label_item = self.table.item(row, 1)
@@ -155,7 +156,6 @@ class ValueLabelsDialog(QDialog):
                 val_text = val_item.text().strip()
                 label_text = label_item.text().strip()
                 if val_text and label_text:
-                    # Try int conversion for numeric keys
                     try:
                         key = int(val_text)
                     except ValueError:
@@ -163,7 +163,21 @@ class ValueLabelsDialog(QDialog):
                             key = float(val_text)
                         except ValueError:
                             key = val_text
-                    self._result[key] = label_text
+                    if key in new_result:
+                        duplicates.append(str(val_text))
+                    new_result[key] = label_text
+        if duplicates:
+            reply = QMessageBox.warning(
+                self,
+                "중복 값",
+                f"다음 값이 중복 입력되었습니다: {', '.join(duplicates)}\n"
+                "마지막 입력값으로 덮어씁니다. 계속하시겠습니까?",
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if reply != QMessageBox.StandardButton.Ok:
+                return
+        self._result = new_result
         self.accept()
 
     def get_value_labels(self) -> dict:
