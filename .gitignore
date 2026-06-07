@@ -1,6 +1,7 @@
 # 빌드 산출물 (대용량 — GitHub 제외)
 nuristat/build/
 nuristat/dist/
+nuristat/Output/
 nuristat/*.spec
 # 수작업 유지 빌드 정의는 추적 (자동생성 spec만 제외)
 !nuristat/NuriStat.spec
