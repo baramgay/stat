@@ -318,6 +318,19 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
+        # 값 라벨 표시 토글 (SPSS: 보기 > 값 라벨) — 코드(0/1) ↔ 라벨(남/여) 전환
+        self._value_labels_action = QAction("🏷️ 값 라벨 표시", self)
+        self._value_labels_action.setCheckable(True)
+        self._value_labels_action.setChecked(False)
+        self._value_labels_action.setShortcut("Ctrl+L")
+        self._value_labels_action.setToolTip(
+            "데이터 보기에서 코드값 대신 값 라벨을 표시합니다 (Ctrl+L)"
+        )
+        self._value_labels_action.triggered.connect(self._toggle_value_labels)
+        view_menu.addAction(self._value_labels_action)
+
+        view_menu.addSeparator()
+
         show_output_action = QAction("📊 결과 창 보기", self)
         show_output_action.setShortcut("Ctrl+Shift+O")
         show_output_action.setToolTip("결과 창을 표시합니다 (Ctrl+Shift+O)")
@@ -710,6 +723,17 @@ class MainWindow(QMainWindow):
         self._dark_mode = not self._dark_mode
         self._theme_action.setChecked(self._dark_mode)
         self._apply_theme()
+
+    def _toggle_value_labels(self) -> None:
+        """데이터 보기 값 라벨 표시 전환 (SPSS: 보기 > 값 라벨)."""
+        if not hasattr(self, "data_view"):
+            return
+        shown = self.data_view.toggle_value_labels()
+        self._value_labels_action.setChecked(shown)
+        self.statusbar.showMessage(
+            "값 라벨 표시: 켜짐 (코드 대신 라벨 표시)" if shown
+            else "값 라벨 표시: 꺼짐 (코드값 표시)"
+        )
 
     def _set_output_language(self, lang: str) -> None:
         """분석 결과 출력 언어 전환 — 설정 저장 + 즉시 적용.
