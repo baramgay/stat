@@ -37,6 +37,7 @@ class DataView(QWidget):
     """SPSS Data View 스타일 데이터 편집 화면."""
 
     dataset_changed = Signal()
+    selection_info_changed = Signal(str)  # "N행 × M열 선택" 등 상태바용 문자열
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -342,6 +343,19 @@ class DataView(QWidget):
         # 값 입력 바: EditRole 기준 실제 값 (포맷 없는 원본)
         value = self._model.data(current, Qt.ItemDataRole.EditRole)
         self.formula_bar.setText(str(value) if value is not None and value != "" else "")
+
+    def _on_selection_changed(self, selected, deselected) -> None:
+        """선택 영역 변경 시 상태바용 정보 방출 (N행 × M열 선택)."""
+        indexes = self.table.selectedIndexes()
+        if not indexes:
+            self.selection_info_changed.emit("")
+            return
+        n_rows = len(set(idx.row() for idx in indexes))
+        n_cols = len(set(idx.column() for idx in indexes))
+        if n_rows == 1 and n_cols == 1:
+            self.selection_info_changed.emit("")
+        else:
+            self.selection_info_changed.emit(f"{n_rows}행 × {n_cols}열 선택")
 
     def _formula_bar_commit(self) -> None:
         """Formula Bar에서 Enter → 현재 셀에 값 반영 후 아래로 이동."""
@@ -706,7 +720,15 @@ class DataView(QWidget):
         self._cell_change_connected = False
         if self.table.selectionModel():
             self.table.selectionModel().currentChanged.connect(self._on_cell_changed)
+            self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
             self._cell_change_connected = True
+
+        # SPSS column_width 속성 → 실제 열 너비 적용 (문자 단위 × 9px)
+        if dataset.variables:
+            for i, col_name in enumerate(dataset.data.columns):
+                var = dataset.variables.get(col_name)
+                if var is not None and hasattr(var, "column_width") and var.column_width:
+                    self.table.setColumnWidth(i, max(50, var.column_width * 9))
 
         # 첫 셀 선택
         first = self._model.index(0, 0)

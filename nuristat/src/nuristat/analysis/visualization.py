@@ -359,10 +359,11 @@ class VisualizationEngine:
                 else:
                     # seaborn 0.14+: palette 사용 시 hue 필수 → 범주축 변수를 hue로 지정하고
                     # 범례는 숨겨 기존(범주별 색상) 외형을 유지한다.
+                    _pal = self.COLOR_PALETTE[:max(1, df[x].nunique())]
                     if orientation == "horizontal":
-                        sns.barplot(data=df, y=x, x=y, hue=x, legend=False, ax=ax, palette=self.COLOR_PALETTE)
+                        sns.barplot(data=df, y=x, x=y, hue=x, legend=False, ax=ax, palette=_pal)
                     else:
-                        sns.barplot(data=df, x=x, y=y, hue=x, legend=False, ax=ax, palette=self.COLOR_PALETTE)
+                        sns.barplot(data=df, x=x, y=y, hue=x, legend=False, ax=ax, palette=_pal)
             else:
                 counts = df[x].value_counts()
                 if orientation == "horizontal":
@@ -621,12 +622,15 @@ class VisualizationEngine:
         fig, ax = plt.subplots(figsize=self.FIGURE_SIZES.get(size, (10, 6)))
 
         try:
-            sns.violinplot(data=df, x=x, y=y, hue=hue, ax=ax,
-                          palette=self.COLOR_PALETTE, split=(hue is not None))
+            n_groups = df[x].nunique() if x and x in df.columns else 1
+            pal = self.COLOR_PALETTE[:max(1, n_groups)]
             if hue:
+                sns.violinplot(data=df, x=x, y=y, hue=hue, ax=ax, palette=pal)
                 leg = ax.get_legend()
                 if leg is not None:
                     leg.set_title(self._lbl(hue))
+            else:
+                sns.violinplot(data=df, x=x, y=y, hue=x, legend=False, ax=ax, palette=pal)
 
             self._apply_readability(
                 ax, title or f"바이올린 플롯: {self._lbl(y)} (집단: {self._lbl(x)})", x, y
@@ -663,17 +667,21 @@ class VisualizationEngine:
         fig, ax = plt.subplots(figsize=(10, 6))
 
         try:
-            sns.violinplot(
-                data=data, x=x_var, y=y_var, hue=group_var, ax=ax,
-                palette=self.COLOR_PALETTE,
-                split=(group_var is not None),
-                inner="quart",
-                linewidth=1.2, saturation=0.9,
-            )
+            n_groups = data[x_var].nunique() if x_var and x_var in data.columns else 1
+            pal = self.COLOR_PALETTE[:max(1, n_groups)]
             if group_var:
+                sns.violinplot(
+                    data=data, x=x_var, y=y_var, hue=group_var, ax=ax,
+                    palette=pal, inner="quart", linewidth=1.2, saturation=0.9,
+                )
                 leg = ax.get_legend()
                 if leg is not None:
                     leg.set_title(self._lbl(group_var))
+            else:
+                sns.violinplot(
+                    data=data, x=x_var, y=y_var, hue=x_var, legend=False, ax=ax,
+                    palette=pal, inner="quart", linewidth=1.2, saturation=0.9,
+                )
             title = f"바이올린 플롯: {self._lbl(y_var)} (집단: {self._lbl(x_var)})"
             self._apply_readability(ax, title, x_var, y_var)
             fig.tight_layout()
@@ -783,9 +791,11 @@ class VisualizationEngine:
         try:
             if by_group and y_var and y_var in data.columns:
                 data = self._apply_value_labels(data, [x_var])
+                n_groups = data[x_var].nunique() if x_var and x_var in data.columns else 1
+                pal = self.COLOR_PALETTE[:max(1, n_groups)]
                 sns.boxplot(
-                    data=data, x=x_var, y=y_var, ax=ax,
-                    palette=self.COLOR_PALETTE,
+                    data=data, x=x_var, y=y_var, hue=x_var, legend=False, ax=ax,
+                    palette=pal,
                     width=0.5, linewidth=1.5,
                     flierprops=dict(marker="o", markersize=4, alpha=0.6),
                 )
@@ -925,9 +935,11 @@ class VisualizationEngine:
         try:
             if y_var and y_var in data.columns:
                 ci = 95 if error_bars else None
+                n_groups = data[x_var].nunique() if x_var in data.columns else 1
+                pal = self.COLOR_PALETTE[:max(1, n_groups)]
                 sns.barplot(
-                    data=data, x=x_var, y=y_var, ax=ax,
-                    palette=self.COLOR_PALETTE, errorbar=("ci", ci) if ci else None,
+                    data=data, x=x_var, y=y_var, hue=x_var, legend=False, ax=ax,
+                    palette=pal, errorbar=("ci", ci) if ci else None,
                     capsize=0.08,
                 )
                 ylabel = y_var

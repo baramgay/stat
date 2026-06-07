@@ -795,10 +795,15 @@ class SPSSGridModel(QAbstractTableModel):
     def toggle_value_labels(self) -> bool:
         """값 라벨 표시 토글. 변경 후 현재 상태 반환."""
         self.show_value_labels = not self.show_value_labels
-        # 전체 뷰 갱신
-        top_left = self.index(0, 0)
-        bottom_right = self.index(self.rowCount() - 1, self.columnCount() - 1)
-        self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole])
+        # 실제 데이터 범위만 갱신 (가상 그리드 전체 방출 시 100K+ 셀 → UI 멈춤 방지)
+        n_rows = self._last_data_row + 1 if self._last_data_row >= 0 else 0
+        n_cols = len(self._dataframe.columns)
+        if n_rows > 0 and n_cols > 0:
+            self.dataChanged.emit(
+                self.index(0, 0),
+                self.index(n_rows - 1, n_cols - 1),
+                [Qt.ItemDataRole.DisplayRole],
+            )
         return self.show_value_labels
 
     def add_row(self, values: dict[str, Any] | None = None) -> None:

@@ -103,6 +103,7 @@ class MainWindow(QMainWindow):
         # 데이터 뷰 (기본)
         self.data_view = DataView()
         self.data_view.dataset_changed.connect(self._on_dataset_changed)
+        self.data_view.selection_info_changed.connect(self._on_selection_info)
         data_layout.addWidget(self.data_view)
 
         # 변수 뷰 (숨김)
@@ -705,6 +706,11 @@ class MainWindow(QMainWindow):
         self._last_analysis_label.setStyleSheet("color: gray; margin-right: 8px;")
         self.statusbar.addPermanentWidget(self._last_analysis_label)
 
+        # 선택 셀 정보 (다중 선택 시 "N행 × M열 선택" 표시)
+        self._selection_info_label = QLabel("")
+        self._selection_info_label.setStyleSheet("color: #555; margin-right: 8px;")
+        self.statusbar.addPermanentWidget(self._selection_info_label)
+
         # 데이터셋 정보 (N=행 변수=열 형식)
         self.dataset_info_label = QLabel("N=0  변수=0")
         self.statusbar.addPermanentWidget(self.dataset_info_label)
@@ -717,6 +723,10 @@ class MainWindow(QMainWindow):
             self.dataset_info_label.setText(f"N={rows:,}  변수={cols}")
         else:
             self.dataset_info_label.setText("N=0  변수=0")
+
+    def _on_selection_info(self, info: str) -> None:
+        """데이터 보기 다중 선택 정보를 상태바에 표시."""
+        self._selection_info_label.setText(info)
 
     def _apply_theme(self) -> None:
         """테마 적용."""
@@ -1015,19 +1025,21 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
 
     def _on_dataset_changed(self, dataset=None) -> None:
-        """데이터셋 변경 시 호출됩니다."""
+        """데이터셋 변경 시 호출됩니다.
+
+        뷰에서 데이터가 바뀌면(편집·정렬·재코딩 등) 다른 뷰에 변경 내용을 전파한다.
+        새 데이터셋을 로드할 때는 _load_dataset을 직접 호출하고 이 메서드를 경유하지 않는다.
+        """
         if dataset is not None:
             self.current_dataset = dataset
         if self.current_dataset is not None:
-            # Variable View ↔ Data View 양방향 동기화
+            # Variable View: 변수 메타데이터 변경(값 라벨 등) → 데이터 보기에 즉시 반영
             if hasattr(self, 'variable_view') and self.variable_view:
                 self.variable_view.set_dataset(self.current_dataset)
-            # Data View 메타데이터 반영 (decimals, measure 등 변경 즉시 적용)
+            # Data View: 메타데이터 변경(decimals, 측정 척도 등) → 셀 표시 갱신
             if hasattr(self, 'data_view') and self.data_view:
-                model = self.data_view.model() if hasattr(self.data_view, 'model') else None
-                if model is not None and hasattr(model, 'layoutChanged'):
-                    model.layoutChanged.emit()
-            # 구문 편집기에도 반영
+                self.data_view.refresh()
+            # 구문 편집기 동기화
             if hasattr(self, 'syntax_editor') and self.syntax_editor:
                 self.syntax_editor.set_dataset(self.current_dataset)
             # 프로젝트를 더티 상태로 표시
@@ -1064,8 +1076,7 @@ class MainWindow(QMainWindow):
         if path:
             try:
                 dataset = read_excel(path)
-                self.current_dataset = dataset
-                self._on_dataset_changed(dataset)
+                self._load_dataset(dataset)
                 self._remember_recent(path)
                 self.statusbar.showMessage(f"Excel 가져오기 완료: {path}")
             except Exception as exc:
@@ -1079,8 +1090,7 @@ class MainWindow(QMainWindow):
         if path:
             try:
                 dataset = read_sav(path)
-                self.current_dataset = dataset
-                self._on_dataset_changed(dataset)
+                self._load_dataset(dataset)
                 self._remember_recent(path)
                 self.statusbar.showMessage(f"SPSS 가져오기 완료: {path}")
             except Exception as exc:

@@ -7,8 +7,10 @@ VisualizationEngine 과 완전 연결.
 from __future__ import annotations
 
 import base64
+import io as _io
 import logging
 
+import matplotlib.pyplot as _plt
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, Signal
@@ -381,6 +383,7 @@ class VisualizationDialog(QDialog):
         title = self.title_edit.text().strip()
         df = self.dataset.data
 
+        fig = None
         try:
             fig = self._build_figure(chart_type, df, x, y, hue, title)
 
@@ -399,7 +402,6 @@ class VisualizationDialog(QDialog):
             )
 
             # base64로 변환 (300 DPI — 논문 인쇄 품질)
-            import io as _io
             buf = _io.BytesIO()
             fig.savefig(buf, format="png", dpi=300, bbox_inches="tight",
                         facecolor="white")
@@ -430,6 +432,9 @@ class VisualizationDialog(QDialog):
             logger.exception("차트 생성 오류")
             QMessageBox.critical(self, "오류", f"차트 생성 실패:\n{exc}")
             self.result_text.append(f"[오류] {exc}")
+        finally:
+            if fig is not None:
+                _plt.close(fig)  # Figure 객체 즉시 해제 — 반복 생성 시 메모리 누수 방지
 
     def _build_figure(
         self,

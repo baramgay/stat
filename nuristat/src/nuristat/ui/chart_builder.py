@@ -399,8 +399,10 @@ class ChartBuilderDialog(QDialog):
             QMessageBox.critical(self, "오류", f"차트 생성 실패:\n{exc}")
             return
 
-        self._current_fig = fig
         self._canvas.display_figure(fig)
+        import matplotlib.pyplot as _plt
+        _plt.close(fig)  # 캔버스로 PNG 복사 완료 → 원본 Figure 해제
+        self._current_fig = self._canvas.get_figure()
         self._insert_btn.setEnabled(True)
         self._save_png_btn.setEnabled(True)
 
