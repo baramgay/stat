@@ -57,10 +57,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             4. Tests of Between-Subjects Effects (단변량)
             5. Pairwise Comparisons (사후 검정, 선택)
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
-    missing_policy_str = spec.get("missing_policy", "listwise")
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     dep_vars: list[str] = variables.get("dependents", [])
     factor_var: str = variables.get("factor", "")

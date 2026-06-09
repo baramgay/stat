@@ -32,13 +32,20 @@ class PreparedAnalysisFrame:
     data : pd.DataFrame
         Cleaned data frame ready for analysis.
     n_total : int
-        Total number of rows in the original dataset.
+        Total number of rows in the original dataset (before any filter).
     n_valid : int
-        Number of rows after missing-data removal.
+        Number of rows after filter + missing-data removal.
     n_excluded : int
-        Number of rows excluded.
+        Number of rows excluded (filtered out + missing).
     excluded_pct : float
         Percentage of rows excluded.
+    n_filtered : int
+        Rows remaining after applying the active case filter.
+        Equals *n_total* when no filter is active.
+    weight_var : str | None
+        Name of the active weight variable, or ``None`` if no weight is set.
+        Weight-aware analyses (frequencies, crosstabs, descriptives) should
+        use ``data[weight_var]`` as frequency weights.
     """
 
     data: pd.DataFrame
@@ -46,6 +53,13 @@ class PreparedAnalysisFrame:
     n_valid: int
     n_excluded: int
     excluded_pct: float
+    n_filtered: int = -1
+    weight_var: str | None = None
+
+    def __post_init__(self) -> None:
+        # -1 is the "not set" sentinel; back-fill for callers that omit n_filtered
+        if self.n_filtered < 0:
+            self.n_filtered = self.n_total
 
 
 # ---------------------------------------------------------------------------
@@ -92,13 +106,23 @@ def _apply_user_missing(
     return df
 
 
+_FILTER_COLUMN = "filter_$"
+# validate_variable_name() sanitises '$' → '_', so handle both column names
+_FILTER_COLUMN_SAFE = "filter__"
+
+
 def prepare_analysis_frame(
     dataset: Dataset,
     variables: list[str],
     missing_policy: MissingPolicy = MissingPolicy.LISTWISE,
     include_user_missing: bool = True,
+    weight_var: str | None = None,
 ) -> PreparedAnalysisFrame:
     """Prepare a clean analysis frame after applying missing-data policy.
+
+    Automatically honours the active case filter (``filter_$`` column) and
+    the supplied weight variable so that downstream analysis functions see
+    only the selected subset.
 
     Parameters
     ----------
@@ -108,8 +132,11 @@ def prepare_analysis_frame(
         Variable names to include in the analysis.
     missing_policy : MissingPolicy, default MissingPolicy.LISTWISE
         How to handle missing values.
-    include_user_missing : bool, default False
+    include_user_missing : bool, default True
         If True, also treat user-defined missing values as missing.
+    weight_var : str | None, default None
+        Name of the active weight variable.  When set, the weight column is
+        appended to ``data`` so callers can apply frequency weights.
 
     Returns
     -------
@@ -124,30 +151,58 @@ def prepare_analysis_frame(
     df = dataset.data
     n_total = len(df)
 
-    # Validate variable names
+    # ------------------------------------------------------------------
+    # 1. Apply active case filter (select_cases_dialog writes filter_$ = 0/1)
+    # Note: validate_variable_name() may rename filter_$ → filter__ on init;
+    # select_cases_dialog writes directly after init so the column stays filter_$.
+    # Check both names for robustness.
+    # ------------------------------------------------------------------
+    n_filtered = n_total
+    _filter_col = (
+        _FILTER_COLUMN if _FILTER_COLUMN in df.columns
+        else (_FILTER_COLUMN_SAFE if _FILTER_COLUMN_SAFE in df.columns else None)
+    )
+    if _filter_col is not None:
+        filter_mask = df[_filter_col] == 1
+        df = df[filter_mask]
+        n_filtered = len(df)
+
+    # Validate variable names (after filter so variable check is meaningful)
+    all_needed = list(variables)
+    if weight_var and weight_var not in all_needed:
+        all_needed.append(weight_var)
+
     missing_vars = [v for v in variables if v not in df.columns]
     if missing_vars:
         raise ValueError(
             f"Variable(s) not found in dataset: {missing_vars}"
         )
 
-    # Subset to requested columns
-    subset = df[variables].copy()
+    # ------------------------------------------------------------------
+    # 2. Subset to requested columns (+ weight if needed)
+    # ------------------------------------------------------------------
+    cols_to_keep = [c for c in all_needed if c in df.columns]
+    subset = df[cols_to_keep].copy()
 
     # Apply user-defined missing rules if requested
     if include_user_missing:
         subset = _apply_user_missing(subset, dataset, variables)
 
-    # Apply missing policy
+    # ------------------------------------------------------------------
+    # 3. Apply missing policy (on analysis variables only, not weight col)
+    # ------------------------------------------------------------------
+    analysis_cols = [c for c in variables if c in subset.columns]
     if missing_policy == MissingPolicy.LISTWISE:
-        clean = subset.dropna()
+        valid_mask = subset[analysis_cols].notna().all(axis=1)
+        clean = subset[valid_mask]
     elif missing_policy == MissingPolicy.PAIRWISE:
         # For pairwise, return the full subset; analysis functions handle
         # missing values per-pair themselves.  We still report total N.
         clean = subset
     elif missing_policy == MissingPolicy.ANALYSIS_DEFAULT:
         # Default to listwise for most analyses
-        clean = subset.dropna()
+        valid_mask = subset[analysis_cols].notna().all(axis=1)
+        clean = subset[valid_mask]
     elif missing_policy == MissingPolicy.INCLUDE_AS_CATEGORY:
         # Keep all rows; missing values will be treated as a category
         clean = subset
@@ -155,11 +210,15 @@ def prepare_analysis_frame(
         # Only exclude user-defined missing, keep system missing
         clean = subset
     else:
-        clean = subset.dropna()
+        valid_mask = subset[analysis_cols].notna().all(axis=1)
+        clean = subset[valid_mask]
 
     n_valid = len(clean)
     n_excluded = n_total - n_valid
     excluded_pct = (n_excluded / n_total * 100) if n_total > 0 else 0.0
+
+    # Resolve actual weight var (only if present in clean)
+    resolved_weight = weight_var if (weight_var and weight_var in clean.columns) else None
 
     return PreparedAnalysisFrame(
         data=clean,
@@ -167,6 +226,8 @@ def prepare_analysis_frame(
         n_valid=n_valid,
         n_excluded=n_excluded,
         excluded_pct=excluded_pct,
+        n_filtered=n_filtered,
+        weight_var=resolved_weight,
     )
 
 

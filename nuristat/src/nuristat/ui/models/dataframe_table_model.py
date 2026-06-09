@@ -14,12 +14,9 @@ from typing import Any
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 
+from nuristat.ui.models.spss_grid_model import generate_var_name
+
 logger = logging.getLogger(__name__)
-
-
-def generate_var_name(index: int) -> str:
-    """SPSS 스타일 변수명 생성 (VAR00001, VAR00002, ...)."""
-    return f"VAR{index:05d}"
 
 
 class DataFrameTableModel(QAbstractTableModel):

@@ -85,13 +85,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     Returns:
         AnalysisResult with descriptive statistics tables.
     """
-    variables = spec.get("variables", {})
-    confidence_level = spec.get("confidence_level", 0.95)
-    missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
-    if isinstance(missing_policy_str, str):
-        missing_policy = MissingPolicy(missing_policy_str)
-    else:
-        missing_policy = missing_policy_str
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     scale_vars: list[str] = variables.get("scale", [])
     group_var: str | None = variables.get("group", None)

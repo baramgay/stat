@@ -10,14 +10,21 @@ from __future__ import annotations
 
 import platform
 
+_configured = False  # 모듈 내 캐시 플래그 — 한 번 설정 후 재실행 방지
+
 
 def ensure_korean_font() -> None:
     """matplotlib 전역 rcParams에 한글 폰트를 설정한다.
 
+    최초 호출 시에만 fontManager를 탐색하고 이후 호출은 즉시 반환한다.
     맑은 고딕(Malgun Gothic)을 우선 적용하고, 없으면 나눔/애플 고딕 순으로 탐색한다.
     어느 것도 없으면 Windows 폰트 경로를 직접 등록하고, 최후에는 DejaVu Sans로 폴백한다.
     음수 기호가 깨지지 않도록 ``axes.unicode_minus``도 함께 비활성화한다.
     """
+    global _configured
+    if _configured:
+        return
+
     import matplotlib.font_manager as fm
     import matplotlib.pyplot as plt
 
@@ -42,3 +49,4 @@ def ensure_korean_font() -> None:
             plt.rcParams["font.family"] = "DejaVu Sans"
 
     plt.rcParams["axes.unicode_minus"] = False
+    _configured = True

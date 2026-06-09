@@ -112,12 +112,15 @@ class FrequenciesDialog(QDialog):
 
         try:
             from nuristat.analysis.frequencies import run_analysis
+            # 부모 창(MainWindow)에서 활성 가중치 변수 가져오기
+            weight_var = getattr(self.parent(), "_active_weight_var", None)
             spec = {
                 "variables": {"target": selected},
                 "options": {
                     "include_missing": False,
                     "show_cumulative": True,
                 },
+                "weight_var": weight_var,
             }
             result = run_analysis(self._dataset, spec)
             self.analysis_run.emit(result)

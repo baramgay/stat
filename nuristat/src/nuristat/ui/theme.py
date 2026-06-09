@@ -74,7 +74,7 @@ class ThemeColors:
         # Text - ensure high contrast
         self.TEXT_PRIMARY = "#1a1a2e"
         self.TEXT_SECONDARY = "#4a4a5a"
-        self.TEXT_MUTED = "#7a7a8a"
+        self.TEXT_MUTED = "#55555f"  # WCAG AA ≥4.5:1 on white background
         self.TEXT_ON_PRIMARY = "#ffffff"
         self.TEXT_ON_DARK = "#ffffff"
 
@@ -133,7 +133,7 @@ class ThemeColors:
         # Text - bright for OLED
         self.TEXT_PRIMARY = "#e8e8f0"
         self.TEXT_SECONDARY = "#b0b0c0"
-        self.TEXT_MUTED = "#707080"
+        self.TEXT_MUTED = "#9a9aac"  # WCAG AA ≥3:1 on dark background (#0a0a0a)
         self.TEXT_ON_PRIMARY = "#0a0a0a"
         self.TEXT_ON_DARK = "#e8e8f0"
 

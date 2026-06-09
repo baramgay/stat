@@ -21,38 +21,9 @@ import seaborn as sns
 from matplotlib.figure import Figure
 from scipy import stats
 
+from nuristat.analysis._chart_font import ensure_korean_font as _setup_korean_font
+
 logger = logging.getLogger(__name__)
-
-# 한글 폰트 설정 (맑은 고딕 우선, 캐시 자동 갱신)
-def _setup_korean_font() -> None:
-    """시스템에서 한글 폰트를 찾아 matplotlib에 등록."""
-    import platform
-
-    import matplotlib.font_manager as _fm
-
-    candidates = ["Malgun Gothic", "NanumGothic", "NanumBarunGothic", "AppleGothic"]
-    available = {f.name for f in _fm.fontManager.ttflist}
-
-    for name in candidates:
-        if name in available:
-            plt.rcParams["font.family"] = name
-            break
-    else:
-        # 직접 경로 탐색 (Windows)
-        if platform.system() == "Windows":  # pragma: no cover
-            win_font = "C:/Windows/Fonts/malgun.ttf"
-            import os
-            if os.path.exists(win_font):
-                _fm.fontManager.addfont(win_font)
-                prop = _fm.FontProperties(fname=win_font)
-                plt.rcParams["font.family"] = prop.get_name()
-            else:
-                plt.rcParams["font.family"] = "DejaVu Sans"
-        else:  # pragma: no cover
-            plt.rcParams["font.family"] = "DejaVu Sans"
-
-    plt.rcParams["axes.unicode_minus"] = False
-
 
 _setup_korean_font()
 

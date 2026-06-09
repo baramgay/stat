@@ -43,6 +43,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     show_cumulative = options.get("show_cumulative", True)
     show_value_labels = options.get("show_value_labels", True)
     sort_by = options.get("sort_by", "value")
+    weight_var: str | None = spec.get("weight_var")
 
     result = AnalysisResult(
         id="frequencies",
@@ -56,9 +57,10 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         return result
 
     try:
-        # Case Processing Summary
+        # Case Processing Summary (filter_$ and weight_var auto-applied)
         prepared = prepare_analysis_frame(
-            dataset, variables=target_vars, missing_policy=missing_policy
+            dataset, variables=target_vars, missing_policy=missing_policy,
+            weight_var=weight_var,
         )
         cps = get_case_processing_summary(
             prepared.n_total, prepared.n_valid, prepared.n_excluded,
@@ -66,48 +68,73 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         )
         result.add_table(cps)
 
+        # Notify if filter or weight is active
+        if prepared.n_filtered < prepared.n_total:
+            result.warnings.append(
+                f"케이스 필터 켜짐: 전체 {prepared.n_total}개 중 {prepared.n_filtered}개 선택됨"
+            )
+        if prepared.weight_var:
+            result.warnings.append(f"가중치 변수 '{prepared.weight_var}' 적용됨")
+
         for var_name in target_vars:
-            if var_name not in dataset.data.columns:
+            if var_name not in prepared.data.columns:
                 result.warnings.append(f"Variable '{var_name}' not found in dataset.")
                 continue
 
-            series = dataset.data[var_name]
+            series = prepared.data[var_name]
             total_n = len(series)
             valid_series = series.dropna()
             valid_n = len(valid_series)
             missing_n = total_n - valid_n
 
-            # Value counts
-            value_counts = valid_series.value_counts(sort=False)
+            # Weighted frequency counts (if weight variable present)
+            if prepared.weight_var and prepared.weight_var in prepared.data.columns:
+                weights = prepared.data.loc[valid_series.index, prepared.weight_var].fillna(0)
+                weights = weights.clip(lower=0)
+                wts = pd.Series(weights.values, index=valid_series.index)
+                value_counts_raw = (
+                    pd.DataFrame({"val": valid_series, "wt": wts})
+                    .groupby("val")["wt"]
+                    .sum()
+                )
+                total_n_eff = float(wts.sum())
+                valid_n_eff = float(wts.sum())
+            else:
+                value_counts_raw = valid_series.value_counts(sort=False)
+                total_n_eff = float(total_n)
+                valid_n_eff = float(valid_n)
 
             # Sort
             if sort_by == "frequency":
-                value_counts = valid_series.value_counts(sort=True)
+                value_counts = value_counts_raw.sort_values(ascending=False)
             elif sort_by == "label":
-                value_counts = valid_series.value_counts(sort=False).sort_index()
+                try:
+                    value_counts = value_counts_raw.sort_index()
+                except TypeError:
+                    value_counts = value_counts_raw
             else:
                 try:
-                    value_counts = valid_series.value_counts(sort=False).sort_index()
+                    value_counts = value_counts_raw.sort_index()
                 except TypeError:
-                    value_counts = valid_series.value_counts(sort=False)
+                    value_counts = value_counts_raw
 
             rows = []
-            cumulative = 0
+            cumulative = 0.0
 
             # Get value labels if available
             var_meta = dataset.variables.get(var_name)
             value_labels = (var_meta.value_labels or {}) if var_meta else {}
 
             for value, freq in value_counts.items():
-                pct = (freq / total_n) * 100 if total_n > 0 else 0
-                valid_pct = (freq / valid_n) * 100 if valid_n > 0 else 0
+                pct = (freq / total_n_eff) * 100 if total_n_eff > 0 else 0
+                valid_pct = (freq / valid_n_eff) * 100 if valid_n_eff > 0 else 0
                 cumulative += valid_pct
 
                 display_value = value_labels.get(str(value), str(value)) if show_value_labels and str(value) in value_labels else value
 
                 row = {
                     "Value": display_value,
-                    "Frequency": freq,
+                    "Frequency": round(float(freq), 3) if prepared.weight_var else int(freq),
                     "Percent": round(pct, 1),
                     "Valid Percent": round(valid_pct, 1),
                 }

@@ -22,8 +22,13 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
+
+try:
+    from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler
+    _SKLEARN_AVAILABLE = True
+except ImportError:
+    _SKLEARN_AVAILABLE = False
 
 from nuristat.analysis.assumptions import get_cps_table_kr, prepare_analysis_frame
 from nuristat.analysis.formatting import format_number, format_pvalue
@@ -56,9 +61,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             6. 회전 후 성분 행렬 (선택)
             7. 스크리 플롯 (선택)
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    missing_policy_str = spec.get("missing_policy", "listwise")
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     items: list[str] = variables.get("items", [])
     n_components_req: int = int(options.get("n_components", 0))
@@ -68,6 +71,10 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     do_standardize: bool = options.get("standardize", True)
 
     result = AnalysisResult(id="pca", title="주성분분석 (PCA)")
+
+    if not _SKLEARN_AVAILABLE:
+        result.add_warning("scikit-learn이 설치되어 있지 않습니다. pip install scikit-learn")
+        return result
 
     # ── 입력 검증 ─────────────────────────────────────────────────────────────
     if dataset.data is None or len(items) < 2:

@@ -67,13 +67,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     Returns:
         AnalysisResult with nonparametric test results.
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
-    if isinstance(missing_policy_str, str):
-        missing_policy = MissingPolicy(missing_policy_str)
-    else:
-        missing_policy = missing_policy_str
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     test_type = options.get("test", "mann_whitney")
 

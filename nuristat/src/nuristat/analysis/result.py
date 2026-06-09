@@ -183,9 +183,17 @@ class AnalysisResult(BaseModel):
             parts.append(table.to_html())
         for table in self.assumptions:
             parts.append(table.to_html())
+        for table in self.diagnostics:
+            parts.append(table.to_html())
+        if self.text_blocks:
+            for block in self.text_blocks:
+                parts.append(f"<pre style='margin:4px 0'>{block}</pre>")
+        if self.notes:
+            note_html = "<ul>" + "".join(f"<li>{n}</li>" for n in self.notes) + "</ul>"
+            parts.append(f"<div class='notes' style='color:#2874a6'>{note_html}</div>")
         if self.warnings:
             warn_html = "<ul>" + "".join(f"<li>{w}</li>" for w in self.warnings) + "</ul>"
-            parts.append(f"<div class='warnings'>{warn_html}</div>")
+            parts.append(f"<div class='warnings' style='color:#d62728'>{warn_html}</div>")
         return "\n".join(parts)
 
     def summary(self) -> str:

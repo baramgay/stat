@@ -834,11 +834,15 @@ class SPSSGridModel(QAbstractTableModel):
         self.beginInsertRows(QModelIndex(), current_rows, current_rows)
 
         new_row = values if values is not None else {}
-        for col in self._dataframe.columns:
-            if col not in new_row:
-                new_row[col] = pd.NA
+        # dtype에 맞는 null 값 사용 → concat FutureWarning 없이 dtype 보존
+        def _null(dtype: object) -> object:
+            return np.nan if pd.api.types.is_numeric_dtype(dtype) else None
 
-        new_df = pd.DataFrame([new_row])
+        row_data = {
+            col: new_row.get(col, _null(self._dataframe[col].dtype))
+            for col in self._dataframe.columns
+        }
+        new_df = pd.DataFrame([row_data])
         self._dataframe = pd.concat([self._dataframe, new_df], ignore_index=True)
 
         self._invalidate_df_cache()

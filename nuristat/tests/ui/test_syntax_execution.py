@@ -64,6 +64,25 @@ def test_ttest_emits_analysis_result(editor):
     assert len(emitted) >= 1
 
 
+def test_pairs_ttest_emits_analysis_result(editor):
+    """T-TEST PAIRS=score WITH age → 대응표본 T검정 analysis_ready 방출 검증."""
+    emitted = []
+    editor.analysis_ready.connect(lambda r: emitted.append(r))
+    syntax = "T-TEST PAIRS=score WITH age"
+    editor._parse_and_execute(syntax)
+    assert len(emitted) >= 1
+
+
+def test_pairs_ttest_bad_syntax_no_crash(editor):
+    """T-TEST PAIRS without WITH → 오류 없이 안내 메시지만 반환해야 한다."""
+    emitted = []
+    editor.analysis_ready.connect(lambda r: emitted.append(r))
+    syntax = "T-TEST PAIRS=score"  # missing WITH var2
+    editor._parse_and_execute(syntax)
+    # Should not emit analysis_ready; no crash
+    assert len(emitted) == 0
+
+
 def test_recode_invalid_var_returns_error(editor):
     """존재하지 않는 변수 RECODE → 오류 메시지 반환해야 한다."""
     result = editor._execute_recode("RECODE nonexistent (0=1)")

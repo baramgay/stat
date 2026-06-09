@@ -68,6 +68,9 @@ class MainWindow(QMainWindow):
         # 결과 창 (단일 인스턴스)
         self._output_window: OutputWindow | None = None
 
+        # 활성 케이스 필터·가중치 상태
+        self._active_weight_var: str | None = None
+
         self._setup_ui()
         self._setup_menus()
         self._setup_toolbar()
@@ -712,6 +715,15 @@ class MainWindow(QMainWindow):
         self._selection_info_label.setStyleSheet("color: #555; margin-right: 8px;")
         self.statusbar.addPermanentWidget(self._selection_info_label)
 
+        # 필터·가중치 상태 표시
+        self._filter_label = QLabel("")
+        self._filter_label.setStyleSheet("color: #e67e22; font-weight: bold; margin-right: 8px;")
+        self.statusbar.addPermanentWidget(self._filter_label)
+
+        self._weight_label = QLabel("")
+        self._weight_label.setStyleSheet("color: #8e44ad; font-weight: bold; margin-right: 8px;")
+        self.statusbar.addPermanentWidget(self._weight_label)
+
         # 데이터셋 정보 (N=행 변수=열 형식)
         self.dataset_info_label = QLabel("N=0  변수=0")
         self.statusbar.addPermanentWidget(self.dataset_info_label)
@@ -1283,7 +1295,27 @@ class MainWindow(QMainWindow):
     def _on_cases_selected(self, selection_type: str, condition: object) -> None:
         """케이스 선택 완료 시."""
         output = self._get_output()
-        output.add_output(f"🔍 케이스 선택 적용: {selection_type}", "success")
+        if selection_type == "all":
+            output.add_output("🔍 케이스 선택: 모든 케이스 (필터 없음)", "success")
+            self._update_filter_statusbar(active=False)
+        else:
+            df = self.current_dataset.data if self.current_dataset else None
+            n_selected = int(df["filter_$"].sum()) if df is not None and "filter_$" in df.columns else "?"
+            n_total = len(df) if df is not None else "?"
+            output.add_output(
+                f"🔍 케이스 선택 켜짐: {n_selected}/{n_total}개 선택 ({selection_type})", "success"
+            )
+            self._update_filter_statusbar(active=True, n_selected=n_selected, n_total=n_total)
+
+    def _update_filter_statusbar(
+        self, active: bool, n_selected: object = None, n_total: object = None
+    ) -> None:
+        """상태바에 필터 켜짐/꺼짐 표시 (SPSS 스타일)."""
+        if hasattr(self, "_filter_label"):
+            if active and n_selected is not None:
+                self._filter_label.setText(f"필터 켜짐 ({n_selected}/{n_total})")
+            else:
+                self._filter_label.setText("")
 
     def _open_weight_cases(self) -> None:
         """가중치 적용 다이얼로그 열기."""
@@ -1299,13 +1331,19 @@ class MainWindow(QMainWindow):
 
     def _on_weight_applied(self, weight_var: str) -> None:
         """가중치 적용 시."""
+        self._active_weight_var = weight_var
         output = self._get_output()
-        output.add_output(f"⚖️ 가중치 적용: {weight_var}", "success")
+        output.add_output(f"⚖️ 가중치 적용: {weight_var} — 이후 빈도/기술통계 분석에 반영됩니다", "success")
+        if hasattr(self, "_weight_label"):
+            self._weight_label.setText(f"가중치: {weight_var}")
 
     def _on_weight_cleared(self) -> None:
         """가중치 해제 시."""
+        self._active_weight_var = None
         output = self._get_output()
         output.add_output("⚖️ 가중치가 해제되었습니다.", "success")
+        if hasattr(self, "_weight_label"):
+            self._weight_label.setText("")
 
     def _open_merge_files(self) -> None:
         """파일 병합 다이얼로그 열기."""
@@ -1505,10 +1543,7 @@ class MainWindow(QMainWindow):
     def _on_analysis_result(self, result) -> None:
         """AnalysisResult 시그널 공통 처리."""
         self._ensure_output_window()
-        try:
-            self._output_window.add_output(result.to_html(), "analysis")
-        except Exception:
-            self._output_window.add_output(str(result), "analysis")
+        self._output_window.add_analysis_result(result)
         analysis_name = getattr(result, "title", "")
         if analysis_name:
             self._last_analysis_label.setText(f"최근 분석: {analysis_name}")
@@ -1534,7 +1569,7 @@ class MainWindow(QMainWindow):
         try:
             from nuristat.analysis.crosstab import run_analysis
             result = run_analysis(self.current_dataset, spec)
-            self._output_window.add_output(result.to_html(), "analysis")
+            self._output_window.add_analysis_result(result)
             self.statusbar.showMessage("교차분석 완료")
         except Exception as exc:
             QMessageBox.critical(self, "오류", f"교차분석 실행 실패:\n{exc}")
@@ -1697,7 +1732,7 @@ class MainWindow(QMainWindow):
                     spec["test_value"],
                 )
                 self._ensure_output_window()
-                self._output_window.add_output(result.to_html(), "analysis")
+                self._output_window.add_analysis_result(result)
                 self.statusbar.showMessage("단일표본 T 검정 완료")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
@@ -1716,7 +1751,7 @@ class MainWindow(QMainWindow):
                 from nuristat.analysis import logistic_regression
                 result = logistic_regression.run_analysis(self.current_dataset, spec)
                 self._ensure_output_window()
-                self._output_window.add_output(result.to_html(), "analysis")
+                self._output_window.add_analysis_result(result)
                 self.statusbar.showMessage("로지스틱 회귀 완료")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
@@ -1735,7 +1770,7 @@ class MainWindow(QMainWindow):
                 from nuristat.analysis import factor_analysis
                 result = factor_analysis.run_analysis(self.current_dataset, spec)
                 self._ensure_output_window()
-                self._output_window.add_output(result.to_html(), "analysis")
+                self._output_window.add_analysis_result(result)
                 self.statusbar.showMessage("요인분석 완료")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
@@ -1754,7 +1789,7 @@ class MainWindow(QMainWindow):
                 from nuristat.analysis import cluster_analysis
                 result = cluster_analysis.run_analysis(self.current_dataset, spec)
                 self._ensure_output_window()
-                self._output_window.add_output(result.to_html(), "analysis")
+                self._output_window.add_analysis_result(result)
                 self.statusbar.showMessage("군집분석 완료")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
@@ -1795,7 +1830,7 @@ class MainWindow(QMainWindow):
                 from nuristat.analysis import discriminant_analysis
                 result = discriminant_analysis.run_analysis(self.current_dataset, spec)
                 self._ensure_output_window()
-                self._output_window.add_output(result.to_html(), "analysis")
+                self._output_window.add_analysis_result(result)
                 self.statusbar.showMessage("판별분석 완료")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
@@ -1809,7 +1844,7 @@ class MainWindow(QMainWindow):
             result = registry.execute(analysis_type, self.current_dataset, params)
 
             output = self._get_output()
-            output.add_output(result.to_html(), "analysis")
+            output.add_analysis_result(result)
 
             self._last_analysis_label.setText(f"최근 분석: {analysis_type}")
             self.statusbar.showMessage(f"분석 완료: {analysis_type}")

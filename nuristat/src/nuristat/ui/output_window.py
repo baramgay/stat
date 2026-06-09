@@ -1,123 +1,131 @@
-"""Output Window — 독립 결과 창.
+"""Output Window — 독립 결과 창 (탭 분리 + 클립보드 복사 + Word/HTML 내보내기).
 
-분석 결과를 누적하여 표시하는 독립 창입니다.
-단일 인스턴스로 관리되어 여러 창이 뜨지 않습니다.
+분석 결과별로 탭을 생성하고, 우클릭으로 표를 클립보드에 복사하거나
+Word/HTML로 내보낼 수 있습니다.
 """
 
 from __future__ import annotations
 
-import base64
 import io
 from datetime import datetime
+from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
-    QTextEdit,
+    QTabWidget,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
+
+from nuristat.ui.theme import get_output_html_styles
 
 
 class OutputWindow(QMainWindow):
     """독립 결과 창.
 
-    Features:
-    - 누적 출력 (새 분석 결과가 계속 추가됨)
-    - HTML 렌더링
-    - 텍스트/표/차트 표시
-    - 저장/납비
-    - 지우기
+    - 분석 결과: 탭 1개 = 분석 1건 (``add_analysis_result``)
+    - 로그/상태: "로그" 탭 누적 (``add_output``)
+    - 우클릭 → 클립보드 복사 (text/html + text/plain 탭구분)
+    - 파일 메뉴 → HTML / Word 내보내기
     """
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("📊 누리스탯 결과")
         self.setMinimumSize(700, 500)
-        self.resize(800, 600)
+        self.resize(900, 650)
+
+        self._results: list[Any] = []   # AnalysisResult per tab (aligned with tabs 1..)
+        self._log_lines: list[str] = []
 
         self._setup_ui()
         self._setup_menus()
 
-        # 출력 내용 저장
-        self._output_history: list[str] = []
+    # ------------------------------------------------------------------
+    # UI 초기화
+    # ------------------------------------------------------------------
 
     def _setup_ui(self) -> None:
-        """UI 구성."""
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(4)
 
-        # 상단: 정보 바
-        info_layout = QHBoxLayout()
+        # 상단 버튼 바
+        bar = QHBoxLayout()
+        self.info_label = QLabel("분석 결과가 탭으로 표시됩니다")
+        self.info_label.setStyleSheet("color: #55555f; font-size: 11px;")
+        bar.addWidget(self.info_label)
+        bar.addStretch()
 
-        self.info_label = QLabel("결과가 여기에 누적됩니다")
-        self.info_label.setStyleSheet("color: #5d6d7e; font-size: 11px;")
-        info_layout.addWidget(self.info_label)
-
-        info_layout.addStretch()
-
-        # 버튼들
         self.btn_clear = QPushButton("🗑️ 지우기")
-        self.btn_clear.setToolTip("모든 결과를 지웁니다")
+        self.btn_clear.setToolTip("모든 탭을 지웁니다")
         self.btn_clear.clicked.connect(self.clear_output)
-        info_layout.addWidget(self.btn_clear)
+        bar.addWidget(self.btn_clear)
 
-        self.btn_save = QPushButton("💾 HTML")
-        self.btn_save.setToolTip("결과를 HTML 파일로 저장합니다")
-        self.btn_save.clicked.connect(self._save_output)
-        info_layout.addWidget(self.btn_save)
+        self.btn_save_html = QPushButton("💾 HTML")
+        self.btn_save_html.setToolTip("현재 탭을 HTML로 저장합니다")
+        self.btn_save_html.clicked.connect(self._save_html)
+        bar.addWidget(self.btn_save_html)
 
-        self.btn_word = QPushButton("📄 Word")
-        self.btn_word.setToolTip("결과를 Word(.docx) 파일로 저장합니다")
-        self.btn_word.clicked.connect(self._save_word)
-        info_layout.addWidget(self.btn_word)
+        self.btn_save_word = QPushButton("📄 Word")
+        self.btn_save_word.setToolTip("현재 탭을 Word(.docx)로 저장합니다")
+        self.btn_save_word.clicked.connect(self._save_word)
+        bar.addWidget(self.btn_save_word)
 
-        layout.addLayout(info_layout)
+        layout.addLayout(bar)
 
-        # 출력 영역
-        self.output_text = QTextEdit()
-        self.output_text.setReadOnly(True)
-        self.output_text.setStyleSheet(
-            """
-            QTextEdit {
-                background-color: #ffffff;
-                border: 1px solid #d5dbdb;
-                border-radius: 4px;
-                padding: 8px;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 12px;
-            }
-            """
+        # 탭 위젯
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self._on_tab_close)
+        layout.addWidget(self.tab_widget)
+
+        # 로그 탭 (항상 존재, index 0)
+        self._log_browser = self._make_browser()
+        self.tab_widget.addTab(self._log_browser, "📋 로그")
+        from PySide6.QtWidgets import QTabBar
+        self.tab_widget.tabBar().setTabButton(
+            0, QTabBar.ButtonPosition.RightSide, None
         )
-        layout.addWidget(self.output_text)
 
-        # 상태 표시줄
         self.statusbar = self.statusBar()
         self.statusbar.showMessage("준비됨")
 
+    def _make_browser(self) -> QTextBrowser:
+        """새 QTextBrowser를 생성하고 컨텍스트 메뉴를 연결합니다."""
+        browser = QTextBrowser()
+        browser.setOpenLinks(False)
+        browser.setContextMenuPolicy(Qt.CustomContextMenu)
+        browser.customContextMenuRequested.connect(
+            lambda pos, b=browser: self._show_context_menu(pos, b)
+        )
+        return browser
+
     def _setup_menus(self) -> None:
-        """메뉴 구성."""
         menubar = self.menuBar()
 
-        # 파일 메뉴
         file_menu = menubar.addMenu("파일(&F)")
 
-        save_action = QAction("HTML로 저장(&S)", self)
-        save_action.setShortcut(QKeySequence.Save)
-        save_action.triggered.connect(self._save_output)
-        file_menu.addAction(save_action)
+        save_html_action = QAction("HTML로 저장(&S)", self)
+        save_html_action.setShortcut(QKeySequence.Save)
+        save_html_action.triggered.connect(self._save_html)
+        file_menu.addAction(save_html_action)
 
-        word_action = QAction("Word(.docx)로 저장(&W)", self)
-        word_action.triggered.connect(self._save_word)
-        file_menu.addAction(word_action)
+        save_word_action = QAction("Word(.docx)로 저장(&W)", self)
+        save_word_action.triggered.connect(self._save_word)
+        file_menu.addAction(save_word_action)
 
         file_menu.addSeparator()
 
@@ -126,201 +134,295 @@ class OutputWindow(QMainWindow):
         close_action.triggered.connect(self.hide)
         file_menu.addAction(close_action)
 
-        # 편집 메뉴
         edit_menu = menubar.addMenu("편집(&E)")
-
         clear_action = QAction("모두 지우기", self)
         clear_action.triggered.connect(self.clear_output)
         edit_menu.addAction(clear_action)
 
+    # ------------------------------------------------------------------
+    # 공개 API
+    # ------------------------------------------------------------------
+
+    def add_analysis_result(self, result: Any) -> None:
+        """분석 결과 탭 추가.
+
+        result는 AnalysisResult 또는 to_html() 메서드를 가진 객체여야 합니다.
+        """
+        ts = datetime.now().strftime("%H:%M:%S")
+        title = getattr(result, "title", "결과")
+        tab_label = f"{title[:12]} {ts}"
+
+        browser = self._make_browser()
+        html = self._wrap_html(result.to_html(), title, ts)
+        browser.setHtml(html)
+
+        tab_idx = self.tab_widget.addTab(browser, tab_label)
+        self.tab_widget.setCurrentIndex(tab_idx)
+
+        self._results.append(result)
+        self.info_label.setText(f"분석 결과 {len(self._results)}건")
+        self.statusbar.showMessage(f"[{ts}] {title} 완료")
+
     def add_output(self, content: str, output_type: str = "text") -> None:
-        """결과 추가 (누적).
+        """로그/상태 메시지를 '로그' 탭에 누적합니다.
 
-        Args:
-            content: 출력 내용
-            output_type: 출력 유형 (text, success, error, warning, analysis)
+        기존 코드와 호환성을 유지합니다 (success/error/warning/analysis).
         """
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        # 유형별 스타일
-        style_map = {
-            "success": "color: #2ca02c;",
-            "error": "color: #d62728;",
-            "warning": "color: #ff7f0e;",
-            "analysis": "color: #1f77b4;",
-            "text": "color: #333333;",
+        ts = datetime.now().strftime("%H:%M:%S")
+        color_map = {
+            "success": "#27ae60",
+            "error":   "#d62728",
+            "warning": "#ff7f0e",
+            "analysis": "#2874a6",
+            "text":    "#333333",
         }
-        style = style_map.get(output_type, "color: #333333;")
-
-        # 구분선 + 타임스탬프 + 내용
-        separator = "─" * 60
-        formatted = f"""
-<div style="margin: 8px 0;">
-<div style="color: #95a5a6; font-size: 10px; margin-bottom: 4px;">
-{separator}<br>
-🕐 {timestamp}
-</div>
-<div style="{style}">
-{content}
-</div>
-</div>
-"""
-
-        self._output_history.append(formatted)
-
-        # HTML 모드로 설정
-        self.output_text.setHtml(self._get_full_html())
-
-        # 스크롤을 맨 아래로
-        scrollbar = self.output_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
-
-        # 상태 업데이트
-        self.statusbar.showMessage(f"출력 항목: {len(self._output_history)}개")
-
-    def _get_full_html(self) -> str:
-        """전체 HTML 생성."""
-        header = """
-        <html>
-        <head>
-        <style>
-        body {
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.5;
-            color: #333;
-        }
-        table {
-            border-collapse: collapse;
-            margin: 8px 0;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 6px 10px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        </style>
-        </head>
-        <body>
-        """
-
-        footer = "</body></html>"
-
-        content = "\n".join(self._output_history)
-        return header + content + footer
+        color = color_map.get(output_type, "#333333")
+        line = (
+            f'<div style="margin:4px 0;">'
+            f'<span style="color:#55555f; font-size:10px;">{ts}</span> '
+            f'<span style="color:{color}">{content}</span>'
+            f'</div>'
+        )
+        self._log_lines.append(line)
+        log_html = "<html><body>" + "".join(self._log_lines) + "</body></html>"
+        self._log_browser.setHtml(log_html)
+        sb = self._log_browser.verticalScrollBar()
+        sb.setValue(sb.maximum())
+        self.statusbar.showMessage(f"로그: {len(self._log_lines)}건")
 
     def clear_output(self) -> None:
-        """모든 결과 지우기."""
-        self._output_history.clear()
-        self.output_text.clear()
+        """분석 탭(인덱스 1+)을 모두 닫고 로그도 지웁니다."""
+        while self.tab_widget.count() > 1:
+            self.tab_widget.removeTab(1)
+        self._results.clear()
+        self._log_lines.clear()
+        self._log_browser.clear()
+        self.info_label.setText("분석 결과가 탭으로 표시됩니다")
         self.statusbar.showMessage("출력이 지워졌습니다")
 
-    def _save_output(self) -> None:
-        """결과 저장."""
+    # ------------------------------------------------------------------
+    # 컨텍스트 메뉴 (우클릭 → 클립보드 복사)
+    # ------------------------------------------------------------------
+
+    def _show_context_menu(self, pos, browser: QTextBrowser) -> None:
+        result = self._result_for_browser(browser)
+        menu = QMenu(self)
+
+        if result is not None:
+            copy_html_act = QAction("📋 표 복사 (한글/Word 붙여넣기)", self)
+            copy_html_act.triggered.connect(lambda: self._copy_tables(result))
+            menu.addAction(copy_html_act)
+
+            copy_text_act = QAction("📄 텍스트 복사 (탭 구분)", self)
+            copy_text_act.triggered.connect(lambda: self._copy_tables_text(result))
+            menu.addAction(copy_text_act)
+
+            menu.addSeparator()
+
+        copy_all_act = QAction("전체 복사", self)
+        copy_all_act.triggered.connect(browser.selectAll)
+        copy_all_act.triggered.connect(browser.copy)
+        menu.addAction(copy_all_act)
+
+        menu.exec(browser.viewport().mapToGlobal(pos))
+
+    def _result_for_browser(self, browser: QTextBrowser):
+        """현재 browser에 해당하는 AnalysisResult를 반환 (없으면 None)."""
+        for i, r in enumerate(self._results):
+            tab_idx = i + 1   # tab 0 = 로그
+            if self.tab_widget.widget(tab_idx) is browser:
+                return r
+        return None
+
+    def _copy_tables(self, result: Any) -> None:
+        """결과 표를 text/html + text/plain(탭구분) 두 형식으로 클립보드에 복사."""
+        from PySide6.QtCore import QMimeData
+
+        tables = getattr(result, "tables", [])
+        if not tables:
+            QApplication.clipboard().setText(result.to_html())
+            return
+
+        html_parts = ["<html><body>"]
+        plain_parts = []
+
+        for tbl in tables:
+            df = getattr(tbl, "dataframe", None)
+            if df is None or len(df) == 0:
+                continue
+            title = getattr(tbl, "title", "")
+            if title:
+                html_parts.append(f"<p><strong>{title}</strong></p>")
+                plain_parts.append(title)
+            html_parts.append(df.to_html(index=False, border=1))
+            plain_parts.append(df.to_csv(sep="\t", index=False))
+
+        html_parts.append("</body></html>")
+        full_html = "\n".join(html_parts)
+        full_text = "\n".join(plain_parts)
+
+        mime = QMimeData()
+        mime.setHtml(full_html)
+        mime.setText(full_text)
+        QApplication.clipboard().setMimeData(mime)
+        self.statusbar.showMessage("표가 클립보드에 복사되었습니다 (한글/Word에 붙여넣기 가능)")
+
+    def _copy_tables_text(self, result: Any) -> None:
+        """탭 구분 텍스트로만 복사."""
+        tables = getattr(result, "tables", [])
+        parts = []
+        for tbl in tables:
+            df = getattr(tbl, "dataframe", None)
+            if df is not None and len(df) > 0:
+                title = getattr(tbl, "title", "")
+                if title:
+                    parts.append(title)
+                parts.append(df.to_csv(sep="\t", index=False))
+        QApplication.clipboard().setText("\n".join(parts))
+        self.statusbar.showMessage("텍스트가 클립보드에 복사되었습니다")
+
+    # ------------------------------------------------------------------
+    # 탭 닫기
+    # ------------------------------------------------------------------
+
+    def _on_tab_close(self, idx: int) -> None:
+        if idx == 0:
+            return  # 로그 탭은 닫기 불가
+        result_idx = idx - 1
+        if 0 <= result_idx < len(self._results):
+            self._results.pop(result_idx)
+        self.tab_widget.removeTab(idx)
+
+    # ------------------------------------------------------------------
+    # HTML 저장
+    # ------------------------------------------------------------------
+
+    def _save_html(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, "결과 저장", "nuristat_output.html", "HTML (*.html)"
+            self, "HTML 저장", "nuristat_output.html", "HTML (*.html)"
         )
-        if path:
-            try:
-                html = self._get_full_html()
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(html)
-                self.statusbar.showMessage(f"저장 완료: {path}")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
+        if not path:
+            return
+        try:
+            browser = self.tab_widget.currentWidget()
+            if isinstance(browser, QTextBrowser):
+                html = browser.toHtml()
+            else:
+                html = "<html><body><p>내용 없음</p></body></html>"
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(html)
+            self.statusbar.showMessage(f"HTML 저장 완료: {path}")
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"HTML 저장 실패:\n{exc}")
+
+    # ------------------------------------------------------------------
+    # Word 저장 (DataFrame 직접 빌드)
+    # ------------------------------------------------------------------
 
     def _save_word(self) -> None:
-        """결과를 Word(.docx) 파일로 저장."""
         path, _ = QFileDialog.getSaveFileName(
             self, "Word 저장", "nuristat_output.docx", "Word (*.docx)"
         )
         if not path:
             return
         try:
-            import re
-
             from docx import Document
             from docx.enum.text import WD_ALIGN_PARAGRAPH
             from docx.shared import Inches
+        except ImportError:
+            QMessageBox.critical(
+                self, "오류",
+                "python-docx 패키지가 필요합니다.\npip install python-docx"
+            )
+            return
 
+        try:
             doc = Document()
             doc.core_properties.title = "누리스탯 분석 결과"
+            heading = doc.add_heading("누리스탯 분석 결과", 0)
+            heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-            # 제목
-            title = doc.add_heading("누리스탯 분석 결과", 0)
-            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # 현재 탭이 분석 결과 탭이면 그 결과만, 아니면 전체
+            cur_idx = self.tab_widget.currentIndex()
+            if cur_idx > 0 and cur_idx - 1 < len(self._results):
+                results_to_export = [self._results[cur_idx - 1]]
+            else:
+                results_to_export = list(self._results)
 
-            # HTML → Word 변환 (단순 파싱)
-            full_html = self._get_full_html()
+            if not results_to_export:
+                doc.add_paragraph("내보낼 분석 결과가 없습니다.")
+                doc.save(path)
+                self.statusbar.showMessage(f"Word 저장 완료: {path}")
+                return
 
-            # 타임스탬프 섹션별로 분리
-            sections = re.split(r'🕐 (\d{2}:\d{2}:\d{2})', full_html)
-            for i in range(1, len(sections), 2):
-                ts = sections[i]
-                content = sections[i + 1] if i + 1 < len(sections) else ""
+            for result in results_to_export:
+                title = getattr(result, "title", "결과")
+                doc.add_heading(title, level=1)
 
-                doc.add_paragraph(f"── {ts} ──", style="Intense Quote")
-
-                # 테이블 파싱
-                tables = re.findall(r'<table[^>]*>(.*?)</table>', content, re.DOTALL)
-                for tbl_html in tables:
-                    # caption
-                    caption_match = re.search(r'<caption[^>]*>(.*?)</caption>', tbl_html, re.DOTALL)
-                    if caption_match:
-                        cap_text = re.sub(r'<[^>]+>', '', caption_match.group(1)).strip()
-                        doc.add_heading(cap_text, level=3)
-
-                    # 행 추출
-                    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', tbl_html, re.DOTALL)
-                    if not rows:
+                # 표 직접 빌드
+                for tbl in getattr(result, "tables", []):
+                    df = getattr(tbl, "dataframe", None)
+                    if df is None or len(df) == 0:
                         continue
-                    # 열 수 계산
-                    first_row_cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', rows[0], re.DOTALL)
-                    n_cols = len(first_row_cells) if first_row_cells else 1
-                    if n_cols == 0:
-                        continue
+                    tbl_title = getattr(tbl, "title", "")
+                    if tbl_title:
+                        doc.add_heading(tbl_title, level=3)
 
-                    word_tbl = doc.add_table(rows=0, cols=n_cols)
+                    word_tbl = doc.add_table(rows=1, cols=len(df.columns))
                     word_tbl.style = "Table Grid"
-
-                    for row_html in rows:
-                        cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', row_html, re.DOTALL)
-                        if not cells:
-                            continue
-                        row_cells = word_tbl.add_row().cells
-                        for j, cell_html in enumerate(cells[:n_cols]):
-                            text = re.sub(r'<[^>]+>', '', cell_html).strip()
-                            if j < len(row_cells):
-                                row_cells[j].text = text
-
+                    hdr = word_tbl.rows[0].cells
+                    for j, col in enumerate(df.columns):
+                        hdr[j].text = str(col)
+                    for _, row in df.iterrows():
+                        cells = word_tbl.add_row().cells
+                        for j, val in enumerate(row):
+                            cells[j].text = str(val) if val is not None else ""
                     doc.add_paragraph()
 
-                # 이미지 파싱 (base64 inline)
-                imgs = re.findall(r'data:image/png;base64,([A-Za-z0-9+/=]+)', content)
-                for b64_str in imgs:
-                    try:
-                        img_bytes = base64.b64decode(b64_str)
-                        img_stream = io.BytesIO(img_bytes)
-                        doc.add_picture(img_stream, width=Inches(5.5))
-                        doc.add_paragraph()
-                    except Exception:
-                        pass
+                    for fn in getattr(tbl, "footnotes", []):
+                        p = doc.add_paragraph(fn)
+                        p.runs[0].font.size = __import__("docx.shared", fromlist=["Pt"]).Pt(9)
+
+                # 이미지 (figures)
+                for fig in getattr(result, "figures", []):
+                    img_bytes = getattr(fig, "image_bytes", None)
+                    if img_bytes:
+                        try:
+                            doc.add_picture(io.BytesIO(img_bytes), width=Inches(5.5))
+                            doc.add_paragraph()
+                        except Exception:
+                            pass
+
+                # 주석 / 경고
+                for note in getattr(result, "notes", []):
+                    p = doc.add_paragraph(f"📌 {note}")
+                for warn in getattr(result, "warnings", []):
+                    p = doc.add_paragraph(f"⚠️ {warn}")
+
+                doc.add_paragraph()   # 결과 간 간격
 
             doc.save(path)
             self.statusbar.showMessage(f"Word 저장 완료: {path}")
-        except ImportError:
-            QMessageBox.critical(self, "오류", "python-docx 패키지가 필요합니다.\npip install python-docx")
         except Exception as exc:
             QMessageBox.critical(self, "오류", f"Word 저장 실패:\n{exc}")
 
+    # ------------------------------------------------------------------
+    # 내부 헬퍼
+    # ------------------------------------------------------------------
+
+    def _wrap_html(self, body: str, title: str, ts: str) -> str:
+        """body HTML을 테마 CSS + 헤더/타임스탬프로 감쌉니다."""
+        styles = get_output_html_styles()
+        return f"""<!DOCTYPE html>
+<html>
+<head>{styles}</head>
+<body>
+<h2>{title}</h2>
+<div class="timestamp">{ts}</div>
+{body}
+</body>
+</html>"""
+
     def closeEvent(self, event) -> None:
-        """닫기 버튼 → 숨기기."""
         self.hide()
         event.ignore()

@@ -53,10 +53,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             4. Tests of Between-Subjects Effects (ANOVA 표)
             5. Post-Hoc Tests (Tukey HSD, 주 효과별)
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
-    missing_policy_str = spec.get("missing_policy", "listwise")
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     dep_var: str = variables.get("dependent", "")
     factor_a: str = variables.get("factor_a", "")

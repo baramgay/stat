@@ -52,11 +52,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             5. Tests of Between-Subjects Effects (집단 간)
             6. Pairwise Comparisons (Bonferroni)
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
     alpha = 1 - confidence_level
-    missing_policy_str = spec.get("missing_policy", "listwise")
 
     between_var: str = variables.get("between", "")
     within_vars: list[str] = variables.get("within", [])

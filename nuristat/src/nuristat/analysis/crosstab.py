@@ -11,6 +11,7 @@ from scipy import stats
 logger = logging.getLogger(__name__)
 
 from nuristat.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
+from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.analysis.formatting import format_number, format_pvalue
 from nuristat.analysis.result import AnalysisResult, ResultTable
 from nuristat.core.dataset import Dataset
@@ -52,14 +53,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     Returns:
         AnalysisResult with crosstab tables and test statistics.
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
-    missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
-    if isinstance(missing_policy_str, str):
-        missing_policy = MissingPolicy(missing_policy_str)
-    else:
-        missing_policy = missing_policy_str
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     row_var: str = variables.get("row", "")
     col_var: str = variables.get("column", "")

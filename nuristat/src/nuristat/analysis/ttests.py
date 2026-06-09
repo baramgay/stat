@@ -24,6 +24,7 @@ from nuristat.analysis.formatting import (
     get_display_decimals,
 )
 from nuristat.analysis.result import AnalysisResult, ResultTable
+from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.core.dataset import Dataset
 from nuristat.core.typing import MissingPolicy
 
@@ -60,14 +61,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     Returns:
         AnalysisResult with t-test results.
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
-    missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
-    if isinstance(missing_policy_str, str):
-        missing_policy = MissingPolicy(missing_policy_str)
-    else:
-        missing_policy = missing_policy_str
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     result = AnalysisResult(
         id="t_test",

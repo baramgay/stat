@@ -49,7 +49,7 @@ SPSS_FUNCTIONS = [
 SPSS_SUBCOMMANDS = [
     "VARIABLES", "STATISTICS", "CHART", "FORMAT", "ORDER", "MISSING",
     "CELLS", "COUNT", "ROW", "COLUMN", "TOTAL", "LAYER",
-    "GROUPS", "PAIR", "WITH", "BY", "ON", "OFF",
+    "GROUPS", "PAIRS", "PAIR", "WITH", "BY", "ON", "OFF",
     "SORT", "DESCRIPTIVES", "PLOT", "HISTOGRAM", "BARCHART",
 ]
 
@@ -346,7 +346,23 @@ class SyntaxEditor(QWidget):
                     self.analysis_ready.emit(result)
                     results.append(f"기술통계: {len(vars_list)}개 변수")
 
-            # ── T-TEST GROUPS=var(v1 v2) /VARIABLES=dep ──────────────────
+            # ── T-TEST PAIRS=var1 WITH var2 (대응표본) ───────────────────
+            elif upper.startswith('T-TEST') and re.search(r'\bPAIRS\b', line, re.IGNORECASE):
+                m_pairs = re.search(r'PAIRS\s*=\s*(\w+)\s+WITH\s+(\w+)', line, re.IGNORECASE)
+                if m_pairs:
+                    v1, v2 = m_pairs.group(1), m_pairs.group(2)
+                    from nuristat.analysis.ttests import run_analysis as _ttest
+                    spec = {
+                        "variables": {"paired": [v1, v2]},
+                        "options": {},
+                    }
+                    result = _ttest(self._dataset, spec)
+                    self.analysis_ready.emit(result)
+                    results.append(f"대응표본 T검정: {v1} - {v2}")
+                else:
+                    results.append("T-TEST PAIRS: PAIRS=var1 WITH var2 형식 필요")
+
+            # ── T-TEST GROUPS=var(v1 v2) /VARIABLES=dep (독립표본) ───────
             elif upper.startswith('T-TEST'):
                 m_groups = re.search(r'GROUPS\s*=\s*(\w+)\s*\(\s*([^\)]+)\)', line, re.IGNORECASE)
                 dep_vars = self._extract_variables(line)

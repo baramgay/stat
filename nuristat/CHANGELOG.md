@@ -5,6 +5,33 @@
 
 ---
 
+## [v3.6.0] - 2026-06-09
+
+### 추가 (Features) — 신뢰성·사용성·응답성 개선
+
+- **케이스 선택·가중치 실제 반영(항목5, 신뢰성)**: `select_cases_dialog` 필터(`filter_$` 컬럼)와 `weight_cases_dialog` 가중치가 모든 분석 모듈에 실제 적용됨. `prepare_analysis_frame`에서 필터 행 서브셋·빈도 가중치 자동 처리. 이전에는 "적용됨" 표시만 되고 결과는 무가중·무필터였던 치명적 버그 수정.
+- **결과 탭 출력창(항목2)**: 분석 결과가 단일 스크롤 영역 대신 독립 탭으로 분리됨. 탭 제목 = 분석 이름+시각, 탭 닫기 가능(로그 탭 보호). `add_analysis_result()` 신규 메서드로 구조화 결과 전달.
+- **결과 표 클립보드 복사(항목6)**: 결과 탭에서 "표 복사" 클릭 시 `text/html`+`text/plain`(탭 구분) MIME 동시 설정 → 한글/엑셀에 표로 바로 붙여넣기.
+- **Word(.docx) 내보내기(항목2)**: 현재 결과 탭의 표를 python-docx로 .docx 파일 내보내기. DataFrame에서 직접 빌드(정규식 파싱 폐기).
+- **비동기 분석 워커(항목1, 인프라)**: `AnalysisWorker(QThread)` + `run_analysis_async()` 헬퍼 신규 추가. `AnalysisDialogMixin`으로 다이얼로그 비동기 전환 공통화.
+- **구문 편집기 PAIRS 지원(항목3)**: `T-TEST PAIRS=v1 WITH v2` 구문으로 대응표본 T검정 실행 가능.
+- **spec 파싱 공용 헬퍼(항목4)**: `parse_common_spec()` — 20개 분석 모듈의 반복 헤더 제거, 기본값·enum 강제 통일.
+
+### 개선 (Improvements)
+
+- **WCAG AA 대비율 준수(항목8)**: 타임스탬프 색상 `#95a5a6`(위반) → `#55555f`(준수), `TEXT_MUTED` 라이트 `#7a7a8a` → `#55555f`, 다크 `#707080` → `#9a9aac`. 결과 HTML이 `get_output_html_styles()`로 테마 연동돼 다크모드에서도 일관성 확보.
+- **`result.to_html()` 완전성**: `text_blocks`·`notes`·`diagnostics` 필드가 결과 HTML에 포함됨.
+
+### 수정 (Bug Fixes)
+
+- **QTabBar.RightSide AttributeError**: PySide6 6.x에서 `QTabBar.ButtonPosition.RightSide`로 수정.
+
+### 테스트
+
+- 신규 테스트 23건 추가: `test_output_window_tabs.py`(13건) + `test_filter_weight.py`(10건). 전체 테스트 통과.
+
+---
+
 ## [v3.5.0] - 2026-06-08
 
 ### 추가 (Features) — 종합 개선·최적화

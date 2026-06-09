@@ -52,13 +52,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     Returns:
         AnalysisResult with cluster analysis tables.
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
-    if isinstance(missing_policy_str, str):
-        missing_policy = MissingPolicy(missing_policy_str)
-    else:
-        missing_policy = missing_policy_str
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     var_list: list[str] = variables.get("variables", [])
     method: str = options.get("method", "kmeans")

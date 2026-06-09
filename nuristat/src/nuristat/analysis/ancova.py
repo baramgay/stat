@@ -56,11 +56,8 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             6. Estimated Marginal Means
             7. Pairwise Comparisons (Bonferroni)
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    confidence_level = spec.get("confidence_level", 0.95)
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
     alpha = 1 - confidence_level
-    missing_policy_str = spec.get("missing_policy", "listwise")
 
     dep_var: str = variables.get("dependent", "")
     factor: str = variables.get("factor", "")

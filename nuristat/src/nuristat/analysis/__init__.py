@@ -21,6 +21,7 @@ from nuristat.analysis.formatting import (
 )
 from nuristat.analysis.registry import AnalysisRegistry
 from nuristat.analysis.result import AnalysisResult, ResultTable
+from nuristat.analysis.spec_utils import CommonSpec, parse_common_spec
 
 __all__ = [
     "AnalysisPlugin",
@@ -36,4 +37,6 @@ __all__ = [
     "check_normality",
     "check_homogeneity_of_variance",
     "get_case_processing_summary",
+    "CommonSpec",
+    "parse_common_spec",
 ]

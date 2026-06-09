@@ -49,9 +49,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
             4. 모수 추정값 (범주별)
             5. 분류표 (선택)
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    missing_policy_str = spec.get("missing_policy", "listwise")
+    variables, options, confidence_level, missing_policy = parse_common_spec(spec)
 
     dep_var: str = variables.get("dependent", "")
     predictors: list[str] = variables.get("predictors", [])
