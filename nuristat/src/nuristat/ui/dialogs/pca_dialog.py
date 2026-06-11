@@ -24,7 +24,6 @@ from nuristat.ui.dialogs._dialog_helpers import (
     numeric_vars,
     populate_list_widget,
     scale_vars,
-    user_friendly_error,
     var_from_display,
 )
 

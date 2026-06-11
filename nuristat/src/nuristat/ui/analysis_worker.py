@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
@@ -32,7 +33,7 @@ def run_analysis_async(
     spec: dict,
     on_result: Callable[[Any], None],
     on_error: Callable[[str], None],
-) -> "AnalysisWorker":
+) -> AnalysisWorker:
     """run_fn(dataset, spec)을 백그라운드에서 실행하는 헬퍼.
 
     owner._analysis_worker에 워커를 저장해 GC를 방지한다.

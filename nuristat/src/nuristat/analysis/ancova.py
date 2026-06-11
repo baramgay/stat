@@ -28,7 +28,6 @@ from nuristat.analysis.formatting import format_number, format_pvalue
 from nuristat.analysis.result import AnalysisResult, ResultTable
 from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.core.dataset import Dataset
-from nuristat.core.typing import MissingPolicy
 
 
 def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:

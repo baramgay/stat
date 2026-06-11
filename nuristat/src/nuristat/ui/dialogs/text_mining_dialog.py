@@ -22,7 +22,6 @@ from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     display_label,
     measure_icon,
-    user_friendly_error,
 )
 
 

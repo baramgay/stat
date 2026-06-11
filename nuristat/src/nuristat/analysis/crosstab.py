@@ -11,11 +11,10 @@ from scipy import stats
 logger = logging.getLogger(__name__)
 
 from nuristat.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
-from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.analysis.formatting import format_number, format_pvalue
 from nuristat.analysis.result import AnalysisResult, ResultTable
+from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.core.dataset import Dataset
-from nuristat.core.typing import MissingPolicy
 
 
 def _compute_cramers_v(contingency: np.ndarray) -> float:
