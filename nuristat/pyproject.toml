@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nuristat"
-version = "3.6.0"
-description = "Menu-based desktop statistical package — SPSS/MedCalc alternative"
+version = "3.6.1"
+description = "Free open-source SPSS alternative — menu-driven desktop statistics for researchers and clinicians"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
-keywords = ["statistics", "SPSS", "data-analysis", "GUI", "PySide6", "ANOVA", "regression", "survival-analysis"]
+keywords = ["statistics", "SPSS", "spss-alternative", "data-analysis", "GUI", "PySide6", "ANOVA", "regression", "survival-analysis", "clinical-research"]
 authors = [
-    {name = "Hermes Agent", email = "hermes@nuristat.local"},
+    {name = "baramgay", email = "lhkaurora@gmail.com"},
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
