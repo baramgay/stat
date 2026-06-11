@@ -5,11 +5,12 @@
 <p><strong>Free, open-source SPSS alternative for researchers and clinicians</strong></p>
 
 <p>
-  <a href="https://github.com/baramgay/stat/releases"><img src="https://img.shields.io/badge/version-3.6.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/baramgay/stat/releases"><img src="https://img.shields.io/github/v/release/baramgay/stat?style=flat-square&label=version&color=blue" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
-  <a href="https://github.com/baramgay/stat/actions"><img src="https://img.shields.io/badge/tests-passing-brightgreen?style=flat-square" alt="Tests"></a>
+  <a href="https://github.com/baramgay/stat/actions"><img src="https://img.shields.io/github/actions/workflow/status/baramgay/stat/publish-pypi.yml?style=flat-square&label=CI" alt="CI"></a>
+  <a href="https://github.com/baramgay/stat/stargazers"><img src="https://img.shields.io/github/stars/baramgay/stat?style=flat-square&color=yellow" alt="Stars"></a>
 </p>
 
 <p>
