@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
@@ -28,7 +29,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class CorrelationDialog(QDialog):
+class CorrelationDialog(QDialog, AnalysisDialogMixin):
     """SPSS Bivariate Correlations 다이얼로그.
 
     Pearson: 척도(Scale) 변수 — analysis/correlation.py 모듈 사용
@@ -120,6 +121,7 @@ class CorrelationDialog(QDialog):
 
         # 버튼
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -195,18 +197,13 @@ class CorrelationDialog(QDialog):
         else:
             method = "kendall"
 
-        try:
-            from nuristat.analysis.correlation import run_analysis
-            spec = {
-                "variables": {"target": variables},
-                "options": {
-                    "method": method,
-                    "flag_significant": self.flag_sig.isChecked(),
-                    "pairwise": True,
-                },
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.correlation import run_analysis
+        spec = {
+            "variables": {"target": variables},
+            "options": {
+                "method": method,
+                "flag_significant": self.flag_sig.isChecked(),
+                "pairwise": True,
+            },
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

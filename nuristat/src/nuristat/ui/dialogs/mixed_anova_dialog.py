@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     categorical_vars,
@@ -36,7 +37,7 @@ def _combo_add(combo: QComboBox, dataset: Dataset, var_list: list[str]) -> None:
         combo.addItem(f"{icon} {label}" if icon else label, userData=var)
 
 
-class MixedAnovaDialog(QDialog):
+class MixedAnovaDialog(QDialog, AnalysisDialogMixin):
     """SPSS General Linear Model > Repeated Measures (집단 간 요인 포함) 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -141,6 +142,7 @@ class MixedAnovaDialog(QDialog):
         layout.addWidget(opt_group)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -178,23 +180,18 @@ class MixedAnovaDialog(QDialog):
             QMessageBox.warning(self, "경고", "집단 간 요인과 집단 내 변수는 서로 달라야 합니다.")
             return
 
-        try:
-            from nuristat.analysis.mixed_anova import run_analysis
-            spec = {
-                "variables": {
-                    "between": between_var,
-                    "within": within_vars,
-                    "within_name": self.within_name_combo.currentText().strip() or "시점",
-                },
-                "options": {
-                    "sphericity": self.chk_sphericity.isChecked(),
-                    "post_hoc": self.chk_post_hoc.isChecked(),
-                    "effect_size": self.chk_effect.isChecked(),
-                },
-                "confidence_level": self.ci_spin.value(),
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.mixed_anova import run_analysis
+        spec = {
+            "variables": {
+                "between": between_var,
+                "within": within_vars,
+                "within_name": self.within_name_combo.currentText().strip() or "시점",
+            },
+            "options": {
+                "sphericity": self.chk_sphericity.isChecked(),
+                "post_hoc": self.chk_post_hoc.isChecked(),
+                "effect_size": self.chk_effect.isChecked(),
+            },
+            "confidence_level": self.ci_spin.value(),
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

@@ -58,15 +58,11 @@ def test_freq_dialog_run_uses_userrole(app, monkeypatch):
 
     captured = {}
 
-    def fake_run(dataset, spec):
+    def fake_start_analysis(run_fn, dataset, spec):
         captured["spec"] = spec
-        from nuristat.analysis.result import AnalysisResult, ResultTable
-        return AnalysisResult(title="test", tables=[ResultTable(title="t", columns=[], rows=[])])
 
-    import nuristat.ui.dialogs.frequencies_dialog as mod
-    monkeypatch.setattr(mod, "__builtins__", __builtins__)
-    monkeypatch.setattr("nuristat.analysis.frequencies.run_analysis", fake_run)
+    monkeypatch.setattr(dlg, "_start_analysis", fake_start_analysis)
     dlg._run()
 
-    if captured:
-        assert "성별" in captured["spec"]["variables"]["target"]
+    assert captured.get("spec") is not None
+    assert "성별" in captured["spec"]["variables"]["target"]

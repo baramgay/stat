@@ -133,7 +133,7 @@ class ReportDialog(QDialog):
         layout.addWidget(self.progress_bar)
 
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #5d6d7e;")
+        self.status_label.setStyleSheet("color: #3a5068;")
         layout.addWidget(self.status_label)
 
         # 실행 버튼

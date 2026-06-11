@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     display_label,
@@ -28,7 +29,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class CoxRegressionDialog(QDialog):
+class CoxRegressionDialog(QDialog, AnalysisDialogMixin):
     """Cox 비례위험 회귀 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -120,6 +121,7 @@ class CoxRegressionDialog(QDialog):
         layout.addLayout(ci_row)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -163,19 +165,14 @@ class CoxRegressionDialog(QDialog):
             QMessageBox.warning(self, "경고", "생존 시간/사건 변수와 공변량은 달라야 합니다.")
             return
 
-        try:
-            from nuristat.analysis.survival_analysis import run_cox_regression
-            spec = {
-                "variables": {
-                    "duration": duration_var,
-                    "event": event_var,
-                    "covariates": covariates,
-                },
-                "options": {"method": "cox"},
-                "confidence_level": self.ci_spin.value(),
-            }
-            result = run_cox_regression(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.survival_analysis import run_cox_regression
+        spec = {
+            "variables": {
+                "duration": duration_var,
+                "event": event_var,
+                "covariates": covariates,
+            },
+            "options": {"method": "cox"},
+            "confidence_level": self.ci_spin.value(),
+        }
+        self._start_analysis(run_cox_regression, self._dataset, spec)

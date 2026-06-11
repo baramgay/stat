@@ -120,13 +120,37 @@ def _independent_ttest(
     result.add_table(cps)
 
     groups = df[group_var].dropna().unique()
-    if len(groups) != 2:
+    group_values = options.get("group_values")
+
+    if group_values is not None and len(group_values) == 2:
+        g1_val, g2_val = group_values[0], group_values[1]
+        if g1_val == g2_val:
+            result.warnings.append(
+                f"그룹 1과 그룹 2가 동일합니다 (값={g1_val}). "
+                f"서로 다른 두 그룹을 지정하세요."
+            )
+            return result
+        groups_set = set(groups.tolist()) if hasattr(groups, "tolist") else set(groups)
+        if g1_val not in groups_set or g2_val not in groups_set:
+            available = sorted(str(g) for g in groups[:20])
+            result.warnings.append(
+                f"지정된 그룹 값이 데이터에 없습니다 (그룹1={g1_val}, 그룹2={g2_val}).\n"
+                f"'{group_var}' 변수의 실제 그룹: {', '.join(available)}"
+            )
+            return result
+    elif len(groups) != 2:
+        available = sorted(str(g) for g in groups[:20])
+        more = f" 외 {len(groups) - 20}개" if len(groups) > 20 else ""
         result.warnings.append(
-            f"Independent t-test requires exactly 2 groups. Found {len(groups)}."
+            f"독립표본 T 검정은 정확히 2개의 그룹이 필요합니다. "
+            f"'{group_var}' 변수에 {len(groups)}개 그룹이 있습니다: "
+            f"{', '.join(available)}{more}.\n"
+            f"3개 이상 그룹을 비교하려면 일원배치 분산분석(One-Way ANOVA)을 사용하거나, "
+            f"그룹 정의에서 비교할 2개 그룹을 지정하세요."
         )
         return result
-
-    g1_val, g2_val = sorted(groups)[:2]
+    else:
+        g1_val, g2_val = sorted(groups)[:2]
     g1_data = df[df[group_var] == g1_val][dep_var].dropna().values
     g2_data = df[df[group_var] == g2_val][dep_var].dropna().values
 

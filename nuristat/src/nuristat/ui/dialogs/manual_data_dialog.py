@@ -52,7 +52,7 @@ class ManualDataDialog(QDialog):
             "then type values directly into cells. Right-click column headers to rename."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color: #5d6d7e; font-size: 12px;")
+        info.setStyleSheet("color: #3a5068; font-size: 12px;")
         layout.addWidget(info)
 
         # Column configuration group

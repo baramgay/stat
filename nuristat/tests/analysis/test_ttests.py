@@ -212,3 +212,132 @@ class TestPairedTTest:
         stats_df = stats_table.dataframe
         n_row = stats_df[stats_df["Variable"] == "x"].iloc[0]
         assert int(n_row["N"]) == 3  # rows 0, 1, 4
+
+
+class TestIndependentTTestGroupValues:
+    """group_values 옵션 및 3개 이상 그룹 처리 테스트."""
+
+    @pytest.fixture
+    def three_group_dataset(self):
+        """3개 그룹을 가진 데이터셋."""
+        np.random.seed(7)
+        df = pd.DataFrame({
+            "score": np.concatenate([
+                np.random.normal(70, 8, 15),
+                np.random.normal(80, 8, 15),
+                np.random.normal(90, 8, 15),
+            ]),
+            "group": [1] * 15 + [2] * 15 + [3] * 15,
+        })
+        ds = Dataset(df, name="ThreeGroup")
+        ds.variables["score"].measure = MeasureType.SCALE
+        ds.variables["group"].measure = MeasureType.NOMINAL
+        return ds
+
+    def test_three_groups_without_group_values_warns(self, three_group_dataset):
+        """group_values 미지정 시 3그룹 → 경고 + ANOVA 안내."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto"},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(three_group_dataset, spec)
+        assert any("3개" in w or "ANOVA" in w or "3 groups" in w.lower() for w in result.warnings)
+
+    def test_three_groups_without_group_values_lists_groups(self, three_group_dataset):
+        """경고 메시지에 사용 가능한 그룹 값이 포함되어야 한다."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto"},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(three_group_dataset, spec)
+        warning_text = " ".join(result.warnings)
+        assert "1" in warning_text and "2" in warning_text and "3" in warning_text
+
+    def test_group_values_selects_two_groups(self, three_group_dataset):
+        """group_values=[1,2] 지정 시 그룹 1과 2만 비교."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto", "group_values": [1, 2]},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(three_group_dataset, spec)
+        assert not result.warnings, f"경고가 없어야 함: {result.warnings}"
+        ttest_table = [t for t in result.tables if "Independent" in t.title]
+        assert ttest_table, "t-test 결과 테이블이 있어야 함"
+
+    def test_group_values_group_stats_n(self, three_group_dataset):
+        """group_values=[1,3] 지정 시 그룹 1·3 각 15건."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto", "group_values": [1, 3]},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(three_group_dataset, spec)
+        group_table = [t for t in result.tables if "Group Statistics" in t.title][0]
+        ns = group_table.dataframe["N"].tolist()
+        assert ns == [15, 15]
+
+    def test_group_values_respects_order(self, three_group_dataset):
+        """group_values=[3,1] → Mean Difference의 부호가 [1,3]과 반대."""
+        spec_12 = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "yes", "group_values": [1, 3]},
+            "confidence_level": 0.95,
+        }
+        spec_21 = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "yes", "group_values": [3, 1]},
+            "confidence_level": 0.95,
+        }
+        r12 = run_analysis(three_group_dataset, spec_12)
+        r21 = run_analysis(three_group_dataset, spec_21)
+        t12 = [t for t in r12.tables if "Independent" in t.title][0].dataframe
+        t21 = [t for t in r21.tables if "Independent" in t.title][0].dataframe
+        md12 = float(t12.iloc[0]["Mean Difference"])
+        md21 = float(t21.iloc[0]["Mean Difference"])
+        assert abs(md12 + md21) < 0.01, "그룹 순서 반전 시 Mean Difference 부호도 반전"
+
+    def test_invalid_group_values_warns(self, three_group_dataset):
+        """존재하지 않는 그룹 값 지정 → 경고."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto", "group_values": [1, 99]},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(three_group_dataset, spec)
+        assert any("없습니다" in w or "not in" in w.lower() for w in result.warnings)
+
+    def test_two_group_with_explicit_group_values(self, independent_dataset):
+        """2그룹 변수에도 group_values 명시 지정 가능."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto", "group_values": ["A", "B"]},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(independent_dataset, spec)
+        assert not result.warnings
+        ttest_table = [t for t in result.tables if "Independent" in t.title]
+        assert ttest_table
+
+    def test_same_group_values_warns(self, three_group_dataset):
+        """그룹 1·2가 동일한 값이면 경고 반환."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto", "group_values": [1, 1]},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(three_group_dataset, spec)
+        assert any("동일" in w or "same" in w.lower() for w in result.warnings)
+
+    def test_same_group_values_no_tables(self, three_group_dataset):
+        """그룹 1·2가 동일하면 분석 결과 테이블 없음."""
+        spec = {
+            "variables": {"dependent": "score", "group": "group"},
+            "options": {"equal_var": "auto", "group_values": [2, 2]},
+            "confidence_level": 0.95,
+        }
+        result = run_analysis(three_group_dataset, spec)
+        ttest_tables = [t for t in result.tables if "Independent" in t.title]
+        assert not ttest_tables

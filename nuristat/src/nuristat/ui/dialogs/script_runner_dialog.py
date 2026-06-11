@@ -206,7 +206,7 @@ class ScriptRunnerDialog(QDialog):
         # 하단: 검증 정보
         self.validation_label = QLabel("✅ 스크립트를 입력하고 실행하세요")
         self.validation_label.setStyleSheet(
-            "color: #5d6d7e; padding: 6px; background-color: #f1f3f4; "
+            "color: #3a5068; padding: 6px; background-color: #f1f3f4; "
             "border-radius: 4px;"
         )
         layout.addWidget(self.validation_label)

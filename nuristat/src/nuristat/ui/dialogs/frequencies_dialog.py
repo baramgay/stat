@@ -13,10 +13,11 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import display_label, measure_icon
 
 
-class FrequenciesDialog(QDialog):
+class FrequenciesDialog(QDialog, AnalysisDialogMixin):
     """SPSS Frequencies 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -94,6 +95,7 @@ class FrequenciesDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -110,21 +112,15 @@ class FrequenciesDialog(QDialog):
             QMessageBox.warning(self, "경고", "변수를 선택하세요.")
             return
 
-        try:
-            from nuristat.analysis.frequencies import run_analysis
-            # 부모 창(MainWindow)에서 활성 가중치 변수 가져오기
-            weight_var = getattr(self.parent(), "_active_weight_var", None)
-            spec = {
-                "variables": {"target": selected},
-                "options": {
-                    "include_missing": False,
-                    "show_cumulative": True,
-                },
-                "weight_var": weight_var,
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.frequencies import run_analysis
+        # 부모 창(MainWindow)에서 활성 가중치 변수 가져오기
+        weight_var = getattr(self.parent(), "_active_weight_var", None)
+        spec = {
+            "variables": {"target": selected},
+            "options": {
+                "include_missing": False,
+                "show_cumulative": True,
+            },
+            "weight_var": weight_var,
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

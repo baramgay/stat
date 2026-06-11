@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     categorical_vars,
@@ -30,7 +31,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class MultinomialLogisticDialog(QDialog):
+class MultinomialLogisticDialog(QDialog, AnalysisDialogMixin):
     """SPSS Analyze > Regression > Multinomial Logistic 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -133,6 +134,7 @@ class MultinomialLogisticDialog(QDialog):
         layout.addWidget(opt_group)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -180,22 +182,17 @@ class MultinomialLogisticDialog(QDialog):
             QMessageBox.warning(self, "경고", "종속변수와 예측변수는 서로 달라야 합니다.")
             return
 
-        try:
-            from nuristat.analysis.multinomial_logistic import run_analysis
-            spec = {
-                "variables": {
-                    "dependent": dep_var,
-                    "predictors": predictors,
-                },
-                "options": {
-                    "reference": ref_cat,
-                    "confidence_level": self.ci_spin.value(),
-                    "classification": self.chk_classification.isChecked(),
-                },
-                "missing_policy": "listwise",
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))
+        from nuristat.analysis.multinomial_logistic import run_analysis
+        spec = {
+            "variables": {
+                "dependent": dep_var,
+                "predictors": predictors,
+            },
+            "options": {
+                "reference": ref_cat,
+                "confidence_level": self.ci_spin.value(),
+                "classification": self.chk_classification.isChecked(),
+            },
+            "missing_policy": "listwise",
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

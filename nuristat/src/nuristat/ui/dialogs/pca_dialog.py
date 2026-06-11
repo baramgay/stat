@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     numeric_vars,
@@ -28,7 +29,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class PcaDialog(QDialog):
+class PcaDialog(QDialog, AnalysisDialogMixin):
     """SPSS Analyze > Dimension Reduction > Factor (Principal Components) 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -125,6 +126,7 @@ class PcaDialog(QDialog):
         layout.addWidget(output_group)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -147,21 +149,16 @@ class PcaDialog(QDialog):
             QMessageBox.warning(self, "경고", "분석 변수를 2개 이상 선택하세요.")
             return
 
-        try:
-            from nuristat.analysis.pca import run_analysis
-            spec = {
-                "variables": {"items": items},
-                "options": {
-                    "n_components": self.n_comp_spin.value(),
-                    "rotation": self.rot_combo.currentData(),
-                    "standardize": self.chk_standardize.isChecked(),
-                    "scree_plot": self.chk_scree.isChecked(),
-                    "kmo": self.chk_kmo.isChecked(),
-                },
-                "missing_policy": "listwise",
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))
+        from nuristat.analysis.pca import run_analysis
+        spec = {
+            "variables": {"items": items},
+            "options": {
+                "n_components": self.n_comp_spin.value(),
+                "rotation": self.rot_combo.currentData(),
+                "standardize": self.chk_standardize.isChecked(),
+                "scree_plot": self.chk_scree.isChecked(),
+                "kmo": self.chk_kmo.isChecked(),
+            },
+            "missing_policy": "listwise",
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

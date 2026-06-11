@@ -1,50 +1,27 @@
-"""Async analysis worker — wraps any run_analysis function in a QThread.
-
-Usage::
-
-    run_analysis_async(
-        owner=self,
-        run_fn=run_analysis,
-        dataset=self._dataset,
-        spec=spec,
-        on_result=self._on_done,
-        on_error=self._on_err,
-    )
-
-The owner stores a strong reference to the worker so the GC doesn't collect
-it before the thread finishes.
-"""
+"""분석 QThread 워커 — GUI 프리징 없이 무거운 분석을 백그라운드에서 실행."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable
 
 from PySide6.QtCore import QThread, Signal
 
 
 class AnalysisWorker(QThread):
-    """Runs a single run_analysis(dataset, spec) call off the GUI thread."""
+    """단일 분석 함수를 백그라운드 스레드에서 실행하는 워커."""
 
-    result_ready = Signal(object)   # emits AnalysisResult
-    error_occurred = Signal(str)    # emits error message string
+    result_ready = Signal(object)
+    error_occurred = Signal(str)
 
-    def __init__(
-        self,
-        run_fn: Callable[..., Any],
-        dataset: Any,
-        spec: dict,
-    ) -> None:
-        super().__init__()
+    def __init__(self, run_fn: Callable[[], Any], parent: Any = None) -> None:
+        super().__init__(parent)
         self._run_fn = run_fn
-        self._dataset = dataset
-        self._spec = spec
 
     def run(self) -> None:
         try:
-            result = self._run_fn(self._dataset, self._spec)
+            result = self._run_fn()
             self.result_ready.emit(result)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self.error_occurred.emit(str(exc))
 
 
@@ -55,14 +32,15 @@ def run_analysis_async(
     spec: dict,
     on_result: Callable[[Any], None],
     on_error: Callable[[str], None],
-) -> AnalysisWorker:
-    """Create, store, connect, and start an AnalysisWorker.
+) -> "AnalysisWorker":
+    """run_fn(dataset, spec)을 백그라운드에서 실행하는 헬퍼.
 
-    Stores the worker on *owner._analysis_worker* to prevent GC.
-    Returns the worker for callers that need to check isRunning() etc.
+    owner._analysis_worker에 워커를 저장해 GC를 방지한다.
     """
-    worker = AnalysisWorker(run_fn, dataset, spec)
-    owner._analysis_worker = worker   # keep alive until thread ends
+    from PySide6.QtCore import QObject
+    _parent = owner if isinstance(owner, QObject) else None
+    worker = AnalysisWorker(lambda: run_fn(dataset, spec), parent=_parent)
+    owner._analysis_worker = worker
     worker.result_ready.connect(on_result)
     worker.error_occurred.connect(on_error)
     worker.start()

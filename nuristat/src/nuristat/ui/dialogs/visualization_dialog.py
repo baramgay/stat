@@ -280,7 +280,7 @@ class VisualizationDialog(QDialog):
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet(
             "background-color: #f1f3f4; border: 2px dashed #c0c4cc; "
-            "border-radius: 6px; padding: 40px; color: #7a7a8a; font-size: 14px;"
+            "border-radius: 6px; padding: 40px; color: #55555f; font-size: 14px;"
         )
         self.preview_label.setMinimumSize(540, 420)
         right_layout.addWidget(self.preview_label, 1)

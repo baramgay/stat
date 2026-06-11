@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     display_label,
@@ -25,7 +26,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class TextMiningDialog(QDialog):
+class TextMiningDialog(QDialog, AnalysisDialogMixin):
     """텍스트 마이닝 — 단어 빈도, N-gram, TF-IDF, 워드클라우드."""
 
     analysis_run = Signal(AnalysisResult)
@@ -118,6 +119,7 @@ class TextMiningDialog(QDialog):
         layout.addWidget(stop_group)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -142,23 +144,18 @@ class TextMiningDialog(QDialog):
             s.strip() for s in self.stopwords_edit.text().split(",") if s.strip()
         ]
 
-        try:
-            from nuristat.analysis.text_mining import run_analysis
-            spec = {
-                "variables": {"text_column": text_col},
-                "options": {
-                    "top_n": self.topn_spin.value(),
-                    "min_word_len": self.minlen_spin.value(),
-                    "ngram": ngram,
-                    "tfidf": self.chk_tfidf.isChecked(),
-                    "wordcloud": self.chk_wordcloud.isChecked(),
-                    "stopwords": extra_sw,
-                    "language": language,
-                    "wc_max_words": self.wc_maxwords_spin.value(),
-                },
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))
+        from nuristat.analysis.text_mining import run_analysis
+        spec = {
+            "variables": {"text_column": text_col},
+            "options": {
+                "top_n": self.topn_spin.value(),
+                "min_word_len": self.minlen_spin.value(),
+                "ngram": ngram,
+                "tfidf": self.chk_tfidf.isChecked(),
+                "wordcloud": self.chk_wordcloud.isChecked(),
+                "stopwords": extra_sw,
+                "language": language,
+                "wc_max_words": self.wc_maxwords_spin.value(),
+            },
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

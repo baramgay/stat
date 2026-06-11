@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     categorical_vars,
@@ -37,7 +38,7 @@ def _combo_add(combo: QComboBox, dataset: Dataset, var_list: list[str]) -> None:
         combo.addItem(text, userData=var)
 
 
-class AncovaDialog(QDialog):
+class AncovaDialog(QDialog, AnalysisDialogMixin):
     """SPSS General Linear Model > Univariate (공변량 포함) 스타일 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -138,6 +139,7 @@ class AncovaDialog(QDialog):
 
         # 버튼
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -171,24 +173,19 @@ class AncovaDialog(QDialog):
             QMessageBox.warning(self, "경고", "종속변수, 요인, 공변량은 서로 달라야 합니다.")
             return
 
-        try:
-            from nuristat.analysis.ancova import run_analysis
-            spec = {
-                "variables": {
-                    "dependent": dep_var,
-                    "factor": fac_var,
-                    "covariates": covariates,
-                },
-                "options": {
-                    "homogeneity_test": self.chk_homog.isChecked(),
-                    "emm": self.chk_emm.isChecked(),
-                    "post_hoc": self.chk_post_hoc.isChecked(),
-                    "effect_size": self.chk_effect.isChecked(),
-                },
-                "confidence_level": self.ci_spin.value(),
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.ancova import run_analysis
+        spec = {
+            "variables": {
+                "dependent": dep_var,
+                "factor": fac_var,
+                "covariates": covariates,
+            },
+            "options": {
+                "homogeneity_test": self.chk_homog.isChecked(),
+                "emm": self.chk_emm.isChecked(),
+                "post_hoc": self.chk_post_hoc.isChecked(),
+                "effect_size": self.chk_effect.isChecked(),
+            },
+            "confidence_level": self.ci_spin.value(),
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

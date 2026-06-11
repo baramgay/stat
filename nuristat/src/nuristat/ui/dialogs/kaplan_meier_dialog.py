@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     categorical_vars,
@@ -35,7 +36,7 @@ def _add_combo(combo: QComboBox, dataset: Dataset, var_list: list[str]) -> None:
         combo.addItem(f"{icon} {label}" if icon else label, userData=var)
 
 
-class KaplanMeierDialog(QDialog):
+class KaplanMeierDialog(QDialog, AnalysisDialogMixin):
     """Kaplan-Meier 생존곡선 + 로그순위 검정 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -106,6 +107,7 @@ class KaplanMeierDialog(QDialog):
         layout.addWidget(opt_group)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -125,21 +127,16 @@ class KaplanMeierDialog(QDialog):
             QMessageBox.warning(self, "경고", "생존 시간 변수와 사건 변수는 달라야 합니다.")
             return
 
-        try:
-            from nuristat.analysis.survival_analysis import run_kaplan_meier
-            spec = {
-                "variables": {
-                    "duration": duration_var,
-                    "event": event_var,
-                    **({"group": group_var} if group_var else {}),
-                },
-                "options": {
-                    "method": "km",
-                },
-                "confidence_level": self.ci_spin.value(),
-            }
-            result = run_kaplan_meier(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.survival_analysis import run_kaplan_meier
+        spec = {
+            "variables": {
+                "duration": duration_var,
+                "event": event_var,
+                **({"group": group_var} if group_var else {}),
+            },
+            "options": {
+                "method": "km",
+            },
+            "confidence_level": self.ci_spin.value(),
+        }
+        self._start_analysis(run_kaplan_meier, self._dataset, spec)

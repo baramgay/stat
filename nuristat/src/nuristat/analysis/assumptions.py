@@ -148,6 +148,10 @@ def prepare_analysis_frame(
     ValueError
         If *variables* contains names not in the dataset.
     """
+    # dataset.active_weight_var 자동 적용 (명시 인자가 없을 때)
+    if weight_var is None:
+        weight_var = getattr(dataset, "active_weight_var", None)
+
     df = dataset.data
     n_total = len(df)
 
@@ -240,6 +244,7 @@ def get_case_processing_summary(
     n_valid: int,
     n_excluded: int,
     excluded_pct: float | None = None,
+    n_filtered: int = -1,
 ) -> ResultTable:
     """Build a *Case Processing Summary* result table.
 
@@ -253,6 +258,8 @@ def get_case_processing_summary(
         Excluded cases.
     excluded_pct : float, optional
         Percentage excluded.  Computed automatically if omitted.
+    n_filtered : int, optional
+        Number of rows removed by an active case-selection filter (``-1`` = no filter).
 
     Returns
     -------
@@ -269,12 +276,18 @@ def get_case_processing_summary(
         "Excluded %": [f"{excluded_pct:.1f}%"],
     })
 
+    if n_filtered > 0:
+        footnote = (
+            f"Excluded cases include {n_filtered} row(s) removed by the active case-selection "
+            "filter and any remaining missing values (listwise)."
+        )
+    else:
+        footnote = "Missing values were excluded listwise."
+
     return ResultTable(
         title="Case Processing Summary",
         dataframe=df,
-        footnotes=[
-            "Missing values were excluded listwise."
-        ],
+        footnotes=[footnote],
     )
 
 
@@ -282,6 +295,7 @@ def get_cps_table_kr(
     n_total: int,
     n_valid: int,
     n_excluded: int,
+    n_filtered: int = -1,
 ) -> ResultTable:
     """한글 Case Processing Summary 테이블 생성.
 
@@ -293,6 +307,8 @@ def get_cps_table_kr(
         유효 케이스 수.
     n_excluded : int
         제외된 케이스 수.
+    n_filtered : int, optional
+        케이스 선택 필터로 제외된 행 수(``-1`` = 필터 없음).
     """
     valid_pct = round(n_valid / n_total * 100, 1) if n_total > 0 else 0.0
     excl_pct = round(n_excluded / n_total * 100, 1) if n_total > 0 else 0.0
@@ -302,10 +318,19 @@ def get_cps_table_kr(
         "N": [n_valid, n_excluded, n_total],
         "%": [valid_pct, excl_pct, 100.0],
     })
+
+    if n_filtered > 0:
+        footnote = (
+            f"제외된 케이스에는 케이스 선택 필터로 제외된 {n_filtered}건과 "
+            "결측값(listwise) 제외 건이 포함됩니다."
+        )
+    else:
+        footnote = "결측값은 listwise 방식으로 제외됩니다."
+
     return ResultTable(
         title="Case Processing Summary",
         dataframe=df,
-        footnotes=["결측값은 listwise 방식으로 제외됩니다."],
+        footnotes=[footnote],
     )
 
 

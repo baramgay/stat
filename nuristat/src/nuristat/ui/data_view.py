@@ -151,6 +151,7 @@ class DataView(QWidget):
             }
             QTableView::item {
                 padding: 2px 6px;
+                color: #111111;
             }
             QTableView::item:selected {
                 background-color: #1565C0;

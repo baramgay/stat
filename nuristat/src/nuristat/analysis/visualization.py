@@ -132,13 +132,13 @@ class VisualizationEngine:
         "#882255",  # 자주
     ]
 
-    # 차트 기본 크기 (세련된 비율)
+    # 차트 기본 크기 — 출력창 패널(약 800-1100px)에 최적화된 비율
     FIGURE_SIZES = {
         "small": (7, 4.5),
-        "medium": (11, 6.5),
-        "large": (15, 8.5),
-        "wide": (16, 5.5),
-        "square": (8.5, 8.5),
+        "medium": (9, 5.5),
+        "large": (12, 7.0),
+        "wide": (12, 4.5),
+        "square": (7.5, 7.5),
     }
 
     def __init__(self) -> None:
@@ -425,8 +425,11 @@ class VisualizationEngine:
                 sns.regplot(data=df, x=x, y=y, ax=ax, color=self.COLOR_PALETTE[0],
                            scatter_kws={"alpha": 0.6}, line_kws={"color": "red"})
             else:
-                sns.scatterplot(data=df, x=x, y=y, hue=hue, size=size_var,
-                              ax=ax, palette=self.COLOR_PALETTE, alpha=0.7)
+                scatter_kws: dict = dict(data=df, x=x, y=y, hue=hue,
+                                         size=size_var, ax=ax, alpha=0.7)
+                if hue:
+                    scatter_kws["palette"] = self.COLOR_PALETTE
+                sns.scatterplot(**scatter_kws)
                 if hue:
                     leg = ax.get_legend()
                     if leg is not None:
@@ -472,11 +475,16 @@ class VisualizationEngine:
 
         try:
             if x:
-                sns.boxplot(data=df, x=x, y=y, hue=hue, ax=ax, palette=self.COLOR_PALETTE)
+                n_cats = df[x].nunique()
+                _pal = self.COLOR_PALETTE[:max(1, n_cats)]
                 if hue:
+                    sns.boxplot(data=df, x=x, y=y, hue=hue, ax=ax, palette=_pal)
                     leg = ax.get_legend()
                     if leg is not None:
                         leg.set_title(self._lbl(hue))
+                else:
+                    # seaborn 0.13+: palette without hue deprecated → use hue=x, legend=False
+                    sns.boxplot(data=df, x=x, y=y, hue=x, legend=False, ax=ax, palette=_pal)
             else:
                 sns.boxplot(data=df, y=y, ax=ax, color=self.COLOR_PALETTE[0])
 
@@ -635,7 +643,7 @@ class VisualizationEngine:
             return self._make_error_figure("\n".join(validation["errors"]))
 
         data = self._apply_value_labels(data, [c for c in (x_var, group_var) if c])
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["medium"])
 
         try:
             n_groups = data[x_var].nunique() if x_var and x_var in data.columns else 1
@@ -653,6 +661,20 @@ class VisualizationEngine:
                     data=data, x=x_var, y=y_var, hue=x_var, legend=False, ax=ax,
                     palette=pal, inner="quart", linewidth=1.2, saturation=0.9,
                 )
+
+            # 집단별 n= 표기 (X축 눈금 아래)
+            try:
+                cats = [str(c) for c in data[x_var].unique()]
+                ylim_bot = ax.get_ylim()[0]
+                y_offset = (ax.get_ylim()[1] - ylim_bot) * 0.04
+                for i, cat in enumerate(cats):
+                    n = int(data[x_var].eq(cat).sum())
+                    ax.text(i, ylim_bot - y_offset, f"n={n:,}",
+                            ha="center", va="top",
+                            fontsize=VizFontSize.FOOTNOTE, color="#555555")
+            except Exception:
+                pass
+
             title = f"바이올린 플롯: {self._lbl(y_var)} (집단: {self._lbl(x_var)})"
             self._apply_readability(ax, title, x_var, y_var)
             fig.tight_layout()
@@ -695,7 +717,7 @@ class VisualizationEngine:
 
         series = data[variable].dropna()
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["medium"])
 
         # 히스토그램
         n, bin_edges, patches = ax.hist(
@@ -757,7 +779,7 @@ class VisualizationEngine:
         y_var:    Y 수치형 변수 (그룹화 시 필수)
         by_group: 그룹별 표시 여부
         """
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["medium"])
 
         try:
             if by_group and y_var and y_var in data.columns:
@@ -775,6 +797,21 @@ class VisualizationEngine:
                     data=data, x=x_var, y=y_var, ax=ax,
                     color="black", alpha=0.25, size=3, jitter=True,
                 )
+                # 평균 마름모(◇) 마커
+                cats = [str(c) for c in data[x_var].unique()]
+                for i, cat in enumerate(cats):
+                    mean_val = data.loc[data[x_var].astype(str) == cat, y_var].mean()
+                    if np.isfinite(mean_val):
+                        ax.scatter(i, mean_val, marker="D", s=55, zorder=6,
+                                   color="white", edgecolors="#1a1a1a", linewidths=1.4)
+                # 집단별 n= 표기
+                ylim_bot = ax.get_ylim()[0]
+                y_offset = (ax.get_ylim()[1] - ylim_bot) * 0.04
+                for i, cat in enumerate(cats):
+                    n = int(data[x_var].astype(str).eq(cat).sum())
+                    ax.text(i, ylim_bot - y_offset, f"n={n:,}",
+                            ha="center", va="top",
+                            fontsize=VizFontSize.FOOTNOTE, color="#555555")
                 title = f"상자 그림: {self._lbl(y_var)} (집단: {self._lbl(x_var)})"
                 xlabel, ylabel = x_var, y_var
             else:
@@ -783,6 +820,11 @@ class VisualizationEngine:
                     color=self.COLOR_PALETTE[0], width=0.4, linewidth=1.5,
                     flierprops=dict(marker="o", markersize=5, alpha=0.6),
                 )
+                # 단일 변수 평균 마름모
+                mean_val = data[x_var].mean()
+                if np.isfinite(mean_val):
+                    ax.scatter(0, mean_val, marker="D", s=55, zorder=6,
+                               color="white", edgecolors="#1a1a1a", linewidths=1.4)
                 title = f"상자 그림: {self._lbl(x_var)}"
                 xlabel, ylabel = "", x_var
 
@@ -817,7 +859,7 @@ class VisualizationEngine:
         if not validation["valid"]:
             return self._make_error_figure("\n".join(validation["errors"]))
 
-        fig, ax = plt.subplots(figsize=(10, 7))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["medium"])
 
         try:
             if color_var and color_var in data.columns:
@@ -901,7 +943,7 @@ class VisualizationEngine:
             return self._make_error_figure("\n".join(validation["errors"]))
 
         data = self._apply_value_labels(data, [x_var])
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["medium"])
 
         try:
             if y_var and y_var in data.columns:
@@ -913,6 +955,21 @@ class VisualizationEngine:
                     palette=pal, errorbar=("ci", ci) if ci else None,
                     capsize=0.08,
                 )
+                # 집단별 n= 및 평균값 주석
+                try:
+                    cats = [str(c) for c in data[x_var].unique()]
+                    for i, cat in enumerate(cats):
+                        grp = data.loc[data[x_var].astype(str) == cat, y_var].dropna()
+                        if len(grp) == 0:
+                            continue
+                        mean_v = grp.mean()
+                        bar_h = abs(mean_v)
+                        ax.text(i, mean_v + bar_h * 0.02 if mean_v >= 0 else mean_v - bar_h * 0.06,
+                                f"{mean_v:.2f}\n(n={len(grp):,})",
+                                ha="center", va="bottom" if mean_v >= 0 else "top",
+                                fontsize=VizFontSize.FOOTNOTE, color="#333333")
+                except Exception:
+                    pass
                 ylabel = y_var
                 title = f"막대 그래프: {self._lbl(y_var)} (집단: {self._lbl(x_var)})"
             else:
@@ -960,7 +1017,7 @@ class VisualizationEngine:
         if not validation["valid"]:
             return self._make_error_figure("\n".join(validation["errors"]))
 
-        fig, ax = plt.subplots(figsize=(11, 6))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["medium"])
 
         try:
             if by_group and by_group in data.columns:
@@ -1008,7 +1065,7 @@ class VisualizationEngine:
             return self._make_error_figure("\n".join(num_check["errors"]))
 
         series = data[variable].dropna()
-        fig, axes = plt.subplots(1, 2, figsize=(13, 6))
+        fig, axes = plt.subplots(1, 2, figsize=self.FIGURE_SIZES["large"])
 
         # Q-Q 플롯
         ax_qq = axes[0]
@@ -1125,7 +1182,7 @@ class VisualizationEngine:
         tpr:       True Positive Rate 배열
         auc_score: AUC 값
         """
-        fig, ax = plt.subplots(figsize=(8, 7))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["square"])
 
         # ROC 곡선
         ax.plot(fpr, tpr, color=self.COLOR_PALETTE[0], linewidth=2.5,
@@ -1159,7 +1216,7 @@ class VisualizationEngine:
         survival_prob: 생존 확률 배열
         groups:        그룹별 데이터 {'그룹명': (time_array, prob_array)} 형태
         """
-        fig, ax = plt.subplots(figsize=(11, 7))
+        fig, ax = plt.subplots(figsize=self.FIGURE_SIZES["medium"])
 
         if groups:
             for i, (grp_name, (t, s)) in enumerate(groups.items()):
@@ -1195,7 +1252,7 @@ class VisualizationEngine:
         fitted:    예측값 배열
         residuals: 잔차 배열
         """
-        fig, axes = plt.subplots(2, 2, figsize=(13, 10))
+        fig, axes = plt.subplots(2, 2, figsize=self.FIGURE_SIZES["large"])
 
         # 1. 잔차 vs 적합값
         ax1 = axes[0, 0]
@@ -1387,9 +1444,9 @@ class VisualizationEngine:
         # x축 눈금 라벨은 기울이지 않는다 (사용자 요청: 가독성 위해 수평 유지)
 
     def _fig_to_base64(self, fig: Figure) -> str:
-        """Figure를 Base64 PNG로 변환 (200 DPI — 결과창·내보내기 고품질)."""
+        """Figure를 Base64 PNG로 변환 (150 DPI — 결과창 최적화)."""
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
                    facecolor="white", edgecolor="none")
         buf.seek(0)
         img_base64 = base64.b64encode(buf.read()).decode("utf-8")

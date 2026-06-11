@@ -29,6 +29,7 @@ from nuristat.analysis.assumptions import (  # noqa: F401
 )
 from nuristat.analysis.formatting import format_number, format_pvalue
 from nuristat.analysis.result import AnalysisResult, ResultTable
+from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.core.dataset import Dataset
 from nuristat.core.typing import MissingPolicy
 
@@ -87,10 +88,6 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         return result
 
     # ── 데이터 준비 ───────────────────────────────────────────────────────────
-    try:
-        missing_policy = MissingPolicy(missing_policy_str) if isinstance(missing_policy_str, str) else missing_policy_str
-    except ValueError:
-        missing_policy = MissingPolicy.LISTWISE
     needed = dep_vars + [factor_var]
     paf = prepare_analysis_frame(dataset, needed, missing_policy=missing_policy)
     df = paf.data.copy()

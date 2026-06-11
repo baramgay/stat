@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
@@ -23,7 +24,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class NormalityDialog(QDialog):
+class NormalityDialog(QDialog, AnalysisDialogMixin):
     """Shapiro-Wilk / Kolmogorov-Smirnov 정규성 검정 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -78,6 +79,7 @@ class NormalityDialog(QDialog):
         layout.addWidget(var_group)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -104,14 +106,9 @@ class NormalityDialog(QDialog):
             QMessageBox.warning(self, "경고", "검정할 변수를 최소 1개 선택하세요.")
             return
 
-        try:
-            from nuristat.analysis.normality import run_analysis
-            spec = {
-                "variables": {"target": var_names},
-                "options": {},
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.normality import run_analysis
+        spec = {
+            "variables": {"target": var_names},
+            "options": {},
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

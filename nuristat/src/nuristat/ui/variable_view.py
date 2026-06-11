@@ -432,7 +432,7 @@ class VariableView(QWidget):
         # 정보 바
         self.info_bar = QLabel("변수 없음 — 변수를 추가하세요")
         self.info_bar.setStyleSheet(
-            "font-size: 12px; color: #5d6d7e; padding: 6px 10px; "
+            "font-size: 12px; color: #3a5068; padding: 6px 10px; "
             "background-color: #f1f3f4; border-radius: 4px;"
         )
         layout.addWidget(self.info_bar)
@@ -528,7 +528,7 @@ class VariableView(QWidget):
             "유형·측정·소수 등 속성을 Ctrl+C/Ctrl+V로 다른 변수에 일괄 적용 | "
             "행을 선택하고 Delete 키로 삭제"
         )
-        self.help_label.setStyleSheet("color: #7a7a8a; font-size: 11px; padding: 4px;")
+        self.help_label.setStyleSheet("color: #55555f; font-size: 11px; padding: 4px;")
         self.help_label.setWordWrap(True)
         layout.addWidget(self.help_label)
 

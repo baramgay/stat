@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
@@ -19,7 +20,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class PartialCorrelationDialog(QDialog):
+class PartialCorrelationDialog(QDialog, AnalysisDialogMixin):
     """SPSS Partial Correlation 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -70,6 +71,7 @@ class PartialCorrelationDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -89,11 +91,5 @@ class PartialCorrelationDialog(QDialog):
                 "controlling": controlling,
             },
         }
-        try:
-            from nuristat.analysis.partial_correlation import run_analysis
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.partial_correlation import run_analysis
+        self._start_analysis(run_analysis, self._dataset, spec)

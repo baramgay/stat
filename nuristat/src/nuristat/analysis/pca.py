@@ -33,6 +33,7 @@ except ImportError:
 from nuristat.analysis.assumptions import get_cps_table_kr, prepare_analysis_frame
 from nuristat.analysis.formatting import format_number, format_pvalue
 from nuristat.analysis.result import AnalysisResult, ResultTable
+from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.core.dataset import Dataset
 from nuristat.core.typing import MissingPolicy
 
@@ -86,12 +87,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         return result
 
     # ── 데이터 준비 ───────────────────────────────────────────────────────────
-    try:
-        mp = MissingPolicy(missing_policy_str) if isinstance(missing_policy_str, str) else missing_policy_str
-    except ValueError:
-        mp = MissingPolicy.LISTWISE
-
-    paf = prepare_analysis_frame(dataset, items, missing_policy=mp)
+    paf = prepare_analysis_frame(dataset, items, missing_policy=missing_policy)
     df = paf.data[items].copy()
     for col in items:
         df[col] = pd.to_numeric(df[col], errors="coerce")

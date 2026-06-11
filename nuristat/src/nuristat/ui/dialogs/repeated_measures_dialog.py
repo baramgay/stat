@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     numeric_vars,
@@ -25,7 +26,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class RepeatedMeasuresDialog(QDialog):
+class RepeatedMeasuresDialog(QDialog, AnalysisDialogMixin):
     """SPSS General Linear Model > Repeated Measures 스타일 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -116,6 +117,7 @@ class RepeatedMeasuresDialog(QDialog):
 
         # 버튼
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -156,18 +158,13 @@ class RepeatedMeasuresDialog(QDialog):
 
         within_name = self.factor_name_edit.text().strip() or "시점"
 
-        try:
-            from nuristat.analysis.repeated_measures_anova import run_analysis
-            spec = {
-                "variables": {"measures": measures},
-                "options": {
-                    "within_name": within_name,
-                    "pairwise": self.chk_pairwise.isChecked(),
-                    "alpha": self.alpha_spin.value(),
-                },
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.repeated_measures_anova import run_analysis
+        spec = {
+            "variables": {"measures": measures},
+            "options": {
+                "within_name": within_name,
+                "pairwise": self.chk_pairwise.isChecked(),
+                "alpha": self.alpha_spin.value(),
+            },
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

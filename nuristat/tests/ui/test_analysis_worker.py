@@ -1,7 +1,5 @@
 """Tests for AnalysisWorker and run_analysis_async."""
 
-import time
-
 import pandas as pd
 import pytest
 
@@ -14,54 +12,51 @@ def dataset():
     return Dataset(pd.DataFrame({"x": [1.0, 2.0, 3.0]}))
 
 
-# ---------------------------------------------------------------------------
-# AnalysisWorker unit tests
-# ---------------------------------------------------------------------------
-
 def _wait_for_worker(qapp, worker, timeout_ms: int = 3000) -> None:
     """Wait for thread + pump the event loop so cross-thread signals are delivered."""
     worker.wait(timeout_ms)
     qapp.processEvents()
 
 
-class TestAnalysisWorker:
-    def test_result_ready_emitted(self, qapp, dataset):
-        sentinel = {"value": 42}
-        run_fn = lambda ds, spec: sentinel  # noqa: E731
+# ---------------------------------------------------------------------------
+# AnalysisWorker unit tests (no-arg closure interface)
+# ---------------------------------------------------------------------------
 
+class TestAnalysisWorker:
+    def test_result_ready_emitted(self, qapp):
+        sentinel = {"value": 42}
+        worker = AnalysisWorker(lambda: sentinel)
         received = []
-        worker = AnalysisWorker(run_fn, dataset, {})
-        worker.result_ready.connect(lambda r: received.append(r))
+        worker.result_ready.connect(received.append)
         worker.start()
         _wait_for_worker(qapp, worker)
-
         assert received == [sentinel]
 
-    def test_error_occurred_emitted_on_exception(self, qapp, dataset):
-        def bad_fn(ds, spec):
-            raise RuntimeError("deliberate failure")
-
+    def test_error_occurred_emitted_on_exception(self, qapp):
+        worker = AnalysisWorker(lambda: (_ for _ in ()).throw(RuntimeError("deliberate failure")))
         errors = []
-        worker = AnalysisWorker(bad_fn, dataset, {})
         worker.error_occurred.connect(errors.append)
         worker.start()
         _wait_for_worker(qapp, worker)
-
         assert len(errors) == 1
         assert "deliberate failure" in errors[0]
 
-    def test_no_result_on_exception(self, qapp, dataset):
-        def bad_fn(ds, spec):
-            raise ValueError("oops")
-
+    def test_no_result_on_exception(self, qapp):
+        worker = AnalysisWorker(lambda: 1 / 0)
         results = []
-        worker = AnalysisWorker(bad_fn, dataset, {})
         worker.result_ready.connect(results.append)
         worker.error_occurred.connect(lambda _: None)
         worker.start()
         _wait_for_worker(qapp, worker)
-
         assert results == []
+
+    def test_result_value_passed_through(self, qapp):
+        worker = AnalysisWorker(lambda: [1, 2, 3])
+        received = []
+        worker.result_ready.connect(received.append)
+        worker.start()
+        _wait_for_worker(qapp, worker)
+        assert received == [[1, 2, 3]]
 
 
 # ---------------------------------------------------------------------------
@@ -122,3 +117,28 @@ class TestRunAnalysisAsync:
         )
         _wait_for_worker(qapp, worker)
         assert any("bad type" in e for e in errors)
+
+    def test_dataset_and_spec_forwarded_to_run_fn(self, qapp, dataset):
+        class Owner:
+            _analysis_worker = None
+
+        captured = []
+
+        def capture_fn(ds, spec):
+            captured.append((ds, spec))
+            return "done"
+
+        spec = {"key": "val"}
+        owner = Owner()
+        worker = run_analysis_async(
+            owner=owner,
+            run_fn=capture_fn,
+            dataset=dataset,
+            spec=spec,
+            on_result=lambda r: None,
+            on_error=lambda e: None,
+        )
+        _wait_for_worker(qapp, worker)
+        assert len(captured) == 1
+        assert captured[0][0] is dataset
+        assert captured[0][1] is spec

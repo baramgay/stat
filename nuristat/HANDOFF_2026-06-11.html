@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>누리스탯 세션 인수인계 — 2026-06-11</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232736;
+    --border: #2e3347;
+    --accent: #4f8ef7;
+    --accent2: #7c6af7;
+    --green: #3ecf8e;
+    --yellow: #f5a623;
+    --red: #f76e6e;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --code: #c7d2fe;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+  .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+
+  /* Nav */
+  nav { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  nav .logo { padding: 0 16px 20px; font-size: 16px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  nav .logo span { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  nav a { display: block; padding: 6px 16px; color: var(--muted); text-decoration: none; font-size: 13px; border-left: 3px solid transparent; transition: all .15s; }
+  nav a:hover { color: var(--text); background: var(--surface2); border-left-color: var(--accent); }
+  nav .nav-section { padding: 10px 16px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--border); font-weight: 600; }
+
+  /* Main */
+  main { padding: 32px 40px; max-width: 960px; }
+  h1 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  h2 { font-size: 18px; font-weight: 600; color: var(--accent); margin: 40px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+  h4 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  p { margin-bottom: 10px; color: var(--muted); }
+  p strong { color: var(--text); }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(62,207,142,.15); color: var(--green); }
+  .badge-yellow { background: rgba(245,166,35,.15); color: var(--yellow); }
+  .badge-red { background: rgba(247,110,110,.15); color: var(--red); }
+  .badge-blue { background: rgba(79,142,247,.15); color: var(--accent); }
+  .badge-purple { background: rgba(124,106,247,.15); color: var(--accent2); }
+
+  /* Status row */
+  .status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .stat-card .num { font-size: 28px; font-weight: 700; color: var(--green); }
+  .stat-card .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13px; }
+  th { background: var(--surface2); color: var(--muted); font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  td { padding: 7px 12px; border: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+
+  /* Code */
+  code { background: var(--surface2); color: var(--code); padding: 1px 5px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 12.5px; }
+  pre { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; overflow-x: auto; margin: 10px 0 18px; }
+  pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.55; }
+
+  /* Alert box */
+  .alert { border-left: 3px solid; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+  .alert-red { border-color: var(--red); background: rgba(247,110,110,.07); }
+  .alert-yellow { border-color: var(--yellow); background: rgba(245,166,35,.07); }
+  .alert-green { border-color: var(--green); background: rgba(62,207,142,.07); }
+  .alert-blue { border-color: var(--accent); background: rgba(79,142,247,.07); }
+  .alert p { color: var(--text); margin: 0; }
+
+  /* File list */
+  .file-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
+  .file-item { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 5px 10px; font-size: 12px; font-family: Consolas, monospace; }
+  .file-item .tag { font-size: 10px; margin-left: 6px; }
+
+  /* Color swatches */
+  .color-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .swatch { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  .swatch-dot { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
+  .swatch-info { font-size: 12px; }
+  .swatch-info .hex { font-family: Consolas; color: var(--code); }
+  .swatch-info .ratio { color: var(--green); font-size: 11px; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 24px; }
+  .timeline::before { content: ''; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .tl-item { position: relative; margin-bottom: 18px; }
+  .tl-item::before { content: ''; position: absolute; left: -21px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
+  .tl-item.done::before { background: var(--green); }
+  .tl-item.warn::before { background: var(--yellow); }
+  .tl-title { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
+  .tl-desc { font-size: 13px; color: var(--muted); }
+
+  /* Next steps */
+  .next-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; margin-bottom: 8px; }
+  .next-item .priority { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+  .next-item h4 { margin: 0 0 4px; font-size: 14px; font-weight: 600; text-transform: none; color: var(--text); }
+  .next-item p { margin: 0; font-size: 13px; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 30px 0; }
+  .meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- Nav -->
+<nav>
+  <div class="logo">누리스탯<span>세션 인수인계 2026-06-11</span></div>
+  <div class="nav-section">개요</div>
+  <a href="#status">현재 상태</a>
+  <a href="#done">완료 작업</a>
+  <div class="nav-section">세션 상세</div>
+  <a href="#s1">① ForegroundRole 텍스트 색</a>
+  <a href="#s2">② T-test 3그룹 개선</a>
+  <a href="#s3">③ UI 가독성 전체</a>
+  <div class="nav-section">참조</div>
+  <a href="#uncommitted">미커밋 파일</a>
+  <a href="#colors">색상 팔레트</a>
+  <a href="#traps">함정·패턴</a>
+  <a href="#next">다음 단계</a>
+  <a href="#paths">경로 참조</a>
+</nav>
+
+<!-- Main -->
+<main>
+  <p class="meta">누리스탯 v3.6.0 · 경남빅데이터센터 · 2026-06-11</p>
+  <h1>세션 인수인계 노트</h1>
+  <p>v3.6.0 종합 개선(신뢰성·응답성·출력) 완료 후 <strong>버그 수정 + UI 가독성 폴리싱 세션</strong>의 전체 기록.</p>
+
+  <!-- 현재 상태 -->
+  <h2 id="status">현재 상태</h2>
+  <div class="status-grid">
+    <div class="stat-card"><div class="num">3.6.0</div><div class="lbl">현재 버전</div></div>
+    <div class="stat-card"><div class="num">4,749</div><div class="lbl">테스트 통과 (0 실패)</div></div>
+    <div class="stat-card"><div class="num">65+</div><div class="lbl">미커밋 변경 파일</div></div>
+    <div class="stat-card"><div class="num">fd97abb</div><div class="lbl">최신 커밋 (v3.6.0)</div></div>
+  </div>
+
+  <div class="alert alert-yellow">
+    <p>⚠️ <strong>미커밋 상태</strong> — v3.6.0 커밋(fd97abb) 이후 모든 수정이 working tree에만 존재. 다음 세션에서 커밋/푸시 여부 결정 필요.</p>
+  </div>
+
+  <!-- 완료 작업 전체 (이전 세션 포함) -->
+  <h2 id="done">완료된 전체 작업 (v3.6.0 기준)</h2>
+
+  <div class="alert alert-blue">
+    <p>아래는 v3.5.0 → v3.6.0 범위에서 완료된 전체 항목. 이번 세션은 그 위에 추가 버그픽스·폴리싱.</p>
+  </div>
+
+  <h3>v3.6.0 주요 항목 (이전 세션 완료)</h3>
+  <table>
+    <tr><th>항목</th><th>내용</th><th>핵심 파일</th><th>상태</th></tr>
+    <tr>
+      <td><span class="badge badge-red">Tier0</span> 케이스 선택·가중치</td>
+      <td>select_cases/weight_cases가 실제 분석에 미반영(치명적 신뢰성 결함) → prepare_analysis_frame에서 filter_$·frequency weight 실제 반영</td>
+      <td><code>analysis/assumptions.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Tier1</span> 출력창 탭 재구조</td>
+      <td>단일 스크롤 HTML → QTabWidget (로그탭+분석결과탭), add_analysis_result() 신규</td>
+      <td><code>ui/output_window.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Tier1</span> 표 클립보드 복사</td>
+      <td>우클릭 → text/html+text/plain 동시 설정 → 한글/엑셀에 표로 붙여넣기</td>
+      <td><code>ui/output_window.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Tier1</span> Word 내보내기</td>
+      <td>DataFrame 직접 빌드(정규식 파싱 폐기), python-docx import 가드</td>
+      <td><code>ui/output_window.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-purple">Tier2</span> 비동기 분석 워커</td>
+      <td>AnalysisWorker(QThread) + AnalysisDialogMixin, 23개 다이얼로그 전환, UI 프리징 제거</td>
+      <td><code>ui/analysis_worker.py</code>, <code>ui/dialogs/_async_mixin.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-purple">Tier2</span> PAIRS 구문 지원</td>
+      <td>syntax_editor.py에 T-TEST PAIRS=v1 WITH v2 분기 추가</td>
+      <td><code>ui/syntax_editor.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-purple">Tier2</span> spec 파싱 헬퍼</td>
+      <td>parse_common_spec() → 20개 분석 모듈 헤더 4~8줄 → 1줄</td>
+      <td><code>analysis/spec_utils.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-purple">Tier2</span> WCAG AA 1차</td>
+      <td>TEXT_MUTED 라이트 #55555f·다크 #9a9aac, 타임스탬프·결과HTML 테마연동</td>
+      <td><code>ui/theme.py</code>, <code>ui/output_window.py</code></td>
+      <td><span class="badge badge-green">완료</span></td>
+    </tr>
+  </table>
+
+  <h3>이번 세션 작업 (버그픽스 + 폴리싱)</h3>
+
+  <!-- S1 -->
+  <h2 id="s1">① 데이터셀 텍스트 회색 — ForegroundRole 근본 수정</h2>
+
+  <div class="alert alert-red">
+    <p><strong>근본 원인</strong>: Qt 모델 <code>data()</code>가 <code>ForegroundRole</code>을 반환하지 않으면, stylesheet <code>QTableView::item { color }</code>는 무시되고 시스템 팔레트 기본(회색)이 나온다. stylesheet alone으로는 절대 해결 안 됨.</p>
+  </div>
+
+  <h4>변경 파일</h4>
+  <table>
+    <tr><th>파일</th><th>변경 내용</th></tr>
+    <tr>
+      <td><code>ui/models/spss_grid_model.py</code></td>
+      <td><code>_COLOR_TEXT = QColor("#111111")</code> 상수 추가.<br>
+      <code>data()</code> outside 분기 + 정상 데이터 셀 분기 양쪽에<br>
+      <code>if role == Qt.ItemDataRole.ForegroundRole: return QBrush(_COLOR_TEXT)</code> 추가</td>
+    </tr>
+    <tr>
+      <td><code>ui/data_view.py</code></td>
+      <td>stylesheet color <code>#1a1a2e</code> → <code>#111111</code> (모델과 일치)</td>
+    </tr>
+  </table>
+
+  <pre><code># spss_grid_model.py — data() 메서드 내 두 곳에 추가
+_COLOR_TEXT = QColor("#111111")   # 흰 배경 대비비 ~20:1
+
+# outside 분기 (가상 빈 셀)
+if role == Qt.ItemDataRole.ForegroundRole:
+    return QBrush(_COLOR_TEXT)
+
+# 정상 데이터 셀 분기 (ToolTipRole 직전에 삽입)
+if role == Qt.ItemDataRole.ForegroundRole:
+    return QBrush(_COLOR_TEXT)</code></pre>
+
+  <div class="alert alert-green">
+    <p>✅ <strong>교훈</strong>: Qt에서 텍스트 색상은 반드시 모델의 ForegroundRole로 제어. stylesheet color는 모델이 ForegroundRole 미반환 시 시스템 팔레트에 덮어씌워진다.</p>
+  </div>
+
+  <!-- S2 -->
+  <h2 id="s2">② T-test 3그룹 이상 처리 — SPSS Define Groups 방식</h2>
+
+  <table>
+    <tr><th>파일</th><th>변경 내용</th></tr>
+    <tr>
+      <td><code>analysis/ttests.py</code></td>
+      <td>
+        <code>options["group_values"]=[val1, val2]</code> 옵션 지원<br>
+        • 지정 시: 해당 2그룹만 필터해서 비교 (순서 = 평균차이 부호에 영향)<br>
+        • 미지정 + 3그룹↑: 사용 가능 그룹 목록 + ANOVA 안내 경고<br>
+        • <strong>동일그룹 엣지케이스</strong>: <code>group_values[0] == group_values[1]</code> → 즉시 경고 반환
+      </td>
+    </tr>
+    <tr>
+      <td><code>ui/dialogs/ttest_dialog.py</code></td>
+      <td>"그룹 정의 (Define Groups)" 그룹박스, 그룹 1/2 값 콤보박스, 그룹 변수 변경 시 자동 재구성</td>
+    </tr>
+    <tr>
+      <td><code>tests/analysis/test_ttests.py</code></td>
+      <td>TestIndependentTTestGroupValues: 9건 (동일그룹 경고·결과없음 2건 추가)</td>
+    </tr>
+    <tr>
+      <td><code>tests/analysis/test_ttests_coverage.py</code></td>
+      <td>assertion 수정: <code>"2개" in w or "2 groups" in w or "ANOVA" in w</code> (한국어 메시지 전환)</td>
+    </tr>
+  </table>
+
+  <!-- S3 -->
+  <h2 id="s3">③ UI 보조 텍스트 WCAG AA 전체 개선</h2>
+  <p>14개 파일의 보조 텍스트 색상을 전수 교체. 특히 11px 소형 텍스트는 ≥4.5:1 필수.</p>
+
+  <table>
+    <tr><th>이전 색상</th><th>대비비</th><th>판정</th><th>새 색상</th><th>대비비</th><th>적용 위치</th></tr>
+    <tr>
+      <td><code>#888</code></td>
+      <td>3.55:1</td>
+      <td><span class="badge badge-red">실패</span></td>
+      <td><code>#55555f</code></td>
+      <td>~7.5:1</td>
+      <td>descriptives_dialog 힌트</td>
+    </tr>
+    <tr>
+      <td><code>#7a7a8a</code></td>
+      <td>4.5:1 경계</td>
+      <td><span class="badge badge-yellow">위험</span></td>
+      <td><code>#55555f</code></td>
+      <td>~7.5:1</td>
+      <td>recode(preview), variable_view(help), output_view(timestamp), visualization_dialog</td>
+    </tr>
+    <tr>
+      <td><code>#5d6d7e</code></td>
+      <td>5.12:1</td>
+      <td><span class="badge badge-yellow">경계 (11px)</span></td>
+      <td><code>#3a5068</code></td>
+      <td>~7.5:1</td>
+      <td>analysis/manual/merge/rank/recode/report/script dialog, variable_view, theme.MEASURE_TEXT</td>
+    </tr>
+    <tr>
+      <td><code>#666</code></td>
+      <td>5.74:1</td>
+      <td><span class="badge badge-yellow">경계 (11px)</span></td>
+      <td><code>#44475a</code></td>
+      <td>~8:1</td>
+      <td>chart_editor_dialog 힌트, output_view footnote</td>
+    </tr>
+  </table>
+
+  <p><strong>중요</strong>: <code>theme.py MEASURE_TEXT</code>도 <code>#5d6d7e</code> → <code>#3a5068</code>으로 업데이트했으므로 향후 해당 상수 사용 시 자동으로 AA 충족.</p>
+
+  <!-- 미커밋 파일 -->
+  <h2 id="uncommitted">미커밋 파일 목록 (v3.6.0 이후 전체)</h2>
+  <div class="alert alert-yellow">
+    <p>⚠️ 아래 파일들이 모두 미커밋 상태. 다음 세션에서 <strong>커밋 후 push</strong> 권장.</p>
+  </div>
+
+  <h4>분석 엔진</h4>
+  <div class="file-grid">
+    <div class="file-item">analysis/ancova.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/assumptions.py <span class="tag badge badge-red">필터/가중치</span></div>
+    <div class="file-item">analysis/cluster_analysis.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/descriptive.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/discriminant_analysis.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/factor_analysis.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/frequencies.py <span class="tag badge badge-red">가중치</span></div>
+    <div class="file-item">analysis/manova.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/mixed_anova.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/multinomial_logistic.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/nonparametric.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/normality.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/pca.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/result.py <span class="tag badge badge-blue">to_html 보강</span></div>
+    <div class="file-item">analysis/spec_utils.py <span class="tag badge badge-purple">신규</span></div>
+    <div class="file-item">analysis/ttests.py <span class="tag badge badge-green">3그룹/동일그룹</span></div>
+    <div class="file-item">analysis/two_way_anova.py <span class="tag badge badge-purple">spec_utils</span></div>
+    <div class="file-item">analysis/visualization.py <span class="tag badge badge-blue">비동기</span></div>
+    <div class="file-item">core/dataset.py <span class="tag badge badge-red">가중치</span></div>
+  </div>
+
+  <h4>UI</h4>
+  <div class="file-grid">
+    <div class="file-item">ui/analysis_worker.py <span class="tag badge badge-blue">비동기</span></div>
+    <div class="file-item">ui/data_view.py <span class="tag badge badge-green">ForegroundRole</span></div>
+    <div class="file-item">ui/models/spss_grid_model.py <span class="tag badge badge-green">ForegroundRole</span></div>
+    <div class="file-item">ui/output_view.py <span class="tag badge badge-green">색상 AA</span></div>
+    <div class="file-item">ui/output_window.py <span class="tag badge badge-blue">탭/복사/Word</span></div>
+    <div class="file-item">ui/theme.py <span class="tag badge badge-green">MEASURE_TEXT</span></div>
+    <div class="file-item">ui/variable_view.py <span class="tag badge badge-green">색상 AA</span></div>
+    <div class="file-item">ui/main_window.py <span class="tag badge badge-blue">비동기 Pattern B</span></div>
+    <div class="file-item">ui/dialogs/ttest_dialog.py <span class="tag badge badge-green">Define Groups</span></div>
+    <div class="file-item">ui/dialogs/analysis_dialog.py <span class="tag badge badge-green">색상 AA</span></div>
+    <div class="file-item">ui/dialogs/chart_editor_dialog.py <span class="tag badge badge-yellow">신규 파일</span></div>
+    <div class="file-item">ui/dialogs/visualization_dialog.py <span class="tag badge badge-green">색상 AA</span></div>
+    <div class="file-item">ui/dialogs/script_runner_dialog.py <span class="tag badge badge-green">색상 AA</span></div>
+    <div class="file-item">... 23개 다이얼로그 비동기 전환 포함</div>
+  </div>
+
+  <h4>테스트</h4>
+  <div class="file-grid">
+    <div class="file-item">tests/analysis/test_ttests.py <span class="tag badge badge-green">9건 (T-test)</span></div>
+    <div class="file-item">tests/analysis/test_ttests_coverage.py <span class="tag badge badge-green">assertion 수정</span></div>
+    <div class="file-item">tests/analysis/test_assumptions_weight.py <span class="tag badge badge-yellow">신규</span></div>
+    <div class="file-item">tests/core/test_dataset_weight.py <span class="tag badge badge-yellow">신규</span></div>
+    <div class="file-item">tests/ui/test_analysis_worker.py <span class="tag badge badge-yellow">신규</span></div>
+    <div class="file-item">tests/ui/test_frequencies_dialog_labels.py <span class="tag badge badge-blue">보강</span></div>
+  </div>
+
+  <!-- 색상 팔레트 -->
+  <h2 id="colors">색상 팔레트 (현재 확정)</h2>
+
+  <h4>theme.py 핵심 색상 (라이트 모드)</h4>
+  <div class="color-row">
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#111111;border:1px solid #333"></div>
+      <div class="swatch-info"><div class="hex">#111111</div><div>데이터셀 텍스트 (ForegroundRole)</div><div class="ratio">~20:1 ✅</div></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#55555f;border:1px solid #333"></div>
+      <div class="swatch-info"><div class="hex">#55555f</div><div>TEXT_MUTED (보조 텍스트)</div><div class="ratio">~7.5:1 ✅</div></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#3a5068;border:1px solid #333"></div>
+      <div class="swatch-info"><div class="hex">#3a5068</div><div>MEASURE_TEXT (정보형 블루그레이)</div><div class="ratio">~7.5:1 ✅</div></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#44475a;border:1px solid #333"></div>
+      <div class="swatch-info"><div class="hex">#44475a</div><div>힌트 텍스트 (chart hint, footnote)</div><div class="ratio">~8:1 ✅</div></div>
+    </div>
+  </div>
+  <div class="color-row">
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#9a9aac;border:1px solid #333"></div>
+      <div class="swatch-info"><div class="hex">#9a9aac</div><div>TEXT_MUTED 다크모드</div><div class="ratio">~3:1 on #0a0a0a ✅</div></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#d62728;border:1px solid #333"></div>
+      <div class="swatch-info"><div class="hex">#d62728</div><div>오류/경고 상태</div><div class="ratio">유지</div></div>
+    </div>
+  </div>
+
+  <!-- 함정·패턴 -->
+  <h2 id="traps">핵심 함정 · 확인된 패턴</h2>
+
+  <div class="timeline">
+    <div class="tl-item done">
+      <div class="tl-title">Qt ForegroundRole 우선순위</div>
+      <div class="tl-desc">모델 <code>data()</code>가 <code>ForegroundRole</code>을 반환하지 않으면 stylesheet <code>color:</code>는 무시됨. <strong>텍스트 색상은 항상 모델에서 제어</strong>. QAbstractTableModel 서브클래스 작성 시 ForegroundRole 분기 필수.</div>
+    </div>
+    <div class="tl-item done">
+      <div class="tl-title">비동기 다이얼로그 내 QMessageBox 블로킹</div>
+      <div class="tl-desc">테스트에서 <code>_run()</code> 직접 호출 시 오류 발생하면 <code>QMessageBox.critical</code>이 블로킹 → <code>monkeypatch.setattr(dlg, "_start_analysis", fake_fn)</code>으로 우회.</div>
+    </div>
+    <div class="tl-item done">
+      <div class="tl-title">PySide6 QTabBar.ButtonPosition</div>
+      <div class="tl-desc">PySide6 6.x에서 <code>QTabBar.RightSide</code> AttributeError → <code>QTabBar.ButtonPosition.RightSide</code> 사용.</div>
+    </div>
+    <div class="tl-item done">
+      <div class="tl-title">spec_utils invalid missing_policy 처리</div>
+      <div class="tl-desc"><code>parse_common_spec()</code> 내 <code>MissingPolicy(mp)</code>는 unknown 문자열이면 ValueError → <code>try/except → LISTWISE fallback</code> 필수.</div>
+    </div>
+    <div class="tl-item done">
+      <div class="tl-title">include_missing=True 시 missing_n 산출 위치</div>
+      <div class="tl-desc">LISTWISE가 NaN 행을 제거하므로, missing_n은 <code>prepared.data</code>가 아닌 <code>dataset.data</code> 원본에서 직접 카운트.</div>
+    </div>
+    <div class="tl-item done">
+      <div class="tl-title">run.bat 실행 방식</div>
+      <div class="tl-desc"><code>python -m nuristat</code>은 설치 없이 동작 안 함. <code>C:\업무\통계패키지\nuristat\run.bat</code> 사용: <code>PYTHONPATH=src python src\nuristat\main.py</code>.</div>
+    </div>
+  </div>
+
+  <!-- 다음 단계 -->
+  <h2 id="next">다음 단계 (우선순위 순)</h2>
+
+  <div class="next-item">
+    <div class="priority" style="color:var(--red)">최우선</div>
+    <h4>미커밋 변경사항 커밋 · 푸시</h4>
+    <p>v3.6.0 커밋(fd97abb) 이후 65+개 파일이 working tree에만 존재. 커밋 메시지: <code>feat: 누리스탯 v3.6.1 — UI 가독성 폴리싱 + ForegroundRole 수정 + T-test 3그룹 개선</code></p>
+    <pre style="margin-top:8px"><code>cd C:\업무\통계패키지\nuristat
+git add -A
+git commit -m "feat: v3.6.1 — ForegroundRole 텍스트색 수정, T-test 3그룹/동일그룹, UI WCAG AA 전체"
+git push</code></pre>
+  </div>
+
+  <div class="next-item">
+    <div class="priority" style="color:var(--yellow)">권장</div>
+    <h4>설치파일(인스톨러) 재빌드</h4>
+    <p>v3.6.0 이후 코드가 많이 바뀜. Inno Setup ISCC로 새 설치파일 생성. 경로: <code>C:\업무\통계패키지\nuristat\NuriStat.iss</code></p>
+  </div>
+
+  <div class="next-item">
+    <div class="priority" style="color:var(--yellow)">권장</div>
+    <h4>HWP/HWPX 결과 내보내기 (v3.7.0 후보)</h4>
+    <p>분석 결과를 한글 문서로 직접 내보내기. SPSS 대비 결정적 차별화. 사용자 환경에 hwpx-autofill-conversion 스킬 보유. 별도 라운드로 계획.</p>
+  </div>
+
+  <div class="next-item">
+    <div class="priority" style="color:var(--muted)">검토</div>
+    <h4>오픈소스 배포 준비</h4>
+    <p>README 정비, 라이선스 확인, PyPI 또는 GitHub Releases 배포 경로 결정. 사용자가 "오픈소스 데스크탑 배포 방향"으로 결정함.</p>
+  </div>
+
+  <!-- 경로 참조 -->
+  <h2 id="paths">경로 참조</h2>
+  <table>
+    <tr><th>항목</th><th>경로</th></tr>
+    <tr><td>프로젝트 루트</td><td><code>C:\업무\통계패키지\nuristat</code></td></tr>
+    <tr><td>앱 실행</td><td><code>C:\업무\통계패키지\nuristat\run.bat</code></td></tr>
+    <tr><td>소스 루트</td><td><code>src\nuristat\</code></td></tr>
+    <tr><td>분석 모듈</td><td><code>src\nuristat\analysis\</code></td></tr>
+    <tr><td>UI 다이얼로그</td><td><code>src\nuristat\ui\dialogs\</code></td></tr>
+    <tr><td>핵심 모델</td><td><code>src\nuristat\ui\models\spss_grid_model.py</code></td></tr>
+    <tr><td>테마</td><td><code>src\nuristat\ui\theme.py</code></td></tr>
+    <tr><td>테스트</td><td><code>tests\</code> (pytest: <code>python -m pytest tests/ -q</code>)</td></tr>
+    <tr><td>agents 시스템</td><td><code>C:\업무\agents</code></td></tr>
+    <tr><td>agents CLAUDE.md</td><td><code>C:\업무\agents\CLAUDE.md</code></td></tr>
+    <tr><td>위키 홈</td><td><code>C:\업무\agents\wiki\00_홈.md</code></td></tr>
+    <tr><td>누리스탯 위키 노트</td><td><code>C:\업무\agents\wiki\notes\project\project-nuristat-v360.md</code></td></tr>
+    <tr><td>인수인계 파일</td><td><code>C:\업무\통계패키지\nuristat\HANDOFF_2026-06-11.html</code></td></tr>
+  </table>
+
+  <hr>
+  <p style="font-size:12px;color:var(--muted);text-align:center">누리스탯 세션 인수인계 · 생성: 2026-06-11 · 테스트: 4,749 passed · 버전: 3.6.0</p>
+</main>
+</div>
+</body>
+</html>

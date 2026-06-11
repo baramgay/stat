@@ -51,7 +51,7 @@ class RankDialog(QDialog):
 
         # 통계 정보
         self.stats_label = QLabel("")
-        self.stats_label.setStyleSheet("color: #5d6d7e; font-size: 11px;")
+        self.stats_label.setStyleSheet("color: #3a5068; font-size: 11px;")
         source_layout.addWidget(self.stats_label)
 
         layout.addWidget(source_group)

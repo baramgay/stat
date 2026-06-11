@@ -11,6 +11,7 @@ import pandas as pd
 
 from nuristat.analysis.assumptions import get_case_processing_summary, prepare_analysis_frame
 from nuristat.analysis.result import AnalysisResult, ResultTable
+from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.core.dataset import Dataset
 from nuristat.core.typing import MissingPolicy
 
@@ -30,13 +31,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
     Returns:
         AnalysisResult with frequency tables.
     """
-    variables = spec.get("variables", {})
-    options = spec.get("options", {})
-    missing_policy_str = spec.get("missing_policy", MissingPolicy.LISTWISE)
-    if isinstance(missing_policy_str, str):
-        missing_policy = MissingPolicy(missing_policy_str)
-    else:
-        missing_policy = missing_policy_str
+    variables, options, _, missing_policy = parse_common_spec(spec)
 
     target_vars: list[str] = variables.get("target", [])
     include_missing = options.get("include_missing", False)
@@ -82,10 +77,23 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
                 continue
 
             series = prepared.data[var_name]
-            total_n = len(series)
             valid_series = series.dropna()
             valid_n = len(valid_series)
-            missing_n = total_n - valid_n
+
+            # Count missing from raw data (prepare_analysis_frame may have dropped NaN rows)
+            if include_missing and dataset.data is not None and var_name in dataset.data.columns:
+                raw = dataset.data[var_name]
+                _fcol = next(
+                    (c for c in ("filter_$", "filter_dollar") if c in dataset.data.columns),
+                    None,
+                )
+                if _fcol:
+                    raw = dataset.data.loc[dataset.data[_fcol] == 1, var_name]
+                missing_n = int(raw.isna().sum())
+                total_n = valid_n + missing_n
+            else:
+                total_n = len(series)
+                missing_n = total_n - valid_n
 
             # Weighted frequency counts (if weight variable present)
             if prepared.weight_var and prepared.weight_var in prepared.data.columns:

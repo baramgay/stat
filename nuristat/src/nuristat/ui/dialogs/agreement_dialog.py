@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     display_label,
@@ -20,7 +21,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class KappaDialog(QDialog):
+class KappaDialog(QDialog, AnalysisDialogMixin):
     """Cohen's Kappa 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -63,6 +64,7 @@ class KappaDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.StandardButton.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -74,18 +76,12 @@ class KappaDialog(QDialog):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "경고", "서로 다른 변수를 선택하세요.")
             return
+        from nuristat.analysis.cohens_kappa import run_analysis
         spec = {"variables": {"rater1": r1, "rater2": r2}}
-        try:
-            from nuristat.analysis.cohens_kappa import run_analysis
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        self._start_analysis(run_analysis, self._dataset, spec)
 
 
-class ICCDialog(QDialog):
+class ICCDialog(QDialog, AnalysisDialogMixin):
     """급내 상관계수(ICC) 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -130,6 +126,7 @@ class ICCDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.StandardButton.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -140,21 +137,15 @@ class ICCDialog(QDialog):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "경고", "측정 변수를 두 개 이상 선택하세요.")
             return
+        from nuristat.analysis.icc import run_analysis
         spec = {
             "variables": {"measurements": measurements},
             "options": {"model": self.model_combo.currentData()},
         }
-        try:
-            from nuristat.analysis.icc import run_analysis
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        self._start_analysis(run_analysis, self._dataset, spec)
 
 
-class BlandAltmanDialog(QDialog):
+class BlandAltmanDialog(QDialog, AnalysisDialogMixin):
     """Bland-Altman 분석 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -197,6 +188,7 @@ class BlandAltmanDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.StandardButton.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -208,12 +200,6 @@ class BlandAltmanDialog(QDialog):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "경고", "서로 다른 변수를 선택하세요.")
             return
+        from nuristat.analysis.bland_altman import run_analysis
         spec = {"variables": {"method1": m1, "method2": m2}}
-        try:
-            from nuristat.analysis.bland_altman import run_analysis
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        self._start_analysis(run_analysis, self._dataset, spec)

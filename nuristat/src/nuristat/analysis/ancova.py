@@ -26,6 +26,7 @@ from statsmodels.formula.api import ols
 from nuristat.analysis.assumptions import get_cps_table_kr, prepare_analysis_frame
 from nuristat.analysis.formatting import format_number, format_pvalue
 from nuristat.analysis.result import AnalysisResult, ResultTable
+from nuristat.analysis.spec_utils import parse_common_spec
 from nuristat.core.dataset import Dataset
 from nuristat.core.typing import MissingPolicy
 
@@ -88,12 +89,7 @@ def run_analysis(dataset: Dataset, spec: dict) -> AnalysisResult:
         return result
 
     # ── 데이터 준비 ───────────────────────────────────────────────
-    try:
-        mp = MissingPolicy(missing_policy_str)
-    except ValueError:
-        mp = MissingPolicy.LISTWISE
-
-    paf = prepare_analysis_frame(dataset, all_vars, missing_policy=mp)
+    paf = prepare_analysis_frame(dataset, all_vars, missing_policy=missing_policy)
     data = paf.data.copy()
     n_before, n_after, n_excluded = paf.n_total, paf.n_valid, paf.n_excluded
 

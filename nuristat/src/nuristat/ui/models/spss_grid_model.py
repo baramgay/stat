@@ -77,6 +77,7 @@ _COLOR_ODD_ROW = QColor("#FFFFFF")          # 홀수 행 배경
 _COLOR_EVEN_ROW = QColor("#F8F9FA")         # 짝수 행 배경
 _COLOR_HEADER_H = QColor("#D4E6F1")         # 수평 헤더 배경
 _COLOR_HEADER_V = QColor("#E8EAF6")         # 수직 헤더 배경
+_COLOR_TEXT = QColor("#111111")             # 데이터 셀 텍스트 (near-black)
 
 # 척도 아이콘 (열 헤더에 표시)
 _MEASURE_ICON = {
@@ -397,6 +398,8 @@ class SPSSGridModel(QAbstractTableModel):
                 if self._is_numeric_col(col):
                     return QBrush(_COLOR_MISSING_BG)
                 return None
+            if role == Qt.ItemDataRole.ForegroundRole:
+                return QBrush(_COLOR_TEXT)
             return None
 
         value = self._dataframe.iloc[row, col]
@@ -439,6 +442,9 @@ class SPSSGridModel(QAbstractTableModel):
             if row % 2 == 0:
                 return QBrush(_COLOR_ODD_ROW)
             return QBrush(_COLOR_EVEN_ROW)
+
+        if role == Qt.ItemDataRole.ForegroundRole:
+            return QBrush(_COLOR_TEXT)
 
         if role == Qt.ItemDataRole.ToolTipRole:
             if col < len(self._dataframe.columns):

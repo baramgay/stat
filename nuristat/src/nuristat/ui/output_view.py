@@ -362,7 +362,7 @@ a:hover {{ text-decoration: underline; }}
   font-weight: 700;
   flex-shrink: 0;
 }}
-.timestamp {{ font-size: 11px; color: #7a7a8a; margin-bottom: 14px; }}
+.timestamp {{ font-size: 11px; color: #55555f; margin-bottom: 14px; }}
 
 /* ── 테이블 제목 ── */
 .table-title {{
@@ -427,7 +427,7 @@ tfoot td {{
   margin-bottom: 12px;
   font-size: 12.5px;
 }}
-.footnote {{ font-size: 11.5px; color: #666; margin-top: 4px; font-style: italic; }}
+.footnote {{ font-size: 11.5px; color: #44475a; margin-top: 4px; font-style: italic; }}
 .syntax-block {{
   background: #1e1e2e;
   color: #cdd6f4;

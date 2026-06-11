@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import io
 from datetime import datetime
 from typing import Any
 
@@ -177,7 +178,7 @@ class AnalysisResult(BaseModel):
         return self
 
     def to_html(self) -> str:
-        """Render all tables as concatenated HTML."""
+        """Render all tables and figures as concatenated HTML."""
         parts = []
         for table in self.tables:
             parts.append(table.to_html())
@@ -185,6 +186,22 @@ class AnalysisResult(BaseModel):
             parts.append(table.to_html())
         for table in self.diagnostics:
             parts.append(table.to_html())
+        # matplotlib Figure objects
+        for fig in self.figures:
+            try:
+                buf = io.BytesIO()
+                fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                            facecolor="white", edgecolor="none")
+                buf.seek(0)
+                b64 = base64.b64encode(buf.read()).decode("utf-8")
+                parts.append(
+                    f'<div style="margin:8px 0;">'
+                    f'<img src="data:image/png;base64,{b64}" '
+                    f'style="max-width:100%;height:auto;display:block;"/>'
+                    f'</div>'
+                )
+            except Exception:
+                pass
         if self.text_blocks:
             for block in self.text_blocks:
                 parts.append(f"<pre style='margin:4px 0'>{block}</pre>")

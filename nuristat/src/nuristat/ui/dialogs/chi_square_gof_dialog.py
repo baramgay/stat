@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     display_label,
@@ -20,7 +21,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class ChiSquareGOFDialog(QDialog):
+class ChiSquareGOFDialog(QDialog, AnalysisDialogMixin):
     """카이제곱 적합도 검정 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -76,6 +77,7 @@ class ChiSquareGOFDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -98,11 +100,5 @@ class ChiSquareGOFDialog(QDialog):
             "variables": {"target": target},
             "options": {"expected_ratios": expected_ratios},
         }
-        try:
-            from nuristat.analysis.chi_square_gof import run_analysis
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.chi_square_gof import run_analysis
+        self._start_analysis(run_analysis, self._dataset, spec)

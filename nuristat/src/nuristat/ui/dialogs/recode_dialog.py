@@ -54,7 +54,7 @@ class RecodeDialog(QDialog):
 
         # 원본 변수 통계
         self.source_stats = QLabel("")
-        self.source_stats.setStyleSheet("color: #5d6d7e; font-size: 11px;")
+        self.source_stats.setStyleSheet("color: #3a5068; font-size: 11px;")
         source_layout.addWidget(self.source_stats)
 
         layout.addWidget(source_group)
@@ -126,7 +126,7 @@ class RecodeDialog(QDialog):
         preview_layout = QVBoxLayout(preview_group)
 
         self.preview_label = QLabel("재코딩 규칙을 추가하면 미리보기가 표시됩니다")
-        self.preview_label.setStyleSheet("color: #7a7a8a; font-style: italic;")
+        self.preview_label.setStyleSheet("color: #55555f; font-style: italic;")
         preview_layout.addWidget(self.preview_label)
 
         layout.addWidget(preview_group)

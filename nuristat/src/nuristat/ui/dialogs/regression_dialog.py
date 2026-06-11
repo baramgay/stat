@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
@@ -21,7 +22,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class RegressionDialog(QDialog):
+class RegressionDialog(QDialog, AnalysisDialogMixin):
     """SPSS Linear Regression 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -83,6 +84,7 @@ class RegressionDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -101,11 +103,9 @@ class RegressionDialog(QDialog):
             QMessageBox.warning(self, "경고", "독립 변수를 하나 이상 선택하세요.")
             return
 
-        try:
-            from nuristat.analysis.regression import run_linear_regression
-            result = run_linear_regression(self._dataset.data, dep_var, ind_vars)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.regression import run_analysis
+        spec = {
+            "variables": {"dependent": dep_var, "predictors": ind_vars},
+            "options": {"method": self.method_combo.currentText().lower()},
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

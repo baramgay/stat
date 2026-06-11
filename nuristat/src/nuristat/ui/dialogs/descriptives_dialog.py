@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
@@ -23,7 +24,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class DescriptivesDialog(QDialog):
+class DescriptivesDialog(QDialog, AnalysisDialogMixin):
     """SPSS Descriptives 다이얼로그.
 
     척도(Scale) 변수만 목록에 표시 — SPSS 동일 동작.
@@ -62,7 +63,7 @@ class DescriptivesDialog(QDialog):
         var_layout.addWidget(self.var_list)
 
         hint = QLabel("💡 Ctrl+클릭으로 여러 변수 선택")
-        hint.setStyleSheet("color: #888; font-size: 11px;")
+        hint.setStyleSheet("color: #55555f; font-size: 11px;")
         var_layout.addWidget(hint)
         layout.addWidget(var_group)
 
@@ -96,6 +97,7 @@ class DescriptivesDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -111,21 +113,15 @@ class DescriptivesDialog(QDialog):
         selected = [item.data(0x0100) or var_from_display(item.text().split(" ", 1)[-1])
                     for item in selected_items]
 
-        try:
-            from nuristat.analysis.descriptive import run_analysis
-            spec = {
-                "variables": {"scale": selected},
-                "options": {
-                    "show_mean": self.chk_mean.isChecked(),
-                    "show_std": self.chk_std.isChecked(),
-                    "show_minmax": self.chk_minmax.isChecked(),
-                    "show_skew": self.chk_skew.isChecked(),
-                    "show_ci": self.chk_ci.isChecked(),
-                },
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.descriptive import run_analysis
+        spec = {
+            "variables": {"scale": selected},
+            "options": {
+                "show_mean": self.chk_mean.isChecked(),
+                "show_std": self.chk_std.isChecked(),
+                "show_minmax": self.chk_minmax.isChecked(),
+                "show_skew": self.chk_skew.isChecked(),
+                "show_ci": self.chk_ci.isChecked(),
+            },
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

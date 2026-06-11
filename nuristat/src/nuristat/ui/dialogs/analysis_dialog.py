@@ -44,7 +44,7 @@ class AnalysisDialog(QDialog):
         info = QLabel(f"데이터셋: {self._dataset.name} | "
                       f"케이스: {len(self._dataset.data)} | "
                       f"변수: {len(self._dataset.data.columns)}")
-        info.setStyleSheet("color: #5d6d7e; font-size: 12px;")
+        info.setStyleSheet("color: #3a5068; font-size: 12px;")
         layout.addWidget(info)
 
         # 메인 영역

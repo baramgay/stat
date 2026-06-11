@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     categorical_vars,
@@ -38,7 +39,7 @@ def _combo_add(combo: QComboBox, dataset: Dataset, var_list: list[str]) -> None:
         combo.addItem(f"{icon} {label}" if icon else label, userData=var)
 
 
-class ManovaDialog(QDialog):
+class ManovaDialog(QDialog, AnalysisDialogMixin):
     """SPSS General Linear Model > Multivariate 대화상자."""
 
     analysis_run = Signal(AnalysisResult)
@@ -139,6 +140,7 @@ class ManovaDialog(QDialog):
         layout.addWidget(opt_group)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -174,24 +176,19 @@ class ManovaDialog(QDialog):
 
         ph_text = self.post_hoc_combo.currentText().lower().replace(" hsd", "").replace(" ", "")
 
-        try:
-            from nuristat.analysis.manova import run_analysis
-            spec = {
-                "variables": {
-                    "dependents": dep_vars,
-                    "factor": factor_var,
-                },
-                "options": {
-                    "multivariate": self.chk_multivariate.isChecked(),
-                    "univariate": self.chk_univariate.isChecked(),
-                    "post_hoc": self.chk_post_hoc.isChecked(),
-                    "post_hoc_method": ph_text,
-                    "effect_size": self.chk_effect.isChecked(),
-                },
-                "confidence_level": self.ci_spin.value(),
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            QMessageBox.critical(self, "분석 오류", user_friendly_error(exc))
+        from nuristat.analysis.manova import run_analysis
+        spec = {
+            "variables": {
+                "dependents": dep_vars,
+                "factor": factor_var,
+            },
+            "options": {
+                "multivariate": self.chk_multivariate.isChecked(),
+                "univariate": self.chk_univariate.isChecked(),
+                "post_hoc": self.chk_post_hoc.isChecked(),
+                "post_hoc_method": ph_text,
+                "effect_size": self.chk_effect.isChecked(),
+            },
+            "confidence_level": self.ci_spin.value(),
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

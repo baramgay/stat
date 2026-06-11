@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     display_label,
     measure_icon,
@@ -19,7 +20,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class ReliabilityDialog(QDialog):
+class ReliabilityDialog(QDialog, AnalysisDialogMixin):
     """SPSS Reliability Analysis (Cronbach Alpha) 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -56,6 +57,7 @@ class ReliabilityDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.StandardButton.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -67,12 +69,6 @@ class ReliabilityDialog(QDialog):
             QMessageBox.warning(self, "경고", "항목 변수를 두 개 이상 선택하세요.")
             return
 
+        from nuristat.analysis.reliability import run_analysis
         spec = {"variables": {"items": items}}
-        try:
-            from nuristat.analysis.reliability import run_analysis
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        self._start_analysis(run_analysis, self._dataset, spec)

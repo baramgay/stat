@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     display_label,
@@ -23,7 +24,7 @@ from nuristat.ui.dialogs._dialog_helpers import (
 )
 
 
-class ROCDialog(QDialog):
+class ROCDialog(QDialog, AnalysisDialogMixin):
     """SPSS ROC Curve 다이얼로그."""
 
     analysis_run = Signal(AnalysisResult)
@@ -75,6 +76,7 @@ class ROCDialog(QDialog):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._run_btn = btn_box.button(QDialogButtonBox.StandardButton.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -101,11 +103,5 @@ class ROCDialog(QDialog):
                 "positive_value": positive_value,
             },
         }
-        try:
-            from nuristat.analysis.roc_analysis import run_analysis
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.roc_analysis import run_analysis
+        self._start_analysis(run_analysis, self._dataset, spec)

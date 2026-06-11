@@ -1332,6 +1332,8 @@ class MainWindow(QMainWindow):
     def _on_weight_applied(self, weight_var: str) -> None:
         """가중치 적용 시."""
         self._active_weight_var = weight_var
+        if self.current_dataset is not None:
+            self.current_dataset.active_weight_var = weight_var
         output = self._get_output()
         output.add_output(f"⚖️ 가중치 적용: {weight_var} — 이후 빈도/기술통계 분석에 반영됩니다", "success")
         if hasattr(self, "_weight_label"):
@@ -1340,6 +1342,8 @@ class MainWindow(QMainWindow):
     def _on_weight_cleared(self) -> None:
         """가중치 해제 시."""
         self._active_weight_var = None
+        if self.current_dataset is not None:
+            self.current_dataset.active_weight_var = None
         output = self._get_output()
         output.add_output("⚖️ 가중치가 해제되었습니다.", "success")
         if hasattr(self, "_weight_label"):
@@ -1565,14 +1569,13 @@ class MainWindow(QMainWindow):
 
     def _on_crosstab_completed(self, spec: dict) -> None:
         """교차분석 다이얼로그 완료 — spec을 받아 crosstab.run_analysis로 실행."""
-        self._ensure_output_window()
-        try:
+        ds = self.current_dataset
+
+        def _run():
             from nuristat.analysis.crosstab import run_analysis
-            result = run_analysis(self.current_dataset, spec)
-            self._output_window.add_analysis_result(result)
-            self.statusbar.showMessage("교차분석 완료")
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"교차분석 실행 실패:\n{exc}")
+            return run_analysis(ds, spec)
+
+        self._run_async(_run, "교차분석")
 
     def _run_paired_ttest(self) -> None:
         """대응표본 T 검정 실행."""
@@ -1714,6 +1717,39 @@ class MainWindow(QMainWindow):
         if self._output_window is None or not self._output_window.isVisible():
             self._show_output_window()
 
+    # ------------------------------------------------------------------
+    # 비동기 분석 헬퍼 (QThread)
+    # ------------------------------------------------------------------
+
+    def _run_async(self, run_fn, label: str = "분석") -> None:
+        """run_fn()을 백그라운드에서 실행해 UI 프리징을 방지한다."""
+        from nuristat.ui.analysis_worker import AnalysisWorker
+
+        if not hasattr(self, "_analysis_workers"):
+            self._analysis_workers: list = []
+
+        worker = AnalysisWorker(run_fn, parent=self)
+        self._analysis_workers.append(worker)
+
+        def _on_done(result) -> None:
+            self._ensure_output_window()
+            self._output_window.add_analysis_result(result)
+            self.statusbar.showMessage(f"{label} 완료")
+            if worker in self._analysis_workers:
+                self._analysis_workers.remove(worker)
+
+        def _on_err(msg: str) -> None:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "오류", f"{label} 실패:\n{msg}")
+            self.statusbar.showMessage(f"{label} 실패")
+            if worker in self._analysis_workers:
+                self._analysis_workers.remove(worker)
+
+        worker.result_ready.connect(_on_done)
+        worker.error_occurred.connect(_on_err)
+        self.statusbar.showMessage(f"{label} 중...")
+        worker.start()
+
     def _run_one_sample_ttest(self) -> None:
         """단일표본 T 검정 실행."""
         if self.current_dataset is None:
@@ -1724,18 +1760,13 @@ class MainWindow(QMainWindow):
         dialog = OneSampleTTestDialog(self.current_dataset, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             spec = dialog.get_spec()
-            try:
+            ds = self.current_dataset
+
+            def _run():
                 from nuristat.analysis.ttests import run_one_sample_ttest
-                result = run_one_sample_ttest(
-                    self.current_dataset.data,
-                    spec["variable"],
-                    spec["test_value"],
-                )
-                self._ensure_output_window()
-                self._output_window.add_analysis_result(result)
-                self.statusbar.showMessage("단일표본 T 검정 완료")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+                return run_one_sample_ttest(ds.data, spec["variable"], spec["test_value"])
+
+            self._run_async(_run, "단일표본 T 검정")
 
     def _run_logistic_regression(self) -> None:
         """로지스틱 회귀 실행."""
@@ -1747,14 +1778,13 @@ class MainWindow(QMainWindow):
         dialog = LogisticRegressionDialog(self.current_dataset, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             spec = dialog.get_spec()
-            try:
+            ds = self.current_dataset
+
+            def _run():
                 from nuristat.analysis import logistic_regression
-                result = logistic_regression.run_analysis(self.current_dataset, spec)
-                self._ensure_output_window()
-                self._output_window.add_analysis_result(result)
-                self.statusbar.showMessage("로지스틱 회귀 완료")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+                return logistic_regression.run_analysis(ds, spec)
+
+            self._run_async(_run, "로지스틱 회귀")
 
     def _run_factor_analysis(self) -> None:
         """요인분석 실행."""
@@ -1766,14 +1796,13 @@ class MainWindow(QMainWindow):
         dialog = FactorAnalysisDialog(self.current_dataset, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             spec = dialog.get_spec()
-            try:
+            ds = self.current_dataset
+
+            def _run():
                 from nuristat.analysis import factor_analysis
-                result = factor_analysis.run_analysis(self.current_dataset, spec)
-                self._ensure_output_window()
-                self._output_window.add_analysis_result(result)
-                self.statusbar.showMessage("요인분석 완료")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+                return factor_analysis.run_analysis(ds, spec)
+
+            self._run_async(_run, "요인분석")
 
     def _run_cluster_analysis(self) -> None:
         """군집분석 실행."""
@@ -1785,14 +1814,13 @@ class MainWindow(QMainWindow):
         dialog = ClusterAnalysisDialog(self.current_dataset, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             spec = dialog.get_spec()
-            try:
+            ds = self.current_dataset
+
+            def _run():
                 from nuristat.analysis import cluster_analysis
-                result = cluster_analysis.run_analysis(self.current_dataset, spec)
-                self._ensure_output_window()
-                self._output_window.add_analysis_result(result)
-                self.statusbar.showMessage("군집분석 완료")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+                return cluster_analysis.run_analysis(ds, spec)
+
+            self._run_async(_run, "군집분석")
 
     def _run_kaplan_meier(self) -> None:
         """Kaplan-Meier 생존분석 실행."""
@@ -1826,14 +1854,13 @@ class MainWindow(QMainWindow):
         dialog = DiscriminantAnalysisDialog(self.current_dataset, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             spec = dialog.get_spec()
-            try:
+            ds = self.current_dataset
+
+            def _run():
                 from nuristat.analysis import discriminant_analysis
-                result = discriminant_analysis.run_analysis(self.current_dataset, spec)
-                self._ensure_output_window()
-                self._output_window.add_analysis_result(result)
-                self.statusbar.showMessage("판별분석 완료")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
+                return discriminant_analysis.run_analysis(ds, spec)
+
+            self._run_async(_run, "판별분석")
 
     def _on_analysis_requested(self, analysis_type: str, params: dict) -> None:
         """분석 요청 처리."""

@@ -123,7 +123,7 @@ class TestGroupCountNotTwo:
             "confidence_level": 0.95,
         }
         result = run_analysis(ds, spec)
-        assert any("2 groups" in w for w in result.warnings)
+        assert any("2개" in w or "2 groups" in w or "ANOVA" in w for w in result.warnings)
 
     def test_one_group_returns_warning(self):
         """그룹이 1개이면 경고 반환."""

@@ -6,6 +6,7 @@ Word/HTML로 내보낼 수 있습니다.
 
 from __future__ import annotations
 
+import html as html_mod
 import io
 from datetime import datetime
 from typing import Any
@@ -28,6 +29,13 @@ from PySide6.QtWidgets import (
 )
 
 from nuristat.ui.theme import get_output_html_styles
+
+# 차트 편집기 — 선택 의존 (PySide6 설치 환경에서만 활성)
+try:
+    from nuristat.ui.dialogs.chart_editor_dialog import ChartEditorDialog as _ChartEditorDialog
+    _CHART_EDITOR_AVAILABLE = True
+except Exception:
+    _CHART_EDITOR_AVAILABLE = False
 
 
 class OutputWindow(QMainWindow):
@@ -84,6 +92,11 @@ class OutputWindow(QMainWindow):
         self.btn_save_word.clicked.connect(self._save_word)
         bar.addWidget(self.btn_save_word)
 
+        self.btn_edit_chart = QPushButton("✏️ 차트 수정")
+        self.btn_edit_chart.setToolTip("현재 탭의 차트 텍스트/레이아웃을 편집합니다")
+        self.btn_edit_chart.clicked.connect(self._edit_chart)
+        bar.addWidget(self.btn_edit_chart)
+
         layout.addLayout(bar)
 
         # 탭 위젯
@@ -139,6 +152,11 @@ class OutputWindow(QMainWindow):
         clear_action.triggered.connect(self.clear_output)
         edit_menu.addAction(clear_action)
 
+        edit_menu.addSeparator()
+        chart_edit_action = QAction("차트 수정(&E)", self)
+        chart_edit_action.triggered.connect(self._edit_chart)
+        edit_menu.addAction(chart_edit_action)
+
     # ------------------------------------------------------------------
     # 공개 API
     # ------------------------------------------------------------------
@@ -180,7 +198,7 @@ class OutputWindow(QMainWindow):
         line = (
             f'<div style="margin:4px 0;">'
             f'<span style="color:#55555f; font-size:10px;">{ts}</span> '
-            f'<span style="color:{color}">{content}</span>'
+            f'<span style="color:{color}">{html_mod.escape(content)}</span>'
             f'</div>'
         )
         self._log_lines.append(line)
@@ -216,6 +234,12 @@ class OutputWindow(QMainWindow):
             copy_text_act = QAction("📄 텍스트 복사 (탭 구분)", self)
             copy_text_act.triggered.connect(lambda: self._copy_tables_text(result))
             menu.addAction(copy_text_act)
+
+            if _CHART_EDITOR_AVAILABLE and getattr(result, "figures", []):
+                menu.addSeparator()
+                edit_chart_act = QAction("✏️ 차트 수정", self)
+                edit_chart_act.triggered.connect(self._edit_chart)
+                menu.addAction(edit_chart_act)
 
             menu.addSeparator()
 
@@ -381,7 +405,8 @@ class OutputWindow(QMainWindow):
 
                     for fn in getattr(tbl, "footnotes", []):
                         p = doc.add_paragraph(fn)
-                        p.runs[0].font.size = __import__("docx.shared", fromlist=["Pt"]).Pt(9)
+                        if p.runs:
+                            p.runs[0].font.size = __import__("docx.shared", fromlist=["Pt"]).Pt(9)
 
                 # 이미지 (figures)
                 for fig in getattr(result, "figures", []):
@@ -405,6 +430,52 @@ class OutputWindow(QMainWindow):
             self.statusbar.showMessage(f"Word 저장 완료: {path}")
         except Exception as exc:
             QMessageBox.critical(self, "오류", f"Word 저장 실패:\n{exc}")
+
+    # ------------------------------------------------------------------
+    # 차트 편집
+    # ------------------------------------------------------------------
+
+    def _edit_chart(self) -> None:
+        """현재 탭의 차트를 편집 대화상자로 수정하고 다시 렌더링합니다."""
+        if not _CHART_EDITOR_AVAILABLE:
+            QMessageBox.information(self, "안내", "차트 편집기를 불러올 수 없습니다.")
+            return
+
+        cur_idx = self.tab_widget.currentIndex()
+        if cur_idx <= 0:
+            QMessageBox.information(self, "안내", "차트 편집은 분석 결과 탭에서만 가능합니다.")
+            return
+
+        result_idx = cur_idx - 1
+        if result_idx >= len(self._results):
+            return
+        result = self._results[result_idx]
+        figures = getattr(result, "figures", [])
+        if not figures:
+            QMessageBox.information(self, "안내", "이 결과에 편집할 차트가 없습니다.")
+            return
+
+        try:
+            from nuristat.analysis.visualization import VisualizationEngine
+            _engine = VisualizationEngine()
+        except Exception:
+            QMessageBox.critical(self, "오류", "VisualizationEngine을 불러올 수 없습니다.")
+            return
+
+        # 첫 번째 Figure를 편집 (여러 개이면 이후 확장 가능)
+        fig = figures[0]
+        dlg = _ChartEditorDialog(fig, _engine.apply_edits, parent=self)
+        if dlg.exec() == _ChartEditorDialog.Accepted:
+            edited_fig = dlg.edited_figure()
+            result.figures[0] = edited_fig
+            # 탭 브라우저 재렌더링
+            browser = self.tab_widget.widget(cur_idx)
+            if isinstance(browser, QTextBrowser):
+                ts = datetime.now().strftime("%H:%M:%S")
+                title = getattr(result, "title", "결과")
+                html = self._wrap_html(result.to_html(), title, ts)
+                browser.setHtml(html)
+            self.statusbar.showMessage("차트가 수정되었습니다.")
 
     # ------------------------------------------------------------------
     # 내부 헬퍼

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
+from nuristat.ui.dialogs._async_mixin import AnalysisDialogMixin
 from nuristat.ui.dialogs._dialog_helpers import (
     all_vars,
     categorical_vars,
@@ -34,7 +35,7 @@ def _combo_add(combo: QComboBox, dataset: Dataset, var_list: list[str]) -> None:
         combo.addItem(text, userData=var)
 
 
-class ANOVADialog(QDialog):
+class ANOVADialog(QDialog, AnalysisDialogMixin):
     """SPSS One-Way ANOVA 다이얼로그.
 
     종속 변수: 척도(Scale)
@@ -113,6 +114,7 @@ class ANOVADialog(QDialog):
 
         # 버튼
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._run_btn = btn_box.button(QDialogButtonBox.Ok)
         btn_box.accepted.connect(self._run)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -139,20 +141,14 @@ class ANOVADialog(QDialog):
         if self.chk_scheffe.isChecked():
             post_hoc.append("scheffe")
 
-        try:
-            from nuristat.analysis.anova import run_analysis
-            spec = {
-                "variables": {"dependent": dep_var, "factor": factor_var},
-                "options": {
-                    "post_hoc": post_hoc,
-                    "levene": self.chk_levene.isChecked(),
-                    "effect_size": self.chk_effect.isChecked(),
-                },
-                "confidence_level": self.ci_spin.value(),
-            }
-            result = run_analysis(self._dataset, spec)
-            self.analysis_run.emit(result)
-            self.accept()
-        except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+        from nuristat.analysis.anova import run_analysis
+        spec = {
+            "variables": {"dependent": dep_var, "factor": factor_var},
+            "options": {
+                "post_hoc": post_hoc,
+                "levene": self.chk_levene.isChecked(),
+                "effect_size": self.chk_effect.isChecked(),
+            },
+            "confidence_level": self.ci_spin.value(),
+        }
+        self._start_analysis(run_analysis, self._dataset, spec)

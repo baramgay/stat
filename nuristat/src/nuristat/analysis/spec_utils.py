@@ -63,7 +63,10 @@ def parse_common_spec(spec: dict) -> CommonSpec:
     """
     mp_raw = spec.get("missing_policy", MissingPolicy.LISTWISE)
     if isinstance(mp_raw, str):
-        mp = MissingPolicy(mp_raw)
+        try:
+            mp = MissingPolicy(mp_raw)
+        except ValueError:
+            mp = MissingPolicy.LISTWISE
     else:
         mp = mp_raw
 

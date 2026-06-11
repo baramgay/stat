@@ -101,7 +101,7 @@ class ThemeColors:
         self.MEASURE_ORDINAL = "#2874a6"
         self.MEASURE_BINARY = "#239b56"
         self.MEASURE_DATETIME = "#b9770e"
-        self.MEASURE_TEXT = "#5d6d7e"
+        self.MEASURE_TEXT = "#3a5068"
 
         # Scrollbar
         self.SCROLLBAR_BG = "#e0e4e8"

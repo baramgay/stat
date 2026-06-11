@@ -71,7 +71,7 @@ class MergeDialog(QDialog):
         file_btn_layout.addWidget(self.btn_load)
 
         self.file_label = QLabel("파일을 선택하세요")
-        self.file_label.setStyleSheet("color: #5d6d7e;")
+        self.file_label.setStyleSheet("color: #3a5068;")
         file_btn_layout.addWidget(self.file_label)
         file_btn_layout.addStretch()
 

@@ -30,6 +30,7 @@ class Dataset:
         self.created_at: datetime = datetime.now(timezone.utc)
         self.updated_at: datetime = datetime.now(timezone.utc)
         self._dirty: bool = False
+        self.active_weight_var: str | None = None  # WeightCasesDialog가 설정
         self._variables: dict[str, VariableMeta]
         if variables is not None:
             self._variables = dict(variables)

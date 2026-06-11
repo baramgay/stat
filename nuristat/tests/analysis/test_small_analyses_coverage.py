@@ -109,6 +109,7 @@ class TestFrequencies:
             mock_result = types.SimpleNamespace(
                 data=freq_dataset.data[["cat"]].copy(),
                 n_total=30, n_valid=30, n_excluded=0, excluded_pct=0.0,
+                n_filtered=30, weight_var=None,
             )
             mock_prep.return_value = mock_result
             result = freq_run(freq_dataset, spec)

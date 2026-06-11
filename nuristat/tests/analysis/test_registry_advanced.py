@@ -510,12 +510,11 @@ class TestAnalysisResult:
         returned = basic_result.add_note("Note.")
         assert returned is basic_result
 
-    def test_notes_not_rendered_in_to_html(self, basic_result: AnalysisResult) -> None:
-        """Notes are stored but not part of to_html output (no dedicated section)."""
-        basic_result.add_note("Hidden note.")
+    def test_notes_rendered_in_to_html(self, basic_result: AnalysisResult) -> None:
+        """Notes are rendered in to_html() as an informational section."""
+        basic_result.add_note("Visible note.")
         html = basic_result.to_html()
-        # Notes appear only in summary(), not in to_html()
-        assert "Hidden note." not in html
+        assert "Visible note." in html
 
     def test_summary_contains_title(self, basic_result: AnalysisResult) -> None:
         s = basic_result.summary()
