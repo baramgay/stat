@@ -104,3 +104,10 @@ def test_compute_overwrites_existing_variable(editor):
     original_first = editor._dataset.data["score"].iloc[0]
     editor._parse_and_execute("COMPUTE score = score * 2.")
     assert abs(editor._dataset.data["score"].iloc[0] - original_first * 2) < 1e-9
+
+
+def test_compute_scalar_constant(editor):
+    """COMPUTE const = 99. → 모든 행에 상수 99 저장 (스칼라 broadcast)."""
+    editor._parse_and_execute("COMPUTE const_var = 99.")
+    assert "const_var" in editor._dataset.data.columns
+    assert (editor._dataset.data["const_var"] == 99).all()

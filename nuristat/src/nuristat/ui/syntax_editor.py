@@ -450,6 +450,9 @@ class SyntaxEditor(QWidget):
                 result = eval(expression, {"__builtins__": {}}, safe_dict)
                 if isinstance(result, pd.Series):
                     self._dataset.data[var_name] = result
+                elif isinstance(result, (int, float, bool, str)):
+                    # 스칼라 상수를 모든 행에 broadcast
+                    self._dataset.data[var_name] = result
             except Exception:
                 pass
 
