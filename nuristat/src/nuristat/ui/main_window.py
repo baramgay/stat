@@ -1118,8 +1118,9 @@ class MainWindow(QMainWindow):
         self._update_statusbar()
 
     def _on_syntax_executed(self, code: str) -> None:
-        """구문 실행 완료 시."""
+        """구문 실행 완료 시 — 데이터 변경 가능성 있으므로 뷰 갱신."""
         self.statusbar.showMessage("구문이 실행되었습니다.")
+        self._on_dataset_changed(self.current_dataset)
 
     # ── 파일 가져오기/내보내기 ────────────────────────────────────────────────
 

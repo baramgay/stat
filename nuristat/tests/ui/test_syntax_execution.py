@@ -87,3 +87,20 @@ def test_recode_invalid_var_returns_error(editor):
     """존재하지 않는 변수 RECODE → 오류 메시지 반환해야 한다."""
     result = editor._execute_recode("RECODE nonexistent (0=1)")
     assert "없음" in result or "오류" in result
+
+
+# SE-09 회귀 테스트: COMPUTE 구문이 데이터셋에 실제로 반영되어야 한다
+def test_compute_adds_new_variable(editor):
+    """COMPUTE new = (score + age) / 2. → 데이터셋에 새 변수 생성."""
+    editor._parse_and_execute("COMPUTE mean_val = (score + age) / 2.")
+    assert "mean_val" in editor._dataset.data.columns
+    expected = (editor._dataset.data["score"] + editor._dataset.data["age"]) / 2
+    # 첫 행만 비교 (index 동일성)
+    assert abs(editor._dataset.data["mean_val"].iloc[0] - expected.iloc[0]) < 1e-9
+
+
+def test_compute_overwrites_existing_variable(editor):
+    """COMPUTE score = score * 2. → 기존 변수 값 수정."""
+    original_first = editor._dataset.data["score"].iloc[0]
+    editor._parse_and_execute("COMPUTE score = score * 2.")
+    assert abs(editor._dataset.data["score"].iloc[0] - original_first * 2) < 1e-9
