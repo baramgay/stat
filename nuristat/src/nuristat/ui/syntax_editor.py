@@ -446,15 +446,13 @@ class SyntaxEditor(QWidget):
             for col in df.columns:
                 safe_dict[col] = df[col]
 
-            try:
-                result = eval(expression, {"__builtins__": {}}, safe_dict)
-                if isinstance(result, pd.Series):
-                    self._dataset.data[var_name] = result
-                elif isinstance(result, (int, float, bool, str)):
-                    # 스칼라 상수를 모든 행에 broadcast
-                    self._dataset.data[var_name] = result
-            except Exception:
-                pass
+            result = eval(expression, {"__builtins__": {}}, safe_dict)
+            if isinstance(result, pd.Series):
+                self._dataset.data[var_name] = result
+            elif isinstance(result, (int, float, bool, str)):
+                self._dataset.data[var_name] = result
+            else:
+                raise ValueError(f"수식 결과가 Series 또는 상수가 아닙니다: {type(result).__name__}")
 
     def _execute_recode(self, line: str) -> str:
         """RECODE var (old=new) ... [INTO new_var] 실행."""
