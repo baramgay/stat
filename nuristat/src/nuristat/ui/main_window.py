@@ -1120,10 +1120,16 @@ class MainWindow(QMainWindow):
     def _on_syntax_executed(self, code: str) -> None:
         """구문 실행 완료 시 — 데이터 구조 변경(열 추가·행 삭제) 가능성 있으므로 전면 재로드."""
         self.statusbar.showMessage("구문이 실행되었습니다.")
+        self._reload_all_views()
+
+    def _reload_all_views(self) -> None:
+        """데이터 구조 변경(열 추가·행 삭제) 후 모든 뷰를 전면 재로드합니다.
+
+        _on_dataset_changed의 refresh()는 기존 셀 재그리기만 해서 새 열·행이
+        모델 복사본에 반영되지 않습니다. 구조 변경 후에는 반드시 이 메서드를 사용.
+        """
         if self.current_dataset is None:
             return
-        # refresh()만으로는 모델 내부 복사본(stale copy)에 새 열·행이 반영되지 않음.
-        # reload_data()는 set_dataframe() → beginResetModel/endResetModel로 전면 교체.
         if hasattr(self, 'data_view') and self.data_view:
             self.data_view.reload_data()
         if hasattr(self, 'variable_view') and self.variable_view:
@@ -1416,12 +1422,15 @@ class MainWindow(QMainWindow):
 
     def _on_variable_computed(self, var_name: str, series) -> None:
         """변수 계산 완료 시."""
+        if self.current_dataset is None:
+            return
         import pandas as pd
-        if self.current_dataset is not None and isinstance(series, pd.Series):
+        if isinstance(series, pd.Series):
             self.current_dataset.data[var_name] = series
-        self._on_dataset_changed(self.current_dataset)
-        output = self._get_output()
-        output.add_output(f"🔢 변수 '{var_name}'가 계산되었습니다.", "success")
+        elif isinstance(series, (int, float, bool, str)):
+            self.current_dataset.data[var_name] = series  # 스칼라 broadcast
+        self._reload_all_views()
+        self._get_output().add_output(f"변수 '{var_name}' 계산 완료", "success")
 
     def _open_recode(self) -> None:
         """변수 재코딩 다이얼로그 열기."""
@@ -1436,16 +1445,18 @@ class MainWindow(QMainWindow):
 
     def _on_recode_applied(self, source_var: str, target_var: str, rules: dict) -> None:
         """재코딩 적용 시."""
-        # 실제 데이터에 재코딩 적용
+        if self.current_dataset is None:
+            return
         try:
             series = self.current_dataset.data[source_var].copy()
-            new_series = series.replace(rules)
-            self.current_dataset.data[target_var] = new_series
-        except Exception:
-            pass
-        self._on_dataset_changed()
-        output = self._get_output()
-        output.add_output(f"🔄 변수 '{source_var}' -> '{target_var}' 재코딩 완료 ({len(rules)}개 규칙)", "success")
+            self.current_dataset.data[target_var] = series.replace(rules)
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"재코딩 실패:\n{exc}")
+            return
+        self._reload_all_views()
+        self._get_output().add_output(
+            f"재코딩 완료: '{source_var}' → '{target_var}' ({len(rules)}개 규칙)", "success"
+        )
 
     def _open_binning(self) -> None:
         """시각적 구간화 다이얼로그 열기."""
@@ -1460,16 +1471,21 @@ class MainWindow(QMainWindow):
 
     def _on_bins_created(self, source_var: str, target_var: str, cut_points: list, labels: list) -> None:
         """구간화 완료 시."""
+        if self.current_dataset is None:
+            return
         import pandas as pd
         try:
             series = self.current_dataset.data[source_var]
-            binned = pd.cut(series, bins=cut_points, labels=labels, include_lowest=True)
-            self.current_dataset.data[target_var] = binned
-        except Exception:
-            pass
-        self._on_dataset_changed()
-        output = self._get_output()
-        output.add_output(f"📊 구간화 변수 '{target_var}'가 생성되었습니다. (구간 수: {len(labels)})", "success")
+            self.current_dataset.data[target_var] = pd.cut(
+                series, bins=cut_points, labels=labels, include_lowest=True
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"구간화 실패:\n{exc}")
+            return
+        self._reload_all_views()
+        self._get_output().add_output(
+            f"구간화 완료: '{target_var}' 생성 (구간 수: {len(labels)})", "success"
+        )
 
     def _open_rank(self) -> None:
         """순위 계산 다이얼로그 열기."""
@@ -1484,14 +1500,17 @@ class MainWindow(QMainWindow):
 
     def _on_rank_created(self, source_var: str, target_var: str, method: str) -> None:
         """순위 계산 완료 시."""
-        if self.current_dataset is not None:
-            try:
-                series = self.current_dataset.data[source_var]
-                ranked = series.rank(pct=(method == "pct"), method=method if method != "pct" else "average")
-                self.current_dataset.data[target_var] = ranked
-            except Exception:
-                pass
-        self._on_dataset_changed(self.current_dataset)
+        if self.current_dataset is None:
+            return
+        try:
+            series = self.current_dataset.data[source_var]
+            self.current_dataset.data[target_var] = series.rank(
+                pct=(method == "pct"), method=method if method != "pct" else "average"
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"순위 계산 실패:\n{exc}")
+            return
+        self._reload_all_views()
         output = self._get_output()
         output.add_output(f"🏆 순위 변수 '{target_var}'가 생성되었습니다.", "success")
 
