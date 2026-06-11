@@ -124,7 +124,7 @@ class PivotDialog(QDialog):
         self.btn_run.clicked.connect(self._generate_pivot)
         btn_layout.addWidget(self.btn_run)
 
-        self.btn_export = QPushButton("💾 납비")
+        self.btn_export = QPushButton("💾 내보내기")
         self.btn_export.clicked.connect(self._export_pivot)
         self.btn_export.setEnabled(False)
         btn_layout.addWidget(self.btn_export)
@@ -209,12 +209,13 @@ class PivotDialog(QDialog):
 
             self.result_table.resizeColumnsToContents()
             self.btn_export.setEnabled(True)
+            self.pivot_created.emit(self._current_pivot)
 
         except Exception as exc:
             QMessageBox.critical(self, "오류", f"피벗 테이블 생성 실패:\n{exc}")
 
     def _export_pivot(self) -> None:
-        """피벗 테이블 납비."""
+        """피벗 테이블 내보내기."""
         if self._current_pivot is None:
             return
 

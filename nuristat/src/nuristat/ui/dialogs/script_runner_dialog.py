@@ -69,6 +69,8 @@ class ScriptRunnerThread(QThread):
 class ScriptRunnerDialog(QDialog):
     """R/Python 스크립트 실행 다이얼로그."""
 
+    script_executed = Signal(str)  # 실행 완료 시 stdout 요약 텍스트
+
     def __init__(self, dataset: Dataset | None, parent=None) -> None:
         super().__init__(parent)
         self.dataset = dataset
@@ -314,6 +316,8 @@ class ScriptRunnerDialog(QDialog):
                         self.vars_text.append(f"  🔢 {name}: {var_type} = {value}\n")
             else:
                 self.vars_text.append("생성된 변수가 없습니다.")
+
+            self.script_executed.emit(result.get("stdout", ""))
 
         else:
             error = result.get("error", "알 수 없는 오류")

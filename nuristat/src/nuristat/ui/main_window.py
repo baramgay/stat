@@ -1398,11 +1398,14 @@ class MainWindow(QMainWindow):
 
         from nuristat.ui.dialogs.compute_variable_dialog import ComputeVariableDialog
         dialog = ComputeVariableDialog(self.current_dataset, self)
-        dialog.variable_computed.connect(self._on_variable_computed)
+        dialog.computed.connect(self._on_variable_computed)
         dialog.exec()
 
-    def _on_variable_computed(self, var_name: str) -> None:
+    def _on_variable_computed(self, var_name: str, series) -> None:
         """변수 계산 완료 시."""
+        import pandas as pd
+        if self.current_dataset is not None and isinstance(series, pd.Series):
+            self.current_dataset.data[var_name] = series
         self._on_dataset_changed(self.current_dataset)
         output = self._get_output()
         output.add_output(f"🔢 변수 '{var_name}'가 계산되었습니다.", "success")
@@ -1463,14 +1466,21 @@ class MainWindow(QMainWindow):
 
         from nuristat.ui.dialogs.rank_dialog import RankDialog
         dialog = RankDialog(self.current_dataset, self)
-        dialog.rank_created.connect(self._on_rank_created)
+        dialog.rank_applied.connect(self._on_rank_created)
         dialog.exec()
 
-    def _on_rank_created(self, var_name: str) -> None:
+    def _on_rank_created(self, source_var: str, target_var: str, method: str) -> None:
         """순위 계산 완료 시."""
+        if self.current_dataset is not None:
+            try:
+                series = self.current_dataset.data[source_var]
+                ranked = series.rank(pct=(method == "pct"), method=method if method != "pct" else "average")
+                self.current_dataset.data[target_var] = ranked
+            except Exception:
+                pass
         self._on_dataset_changed(self.current_dataset)
         output = self._get_output()
-        output.add_output(f"🏆 순위 변수 '{var_name}'가 생성되었습니다.", "success")
+        output.add_output(f"🏆 순위 변수 '{target_var}'가 생성되었습니다.", "success")
 
     # ── 분석 메뉴 ──────────────────────────────────────────────────────────
 
@@ -1903,7 +1913,13 @@ class MainWindow(QMainWindow):
 
     def _open_chart_builder(self) -> None:
         """차트 빌더 열기."""
-        QMessageBox.information(self, "차트 빌더", "차트 빌더가 곧 제공됩니다.")
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+        from nuristat.ui.chart_builder import ChartBuilderDialog
+        dialog = ChartBuilderDialog(self.current_dataset, self)
+        dialog.chart_saved.connect(self._on_chart_created)
+        dialog.exec()
 
     def _open_legacy_chart(self, chart_type: str) -> None:
         """기존 대화상자 형태로 특정 차트 유형을 사전 선택해 시각화 다이얼로그 열기."""
