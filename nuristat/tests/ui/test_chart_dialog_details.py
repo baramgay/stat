@@ -134,3 +134,28 @@ class TestVariableLabelDisplay:
         assert "sex (성별)" in texts
         idx = dlg._x_combo.findText("sex (성별)")
         assert dlg._x_combo.itemData(idx) == "sex"
+
+
+# ── 4. preset_chart_type — 레거시 기존 대화상자 액션 사전 선택 ──────────────
+
+class TestPresetChartType:
+    """기존 대화상자 메뉴(막대/선/산점도/히스토그램/상자 그림) 사전 선택 검증."""
+
+    @pytest.mark.parametrize("chart_type", ["bar", "line", "scatter", "hist", "box"])
+    def test_preset_selects_correct_radio(self, dataset, chart_type):
+        from nuristat.ui.dialogs.visualization_dialog import VisualizationDialog
+        dlg = VisualizationDialog(dataset, preset_chart_type=chart_type)
+        selected = None
+        for btn in dlg.chart_type_group.buttons():
+            if btn.isChecked():
+                selected = btn.property("chart_type")
+        assert selected == chart_type, f"preset={chart_type} 이지만 선택된 버튼={selected}"
+
+    def test_no_preset_defaults_to_bar(self, dataset):
+        from nuristat.ui.dialogs.visualization_dialog import VisualizationDialog
+        dlg = VisualizationDialog(dataset)
+        selected = None
+        for btn in dlg.chart_type_group.buttons():
+            if btn.isChecked():
+                selected = btn.property("chart_type")
+        assert selected == "bar"

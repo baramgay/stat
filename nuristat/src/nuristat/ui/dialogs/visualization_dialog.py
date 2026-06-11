@@ -54,7 +54,7 @@ class VisualizationDialog(QDialog):
 
     chart_created = Signal(str, str)   # 차트 유형, base64 이미지
 
-    def __init__(self, dataset: Dataset, parent=None) -> None:
+    def __init__(self, dataset: Dataset, parent=None, preset_chart_type: str | None = None) -> None:
         super().__init__(parent)
         self.dataset = dataset
         self.engine = VisualizationEngine()
@@ -64,6 +64,12 @@ class VisualizationDialog(QDialog):
         self.setWindowTitle("시각화")
         self.setMinimumSize(1050, 820)
         self._setup_ui()
+
+        if preset_chart_type:
+            for btn in self.chart_type_group.buttons():
+                if btn.property("chart_type") == preset_chart_type:
+                    btn.setChecked(True)
+                    break
 
     # ── UI 구성 ──────────────────────────────────────────────────────────────
 

@@ -600,18 +600,23 @@ class MainWindow(QMainWindow):
         legacy_graphs_menu = graphs_menu.addMenu("기존 대화상자(&L)")
 
         bar_action = QAction("막대...", self)
+        bar_action.triggered.connect(lambda: self._open_legacy_chart("bar"))
         legacy_graphs_menu.addAction(bar_action)
 
         line_action = QAction("선...", self)
+        line_action.triggered.connect(lambda: self._open_legacy_chart("line"))
         legacy_graphs_menu.addAction(line_action)
 
         scatter_action = QAction("산점도...", self)
+        scatter_action.triggered.connect(lambda: self._open_legacy_chart("scatter"))
         legacy_graphs_menu.addAction(scatter_action)
 
         histogram_action = QAction("히스토그램...", self)
+        histogram_action.triggered.connect(lambda: self._open_legacy_chart("hist"))
         legacy_graphs_menu.addAction(histogram_action)
 
         boxplot_action = QAction("상자 그림...", self)
+        boxplot_action.triggered.connect(lambda: self._open_legacy_chart("box"))
         legacy_graphs_menu.addAction(boxplot_action)
 
         # 8. 유틸리티 메뉴
@@ -1899,6 +1904,17 @@ class MainWindow(QMainWindow):
     def _open_chart_builder(self) -> None:
         """차트 빌더 열기."""
         QMessageBox.information(self, "차트 빌더", "차트 빌더가 곧 제공됩니다.")
+
+    def _open_legacy_chart(self, chart_type: str) -> None:
+        """기존 대화상자 형태로 특정 차트 유형을 사전 선택해 시각화 다이얼로그 열기."""
+        if self.current_dataset is None:
+            QMessageBox.warning(self, "경고", "먼저 데이터를 불러오세요")
+            return
+
+        from nuristat.ui.dialogs.visualization_dialog import VisualizationDialog
+        dialog = VisualizationDialog(self.current_dataset, self, preset_chart_type=chart_type)
+        dialog.chart_created.connect(self._on_chart_created)
+        dialog.exec()
 
     # ── 유틸리티 메뉴 ──────────────────────────────────────────────────────
 
