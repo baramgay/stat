@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QVBoxLayout,
 )
 
@@ -136,6 +137,7 @@ class ChartEditorDialog(QDialog):
                 show_grid=show_grid,
                 show_legend=show_legend,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            QMessageBox.critical(self, "차트 편집 오류", f"차트 수정에 실패했습니다:\n{exc}")
+            return
         self.accept()
