@@ -68,12 +68,21 @@ class SettingsManager:
     # ── 분석 결과 출력 언어 ────────────────────────────────────────────────
 
     def save_language(self, lang: str) -> None:
-        """분석 결과 출력 언어 저장 ("ko" | "en")."""
+        """Save analysis output language ("ko" | "en")."""
         self._settings.setValue("output/language", "ko" if str(lang).lower().startswith("ko") else "en")
 
     def load_language(self) -> str:
-        """저장된 출력 언어 반환 (기본 한국어)."""
-        val = self._settings.value("output/language", "ko")
+        """Load analysis output language (default: 'en')."""
+        val = self._settings.value("output/language", "en")
+        return "ko" if str(val).lower().startswith("ko") else "en"
+
+    def save_ui_language(self, lang: str) -> None:
+        """Save UI language ("ko" | "en")."""
+        self._settings.setValue("ui/language", "ko" if str(lang).lower().startswith("ko") else "en")
+
+    def load_ui_language(self) -> str:
+        """Load UI language (default: 'en')."""
+        val = self._settings.value("ui/language", "en")
         return "ko" if str(val).lower().startswith("ko") else "en"
 
     # ── 최근 파일 ──────────────────────────────────────────────────────────

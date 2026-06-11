@@ -1,0 +1,44 @@
+name: Auto-label Issues
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/labeler@v5
+        if: github.event_name == 'pull_request'
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Welcome new contributors
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const author = issue.user.login;
+
+            // Check if first-time contributor
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              creator: author,
+              state: 'all',
+            });
+
+            if (issues.data.length === 1) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `👋 Thanks for your first issue, @${author}! We'll take a look shortly.\n\nIf this is a bug, attaching a small sample dataset (or CSV) that reproduces it will speed things up considerably.`,
+              });
+            }

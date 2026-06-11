@@ -1,0 +1,34 @@
+name: Question / Help
+description: Ask a question about using NuriStat
+title: "[Q] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question? We're happy to help!
+
+        For general discussions, consider using [GitHub Discussions](../../discussions) instead.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What would you like to know?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Describe your data, what analysis you're trying to run, and what you've tried so far.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS
+        - Linux

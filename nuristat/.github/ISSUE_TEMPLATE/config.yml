@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions (Q&A, ideas)
+    url: https://github.com/baramgay/stat/discussions
+    about: Use Discussions for general questions and ideas before opening an issue.

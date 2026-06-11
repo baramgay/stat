@@ -1,0 +1,89 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in NuriStat
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Please fill in as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of what the bug is.
+      placeholder: "When I click [menu item], the application..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Step-by-step instructions to reproduce the behavior.
+      placeholder: |
+        1. Open NuriStat
+        2. Go to Analyze > ...
+        3. Select variables ...
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: data
+    attributes:
+      label: Sample data (if applicable)
+      description: Attach a small CSV or describe the data that triggers the bug.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (Ubuntu/Debian)
+        - Linux (Other)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: NuriStat version
+      placeholder: "e.g. 3.6.0 (shown in Help > About)"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.12.3"
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Error message / traceback
+      description: If there is an error message or Python traceback, paste it here.
+      render: text
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I am using the latest version of NuriStat

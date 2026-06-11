@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from nuristat.core.dataset import Dataset
+from nuristat.core.i18n import t
 from nuristat.core.project import Project
 from nuristat.core.settings import SettingsManager
 from nuristat.io.csv_reader import read_csv
@@ -61,7 +62,7 @@ class MainWindow(QMainWindow):
         # 설정 관리자
         self._settings = SettingsManager()
 
-        # 분석 결과 출력 언어 적용 (저장된 설정, 기본 한국어)
+        # Language: single setting controls both UI chrome and analysis output (default "en")
         from nuristat.core import i18n as _i18n
         _i18n.set_language(self._settings.load_language())
 
@@ -158,404 +159,369 @@ class MainWindow(QMainWindow):
             self.syntax_editor.show()
 
     def _setup_menus(self) -> None:
-        """SPSS 스타일 메뉴 구성."""
+        """SPSS-style menu bar."""
         menubar = self.menuBar()
 
-        # 1. 파일 메뉴
-        file_menu = menubar.addMenu("📁 파일(&F)")
+        # 1. File menu
+        file_menu = menubar.addMenu(t("File(&F)"))
 
-        new_action = QAction("🆕 새로 만들기", self)
+        new_action = QAction(t("🆕 New Project"), self)
         new_action.setShortcut(QKeySequence.New)
-        new_action.setToolTip("새 프로젝트를 만듭니다 (Ctrl+N)")
         new_action.triggered.connect(self._new_project)
         file_menu.addAction(new_action)
 
-        open_action = QAction("📂 열기...", self)
+        open_action = QAction(t("📂 Open Project..."), self)
         open_action.setShortcut(QKeySequence.Open)
-        open_action.setToolTip("기존 프로젝트를 엽니다 (Ctrl+O)")
         open_action.triggered.connect(self._open_project)
         file_menu.addAction(open_action)
 
-        save_action = QAction("💾 저장", self)
+        save_action = QAction(t("💾 Save Project"), self)
         save_action.setShortcut(QKeySequence.Save)
-        save_action.setToolTip("프로젝트를 저장합니다 (Ctrl+S)")
         save_action.triggered.connect(self._save_project)
         file_menu.addAction(save_action)
 
-        save_as_action = QAction("💾 다른 이름으로 저장...", self)
+        save_as_action = QAction(t("💾 Save Project As..."), self)
         save_as_action.setShortcut(QKeySequence.SaveAs)
-        save_as_action.setToolTip("프로젝트를 다른 이름으로 저장합니다 (Ctrl+Shift+S)")
         save_as_action.triggered.connect(self._save_project_as)
         file_menu.addAction(save_as_action)
 
         file_menu.addSeparator()
 
-        # 가져오기 서브메뉴
-        import_menu = file_menu.addMenu("📥 가져오기(&I)")
+        import_menu = file_menu.addMenu(t("📥 Import(&I)"))
 
-        import_csv_action = QAction("📄 CSV 파일...", self)
+        import_csv_action = QAction(t("📄 CSV / Text..."), self)
         import_csv_action.triggered.connect(self._import_csv)
         import_menu.addAction(import_csv_action)
 
-        import_excel_action = QAction("📊 Excel 파일...", self)
+        import_excel_action = QAction(t("📊 Excel File..."), self)
         import_excel_action.triggered.connect(self._import_excel)
         import_menu.addAction(import_excel_action)
 
-        import_sav_action = QAction("📋 SPSS 파일 (.sav)...", self)
+        import_sav_action = QAction(t("📋 SPSS File (.sav)..."), self)
         import_sav_action.triggered.connect(self._import_sav)
         import_menu.addAction(import_sav_action)
 
-        import_clipboard_action = QAction("📋 클립보드...", self)
+        import_clipboard_action = QAction(t("📋 Clipboard..."), self)
         import_clipboard_action.triggered.connect(self._import_clipboard)
         import_menu.addAction(import_clipboard_action)
 
-        # 내보내기 서브메뉴
-        export_menu = file_menu.addMenu("📤 내보내기(&X)")
+        export_menu = file_menu.addMenu(t("📤 Export(&X)"))
 
-        export_csv_action = QAction("📄 CSV 파일...", self)
+        export_csv_action = QAction(t("📄 CSV File..."), self)
         export_csv_action.triggered.connect(self._export_csv)
         export_menu.addAction(export_csv_action)
 
-        export_excel_action = QAction("📊 Excel 파일...", self)
+        export_excel_action = QAction(t("📊 Excel File..."), self)
         export_excel_action.triggered.connect(self._export_excel)
         export_menu.addAction(export_excel_action)
 
-        export_sav_action = QAction("📋 SPSS 파일 (.sav)...", self)
+        export_sav_action = QAction(t("📋 SPSS File (.sav)..."), self)
         export_sav_action.triggered.connect(self._export_sav)
         export_menu.addAction(export_sav_action)
 
         file_menu.addSeparator()
 
-        # 최근 파일 (SPSS: 파일 > 최근 사용 데이터) — 열기/가져오기/저장 시 자동 기록
-        self._recent_menu = file_menu.addMenu("🕘 최근 파일(&R)")
+        self._recent_menu = file_menu.addMenu(t("🕘 Recent Files(&R)"))
         self._rebuild_recent_menu()
 
         file_menu.addSeparator()
 
-        exit_action = QAction("🚪 끝내기", self)
+        exit_action = QAction(t("🚪 Exit"), self)
         exit_action.setShortcut(QKeySequence.Quit)
-        exit_action.setToolTip("프로그램을 종료합니다 (Ctrl+Q)")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        # 2. 편집 메뉴
-        edit_menu = menubar.addMenu("✏️ 편집(&E)")
+        # 2. Edit menu
+        edit_menu = menubar.addMenu(t("✏️ Edit(&E)"))
 
-        undo_action = QAction("↩️ 실행 취소", self)
+        undo_action = QAction(t("↩️ Undo"), self)
         undo_action.setShortcut(QKeySequence.Undo)
-        undo_action.setToolTip("마지막 작업을 취소합니다 (Ctrl+Z)")
         undo_action.triggered.connect(self._edit_undo)
         edit_menu.addAction(undo_action)
 
-        redo_action = QAction("↪️ 다시 실행", self)
+        redo_action = QAction(t("↪️ Redo"), self)
         redo_action.setShortcut(QKeySequence.Redo)
-        redo_action.setToolTip("취소한 작업을 다시 실행합니다 (Ctrl+Shift+Z)")
         redo_action.triggered.connect(self._edit_redo)
         edit_menu.addAction(redo_action)
 
         edit_menu.addSeparator()
 
-        cut_action = QAction("✂️ 잘라내기", self)
+        cut_action = QAction(t("✂️ Cut"), self)
         cut_action.setShortcut(QKeySequence.Cut)
-        cut_action.setToolTip("선택한 내용을 잘라냅니다 (Ctrl+X)")
         cut_action.triggered.connect(self._edit_cut)
         edit_menu.addAction(cut_action)
 
-        copy_action = QAction("📋 복사", self)
+        copy_action = QAction(t("📋 Copy"), self)
         copy_action.setShortcut(QKeySequence.Copy)
-        copy_action.setToolTip("선택한 내용을 복사합니다 (Ctrl+C)")
         copy_action.triggered.connect(self._edit_copy)
         edit_menu.addAction(copy_action)
 
-        paste_action = QAction("📋 붙여넣기", self)
+        paste_action = QAction(t("📋 Paste"), self)
         paste_action.setShortcut(QKeySequence.Paste)
-        paste_action.setToolTip("클립보드 내용을 붙여넣습니다 (Ctrl+V)")
         paste_action.triggered.connect(self._edit_paste)
         edit_menu.addAction(paste_action)
 
         edit_menu.addSeparator()
 
-        select_all_action = QAction("☑️ 모두 선택", self)
+        select_all_action = QAction(t("☑️ Select All"), self)
         select_all_action.setShortcut(QKeySequence.SelectAll)
-        select_all_action.setToolTip("모든 내용을 선택합니다 (Ctrl+A)")
         select_all_action.triggered.connect(self._edit_select_all)
         edit_menu.addAction(select_all_action)
 
-        # 3. 보기 메뉴
-        view_menu = menubar.addMenu("👁️ 보기(&V)")
+        # 3. View menu
+        view_menu = menubar.addMenu(t("👁️ View(&V)"))
 
-        self._theme_action = QAction("🌙 다크 모드", self)
+        self._theme_action = QAction(t("🌙 Dark Mode"), self)
         self._theme_action.setCheckable(True)
         self._theme_action.setChecked(False)
         self._theme_action.setShortcut("Ctrl+Shift+D")
-        self._theme_action.setToolTip("다크 모드를 전환합니다 (Ctrl+Shift+D)")
         self._theme_action.triggered.connect(self._toggle_theme)
         view_menu.addAction(self._theme_action)
 
-        # 분석 결과 출력 언어 (한국어/English)
+        # Language switcher (UI + output)
         from PySide6.QtGui import QActionGroup
-        lang_menu = view_menu.addMenu("🌐 분석 결과 언어")
+        lang_menu = view_menu.addMenu(t("🌐 UI Language"))
         self._lang_group = QActionGroup(self)
         cur_lang = self._settings.load_language()
         self._lang_ko_action = QAction("한국어", self, checkable=True)
         self._lang_en_action = QAction("English", self, checkable=True)
         self._lang_ko_action.setChecked(cur_lang == "ko")
-        self._lang_en_action.setChecked(cur_lang == "en")
+        self._lang_en_action.setChecked(cur_lang != "ko")
         self._lang_ko_action.triggered.connect(lambda: self._set_output_language("ko"))
         self._lang_en_action.triggered.connect(lambda: self._set_output_language("en"))
-        for a in (self._lang_ko_action, self._lang_en_action):
+        for a in (self._lang_en_action, self._lang_ko_action):
             self._lang_group.addAction(a)
             lang_menu.addAction(a)
 
         view_menu.addSeparator()
 
-        data_view_action = QAction("🔢 데이터 보기", self)
+        data_view_action = QAction(t("🔢 Data View"), self)
         data_view_action.setShortcut("Ctrl+1")
-        data_view_action.setToolTip("데이터 보기 탭으로 전환합니다 (Ctrl+1)")
         data_view_action.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(0))
         view_menu.addAction(data_view_action)
 
-        var_view_action = QAction("📋 변수 보기", self)
+        var_view_action = QAction(t("📋 Variable View"), self)
         var_view_action.setShortcut("Ctrl+2")
-        var_view_action.setToolTip("변수 보기 탭으로 전환합니다 (Ctrl+2)")
         var_view_action.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(1))
         view_menu.addAction(var_view_action)
 
-        syntax_view_action = QAction("📝 구문 편집기", self)
+        syntax_view_action = QAction(t("📝 Syntax Editor"), self)
         syntax_view_action.setShortcut("Ctrl+3")
-        syntax_view_action.setToolTip("구문 편집기 탭으로 전환합니다 (Ctrl+3)")
         syntax_view_action.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(2))
         view_menu.addAction(syntax_view_action)
 
         view_menu.addSeparator()
 
-        # 값 라벨 표시 토글 (SPSS: 보기 > 값 라벨) — 코드(0/1) ↔ 라벨(남/여) 전환
-        self._value_labels_action = QAction("🏷️ 값 라벨 표시", self)
+        self._value_labels_action = QAction(t("🏷️ Show Value Labels"), self)
         self._value_labels_action.setCheckable(True)
         self._value_labels_action.setChecked(False)
         self._value_labels_action.setShortcut("Ctrl+L")
-        self._value_labels_action.setToolTip(
-            "데이터 보기에서 코드값 대신 값 라벨을 표시합니다 (Ctrl+L)"
-        )
         self._value_labels_action.triggered.connect(self._toggle_value_labels)
         view_menu.addAction(self._value_labels_action)
 
         view_menu.addSeparator()
 
-        show_output_action = QAction("📊 결과 창 보기", self)
+        show_output_action = QAction(t("📊 Show Output Window"), self)
         show_output_action.setShortcut("Ctrl+Shift+O")
-        show_output_action.setToolTip("결과 창을 표시합니다 (Ctrl+Shift+O)")
         show_output_action.triggered.connect(self._show_output_window)
         view_menu.addAction(show_output_action)
 
-        # 4. 데이터 메뉴
-        data_menu = menubar.addMenu("데이터(&D)")
+        # 4. Data menu
+        data_menu = menubar.addMenu(t("Data(&D)"))
 
-        select_cases_action = QAction("🔍 케이스 선택...", self)
+        select_cases_action = QAction(t("🔍 Select Cases..."), self)
         select_cases_action.triggered.connect(self._open_select_cases)
         data_menu.addAction(select_cases_action)
 
-        weight_cases_action = QAction("⚖️ 케이스 가중치...", self)
+        weight_cases_action = QAction(t("⚖️ Weight Cases..."), self)
         weight_cases_action.triggered.connect(self._open_weight_cases)
         data_menu.addAction(weight_cases_action)
 
         data_menu.addSeparator()
 
-        sort_cases_action = QAction("🔀 케이스 정렬...", self)
+        sort_cases_action = QAction(t("🔀 Sort Cases..."), self)
         sort_cases_action.triggered.connect(self._open_sort_dialog)
         data_menu.addAction(sort_cases_action)
 
-        transpose_action = QAction("↔️ 행렬 전치...", self)
+        transpose_action = QAction(t("↔️ Transpose..."), self)
         transpose_action.triggered.connect(self._transpose_dataset)
         data_menu.addAction(transpose_action)
 
-        merge_files_action = QAction("🔗 파일 병합...", self)
+        merge_files_action = QAction(t("🔗 Merge Files..."), self)
         merge_files_action.triggered.connect(self._open_merge_files)
         data_menu.addAction(merge_files_action)
 
-        aggregate_action = QAction("📊 피벗 테이블...", self)
+        aggregate_action = QAction(t("📊 Pivot Table..."), self)
         aggregate_action.triggered.connect(self._open_pivot_table)
         data_menu.addAction(aggregate_action)
 
-        # 5. 변환 메뉴
-        transform_menu = menubar.addMenu("변환(&T)")
+        # 5. Transform menu
+        transform_menu = menubar.addMenu(t("Transform(&T)"))
 
-        compute_var_action = QAction("🔢 변수 계산...", self)
+        compute_var_action = QAction(t("🔢 Compute Variable..."), self)
         compute_var_action.triggered.connect(self._open_compute_variable)
         transform_menu.addAction(compute_var_action)
 
-        recode_action = QAction("🔄 변수 재코딩...", self)
+        recode_action = QAction(t("🔄 Recode Variable..."), self)
         recode_action.triggered.connect(self._open_recode)
         transform_menu.addAction(recode_action)
 
-        visual_binning_action = QAction("📊 시각적 구간화...", self)
+        visual_binning_action = QAction(t("📊 Visual Binning..."), self)
         visual_binning_action.triggered.connect(self._open_binning)
         transform_menu.addAction(visual_binning_action)
 
-        rank_cases_action = QAction("🏆 순위 계산...", self)
+        rank_cases_action = QAction(t("🏆 Rank Cases..."), self)
         rank_cases_action.triggered.connect(self._open_rank)
         transform_menu.addAction(rank_cases_action)
 
-        # 6. 분석 메뉴
-        analyze_menu = menubar.addMenu("📊 분석(&A)")
+        # 6. Analyze menu
+        analyze_menu = menubar.addMenu(t("📊 Analyze(&A)"))
 
-        # 스크립트 실행
-        script_action = QAction("🔧 스크립트 실행...", self)
+        script_action = QAction(t("🔧 Run Script..."), self)
         script_action.setShortcut("Ctrl+Shift+R")
         script_action.triggered.connect(self._open_script_runner)
         analyze_menu.addAction(script_action)
 
         analyze_menu.addSeparator()
 
-        # 기술통계
-        desc_menu = analyze_menu.addMenu("📈 기술통계(&R)")
+        desc_menu = analyze_menu.addMenu(t("📈 Descriptive Statistics(&R)"))
 
-        freq_action = QAction("📊 빈도...", self)
+        freq_action = QAction(t("📊 Frequencies..."), self)
         freq_action.setShortcut("Ctrl+Shift+F")
         freq_action.triggered.connect(self._run_frequencies)
         desc_menu.addAction(freq_action)
 
-        desc_action = QAction("📈 기술통계량...", self)
+        desc_action = QAction(t("📈 Descriptives..."), self)
         desc_action.setShortcut("Ctrl+Shift+U")
         desc_action.triggered.connect(self._run_descriptives)
         desc_menu.addAction(desc_action)
 
-        explore_action = QAction("🔍 탐색...", self)
+        explore_action = QAction(t("🔍 Explore..."), self)
         explore_action.triggered.connect(self._run_explore)
         desc_menu.addAction(explore_action)
 
-        crosstab_action = QAction("📊 교차분석...", self)
+        crosstab_action = QAction(t("📊 Crosstabulation..."), self)
         crosstab_action.triggered.connect(self._run_crosstabs)
         desc_menu.addAction(crosstab_action)
 
-        normality_action = QAction("📐 정규성 검정(Shapiro-Wilk)...", self)
+        normality_action = QAction(t("📐 Normality Test (Shapiro-Wilk)..."), self)
         normality_action.triggered.connect(self._run_normality)
         desc_menu.addAction(normality_action)
 
-        # 평균 비교
-        compare_menu = analyze_menu.addMenu("🔄 평균 비교(&M)")
+        compare_menu = analyze_menu.addMenu(t("🔄 Compare Means(&M)"))
 
-        one_sample_t_action = QAction("1️⃣ 단일표본 T 검정...", self)
+        one_sample_t_action = QAction(t("1️⃣ One-Sample T Test..."), self)
         one_sample_t_action.triggered.connect(self._run_one_sample_ttest)
         compare_menu.addAction(one_sample_t_action)
 
-        ind_t_action = QAction("2️⃣ 독립표본 T 검정...", self)
+        ind_t_action = QAction(t("2️⃣ Independent-Samples T Test..."), self)
         ind_t_action.setShortcut("Ctrl+Shift+T")
         ind_t_action.triggered.connect(self._run_independent_ttest)
         compare_menu.addAction(ind_t_action)
 
-        paired_t_action = QAction("🔗 대응표본 T 검정...", self)
+        paired_t_action = QAction(t("🔗 Paired-Samples T Test..."), self)
         paired_t_action.triggered.connect(self._run_paired_ttest)
         compare_menu.addAction(paired_t_action)
 
-        anova_action = QAction("📊 일원분산분석...", self)
+        anova_action = QAction(t("📊 One-Way ANOVA..."), self)
         anova_action.setShortcut("Ctrl+Shift+A")
         anova_action.triggered.connect(self._run_anova)
         compare_menu.addAction(anova_action)
 
-        # GLM 서브메뉴 (이원분산분석, 반복측정)
-        glm_menu = analyze_menu.addMenu("📊 일반선형모형(&G)")
-        two_way_action = QAction("📊 이원분산분석(Univariate)...", self)
+        glm_menu = analyze_menu.addMenu(t("📊 General Linear Model(&G)"))
+        two_way_action = QAction(t("📊 Two-Way ANOVA (Univariate)..."), self)
         two_way_action.triggered.connect(self._run_two_way_anova)
         glm_menu.addAction(two_way_action)
-        rm_action = QAction("🔄 반복측정...", self)
+        rm_action = QAction(t("🔄 Repeated Measures..."), self)
         rm_action.triggered.connect(self._run_repeated_measures_anova)
         glm_menu.addAction(rm_action)
-        ancova_action = QAction("📊 ANCOVA(공분산분석)...", self)
+        ancova_action = QAction(t("📊 ANCOVA..."), self)
         ancova_action.triggered.connect(self._run_ancova)
         glm_menu.addAction(ancova_action)
-        mixed_anova_action = QAction("🔀 혼합 분산분석(Mixed ANOVA)...", self)
+        mixed_anova_action = QAction(t("🔀 Mixed ANOVA..."), self)
         mixed_anova_action.triggered.connect(self._run_mixed_anova)
         glm_menu.addAction(mixed_anova_action)
-        manova_action = QAction("📊 MANOVA(다변량 분산분석)...", self)
+        manova_action = QAction(t("📊 MANOVA..."), self)
         manova_action.triggered.connect(self._run_manova)
         glm_menu.addAction(manova_action)
 
-        # 상관/회귀
-        correlate_menu = analyze_menu.addMenu("🔗 상관(&C)")
+        correlate_menu = analyze_menu.addMenu(t("🔗 Correlate(&C)"))
 
-        bivariate_corr_action = QAction("🔗 상관분석...", self)
+        bivariate_corr_action = QAction(t("🔗 Bivariate Correlation..."), self)
         bivariate_corr_action.triggered.connect(self._run_correlation)
         correlate_menu.addAction(bivariate_corr_action)
 
-        partial_corr_action = QAction("🔗 편상관...", self)
+        partial_corr_action = QAction(t("🔗 Partial Correlation..."), self)
         partial_corr_action.triggered.connect(self._run_partial_correlation)
         correlate_menu.addAction(partial_corr_action)
 
-        regression_menu = analyze_menu.addMenu("📈 회귀(&R)")
+        regression_menu = analyze_menu.addMenu(t("📈 Regression(&R)"))
 
-        linear_action = QAction("📈 선형...", self)
+        linear_action = QAction(t("📈 Linear..."), self)
         linear_action.setShortcut("Ctrl+Shift+L")
         linear_action.triggered.connect(self._run_regression)
         regression_menu.addAction(linear_action)
 
-        logistic_action = QAction("📊 로지스틱...", self)
+        logistic_action = QAction(t("📊 Logistic..."), self)
         logistic_action.triggered.connect(self._run_logistic_regression)
         regression_menu.addAction(logistic_action)
 
-        multinomial_action = QAction("📊 다항 로지스틱...", self)
+        multinomial_action = QAction(t("📊 Multinomial Logistic..."), self)
         multinomial_action.triggered.connect(self._run_multinomial_logistic)
         regression_menu.addAction(multinomial_action)
 
-        # 차원 축소
-        dim_reduce_menu = analyze_menu.addMenu("📉 차원 축소(&D)")
-        factor_action = QAction("📉 요인분석...", self)
+        dim_reduce_menu = analyze_menu.addMenu(t("📉 Dimension Reduction(&D)"))
+        factor_action = QAction(t("📉 Factor Analysis..."), self)
         factor_action.triggered.connect(self._run_factor_analysis)
         dim_reduce_menu.addAction(factor_action)
-        pca_action = QAction("📉 주성분분석 (PCA)...", self)
+        pca_action = QAction(t("📉 Principal Component Analysis (PCA)..."), self)
         pca_action.triggered.connect(self._run_pca)
         dim_reduce_menu.addAction(pca_action)
 
-        # 군집
-        cluster_menu = analyze_menu.addMenu("🔵 군집(&K)")
-        kmeans_action = QAction("🔵 K-평균 군집...", self)
+        cluster_menu = analyze_menu.addMenu(t("🔵 Cluster(&K)"))
+        kmeans_action = QAction(t("🔵 K-Means Cluster..."), self)
         kmeans_action.triggered.connect(self._run_cluster_analysis)
         cluster_menu.addAction(kmeans_action)
-        hierarchical_action = QAction("🔵 계층적 군집...", self)
+        hierarchical_action = QAction(t("🔵 Hierarchical Cluster..."), self)
         hierarchical_action.triggered.connect(self._run_cluster_analysis)
         cluster_menu.addAction(hierarchical_action)
 
-        # 생존
-        survival_menu = analyze_menu.addMenu("생존분석(&S)")
+        survival_menu = analyze_menu.addMenu(t("Survival Analysis(&S)"))
         km_action = QAction("📈 Kaplan-Meier...", self)
         km_action.triggered.connect(self._run_kaplan_meier)
         survival_menu.addAction(km_action)
-        cox_action = QAction("📉 Cox 비례위험 회귀...", self)
+        cox_action = QAction(t("📉 Cox Proportional Hazards Regression..."), self)
         cox_action.triggered.connect(self._run_cox_regression)
         survival_menu.addAction(cox_action)
 
-        # 판별
-        classify_menu = analyze_menu.addMenu("🔷 판별분석(&I)")
-        lda_action = QAction("🔷 판별분석...", self)
+        classify_menu = analyze_menu.addMenu(t("🔷 Discriminant Analysis(&I)"))
+        lda_action = QAction(t("🔷 Discriminant Analysis..."), self)
         lda_action.triggered.connect(self._run_discriminant_analysis)
         classify_menu.addAction(lda_action)
 
-        # 비모수 검정
-        nonparam_menu = analyze_menu.addMenu("🧪 비모수 검정(&N)")
+        nonparam_menu = analyze_menu.addMenu(t("🧪 Nonparametric Tests(&N)"))
 
-        nonparam_action = QAction("🧪 비모수 검정...", self)
+        nonparam_action = QAction(t("🧪 Nonparametric Tests..."), self)
         nonparam_action.triggered.connect(self._run_nonparametric)
         nonparam_menu.addAction(nonparam_action)
 
-        chi_gof_action = QAction("🧮 카이제곱 적합도...", self)
+        chi_gof_action = QAction(t("🧮 Chi-Square Goodness-of-Fit..."), self)
         chi_gof_action.triggered.connect(self._run_chi_square_gof)
         nonparam_menu.addAction(chi_gof_action)
 
-        # 진단 검정
-        diagnostic_menu = analyze_menu.addMenu("🔬 진단 검정(&T)")
+        diagnostic_menu = analyze_menu.addMenu(t("🔬 Diagnostic Tests(&T)"))
 
-        roc_action = QAction("📈 ROC 분석...", self)
+        roc_action = QAction(t("📈 ROC Analysis..."), self)
         roc_action.triggered.connect(self._run_roc_analysis)
         diagnostic_menu.addAction(roc_action)
 
-        # 일치도 분석
-        agreement_menu = analyze_menu.addMenu("✅ 일치도 분석(&G)")
+        agreement_menu = analyze_menu.addMenu(t("✅ Agreement Analysis(&G)"))
 
         kappa_action = QAction("κ Cohen's Kappa...", self)
         kappa_action.triggered.connect(self._run_cohens_kappa)
         agreement_menu.addAction(kappa_action)
 
-        icc_action = QAction("📊 급내 상관계수(ICC)...", self)
+        icc_action = QAction(t("📊 ICC (Intraclass Correlation)..."), self)
         icc_action.triggered.connect(self._run_icc)
         agreement_menu.addAction(icc_action)
 
@@ -563,142 +529,133 @@ class MainWindow(QMainWindow):
         ba_action.triggered.connect(self._run_bland_altman)
         agreement_menu.addAction(ba_action)
 
-        # 척도 분석
-        scale_menu = analyze_menu.addMenu("📐 척도 분석(&S)")
+        scale_menu = analyze_menu.addMenu(t("📐 Scale Analysis(&S)"))
 
-        reliability_action = QAction("🔁 신뢰도 분석(Cronbach α)...", self)
+        reliability_action = QAction(t("🔁 Reliability Analysis (Cronbach α)..."), self)
         reliability_action.triggered.connect(self._run_reliability)
         scale_menu.addAction(reliability_action)
 
-        # 텍스트 마이닝
-        text_menu = analyze_menu.addMenu("📝 텍스트 마이닝(&X)")
-        text_mining_action = QAction("📝 텍스트 마이닝(워드클라우드)...", self)
+        text_menu = analyze_menu.addMenu(t("📝 Text Mining(&X)"))
+        text_mining_action = QAction(t("📝 Text Mining (Word Cloud)..."), self)
         text_mining_action.triggered.connect(self._run_text_mining)
         text_menu.addAction(text_mining_action)
 
         analyze_menu.addSeparator()
 
-        # 기계학습
-        ml_action = QAction("🤖 기계학습...", self)
+        ml_action = QAction(t("🤖 Machine Learning..."), self)
         ml_action.triggered.connect(self._open_ml_dialog)
         analyze_menu.addAction(ml_action)
 
-        # 7. 차트 메뉴
-        graphs_menu = menubar.addMenu("차트(&G)")
+        # 7. Graphs menu
+        graphs_menu = menubar.addMenu(t("Graphs(&G)"))
 
-        chart_builder_action = QAction("📊 고급 시각화...", self)
+        chart_builder_action = QAction(t("📊 Advanced Visualization..."), self)
         chart_builder_action.setShortcut("Ctrl+Shift+V")
         chart_builder_action.triggered.connect(self._open_visualization)
         graphs_menu.addAction(chart_builder_action)
 
         graphs_menu.addSeparator()
 
-        chart_builder_legacy_action = QAction("차트 빌더...", self)
+        chart_builder_legacy_action = QAction(t("Chart Builder..."), self)
         chart_builder_legacy_action.triggered.connect(self._open_chart_builder)
         graphs_menu.addAction(chart_builder_legacy_action)
 
-        legacy_graphs_menu = graphs_menu.addMenu("기존 대화상자(&L)")
+        legacy_graphs_menu = graphs_menu.addMenu(t("Legacy Dialogs(&L)"))
 
-        bar_action = QAction("막대...", self)
+        bar_action = QAction(t("Bar..."), self)
         bar_action.triggered.connect(lambda: self._open_legacy_chart("bar"))
         legacy_graphs_menu.addAction(bar_action)
 
-        line_action = QAction("선...", self)
+        line_action = QAction(t("Line..."), self)
         line_action.triggered.connect(lambda: self._open_legacy_chart("line"))
         legacy_graphs_menu.addAction(line_action)
 
-        scatter_action = QAction("산점도...", self)
+        scatter_action = QAction(t("Scatter..."), self)
         scatter_action.triggered.connect(lambda: self._open_legacy_chart("scatter"))
         legacy_graphs_menu.addAction(scatter_action)
 
-        histogram_action = QAction("히스토그램...", self)
+        histogram_action = QAction(t("Histogram..."), self)
         histogram_action.triggered.connect(lambda: self._open_legacy_chart("hist"))
         legacy_graphs_menu.addAction(histogram_action)
 
-        boxplot_action = QAction("상자 그림...", self)
+        boxplot_action = QAction(t("Box Plot..."), self)
         boxplot_action.triggered.connect(lambda: self._open_legacy_chart("box"))
         legacy_graphs_menu.addAction(boxplot_action)
 
-        # 8. 유틸리티 메뉴
-        utilities_menu = menubar.addMenu("유틸리티(&U)")
+        # 8. Utilities menu
+        utilities_menu = menubar.addMenu(t("Utilities(&U)"))
 
-        data_quality_action = QAction("🔍 데이터 품질 진단...", self)
+        data_quality_action = QAction(t("🔍 Data Quality Diagnosis..."), self)
         data_quality_action.triggered.connect(self._open_data_quality)
         utilities_menu.addAction(data_quality_action)
 
-        report_action = QAction("📄 보고서 생성...", self)
+        report_action = QAction(t("📄 Report Generator..."), self)
         report_action.triggered.connect(self._open_report_generator)
         utilities_menu.addAction(report_action)
 
         utilities_menu.addSeparator()
 
-        var_info_action = QAction("📋 변수 정보...", self)
+        var_info_action = QAction(t("📋 Variable Information..."), self)
         var_info_action.triggered.connect(self._show_variable_info)
         utilities_menu.addAction(var_info_action)
 
-        file_info_action = QAction("📁 파일 정보...", self)
+        file_info_action = QAction(t("📁 File Information..."), self)
         file_info_action.triggered.connect(self._show_file_info)
         utilities_menu.addAction(file_info_action)
 
-        # 9. 창 메뉴
-        menubar.addMenu("창(&W)")
+        # 9. Window menu
+        menubar.addMenu(t("Window(&W)"))
 
-        # 10. 도움말 메뉴
-        help_menu = menubar.addMenu("도움말(&H)")
+        # 10. Help menu
+        help_menu = menubar.addMenu(t("Help(&H)"))
 
-        about_action = QAction("프로그램 정보", self)
+        about_action = QAction(t("About NuriStat"), self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
 
     def _setup_toolbar(self) -> None:
-        """도구 모음 설정."""
-        toolbar = QToolBar("메인 도구 모음")
+        """Main toolbar."""
+        toolbar = QToolBar(t("Main Toolbar"))
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
-        # 새로 만들기
-        new_btn = QAction("🆕 새로 만들기", self)
+        new_btn = QAction(t("🆕 New Project"), self)
         new_btn.triggered.connect(self._new_project)
         toolbar.addAction(new_btn)
 
-        # 열기
-        open_btn = QAction("📂 열기", self)
+        open_btn = QAction(t("📂 Open"), self)
         open_btn.triggered.connect(self._open_project)
         toolbar.addAction(open_btn)
 
-        # 저장
-        save_btn = QAction("💾 저장", self)
+        save_btn = QAction(t("💾 Save"), self)
         save_btn.triggered.connect(self._save_project)
         toolbar.addAction(save_btn)
 
         toolbar.addSeparator()
 
-        # 데이터 보기
-        data_view_btn = QAction("🔢 데이터", self)
+        data_view_btn = QAction(t("🔢 Data"), self)
         data_view_btn.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(0))
         toolbar.addAction(data_view_btn)
 
-        # 변수 보기
-        var_view_btn = QAction("📋 변수", self)
+        var_view_btn = QAction(t("📋 Variables"), self)
         var_view_btn.triggered.connect(lambda: self.bottom_tabs.setCurrentIndex(1))
         toolbar.addAction(var_view_btn)
 
         toolbar.addSeparator()
 
-        # 분석 버튼들
-        freq_btn = QAction("📊 빈도", self)
+        freq_btn = QAction(t("📊 Frequencies"), self)
         freq_btn.triggered.connect(self._run_frequencies)
         toolbar.addAction(freq_btn)
 
-        desc_btn = QAction("📈 기술통계", self)
+        desc_btn = QAction(t("📈 Descriptives"), self)
         desc_btn.triggered.connect(self._run_descriptives)
         toolbar.addAction(desc_btn)
 
-        ttest_btn = QAction("📉 T 검정", self)
+        ttest_btn = QAction(t("📉 T Test"), self)
         ttest_btn.triggered.connect(self._run_independent_ttest)
         toolbar.addAction(ttest_btn)
 
-        reg_btn = QAction("📉 회귀", self)
+        reg_btn = QAction(t("📉 Regression"), self)
         reg_btn.triggered.connect(self._run_regression)
         toolbar.addAction(reg_btn)
 
@@ -708,7 +665,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.statusbar)
 
         # 상태 메시지
-        self.statusbar.showMessage("준비됨")
+        self.statusbar.showMessage(t("Ready"))
 
         # 마지막 분석 이름 (오른쪽 끝)
         self._last_analysis_label = QLabel("")
@@ -730,17 +687,17 @@ class MainWindow(QMainWindow):
         self.statusbar.addPermanentWidget(self._weight_label)
 
         # 데이터셋 정보 (N=행 변수=열 형식)
-        self.dataset_info_label = QLabel("N=0  변수=0")
+        self.dataset_info_label = QLabel(f"N=0  {t('Variables')}=0")
         self.statusbar.addPermanentWidget(self.dataset_info_label)
 
     def _update_statusbar(self) -> None:
-        """상태 표시줄 업데이트."""
+        """Update status bar."""
         if self.current_dataset and self.current_dataset.data is not None:
             rows = len(self.current_dataset.data)
             cols = len(self.current_dataset.data.columns)
-            self.dataset_info_label.setText(f"N={rows:,}  변수={cols}")
+            self.dataset_info_label.setText(f"N={rows:,}  {t('Variables')}={cols}")
         else:
-            self.dataset_info_label.setText("N=0  변수=0")
+            self.dataset_info_label.setText(f"N=0  {t('Variables')}=0")
 
     def _on_selection_info(self, info: str) -> None:
         """데이터 보기 다중 선택 정보를 상태바에 표시."""
@@ -770,17 +727,19 @@ class MainWindow(QMainWindow):
         )
 
     def _set_output_language(self, lang: str) -> None:
-        """분석 결과 출력 언어 전환 — 설정 저장 + 즉시 적용.
-
-        이후 실행하는 분석 결과부터 선택 언어로 표시된다(내부 데이터는 불변).
-        """
+        """Switch UI + output language — saves setting; UI chrome applies on next launch."""
         from nuristat.core import i18n
         i18n.set_language(lang)
         self._settings.save_language(lang)
-        self.statusbar.showMessage(
-            "분석 결과 언어: 한국어 (이후 분석부터 적용)" if lang == "ko"
-            else "분석 결과 언어: English (applies to next analysis)"
-        )
+        self._settings.save_ui_language(lang)
+        if lang == "ko":
+            self.statusbar.showMessage(
+                "언어: 한국어 — 분석 결과 즉시 적용, UI 메뉴는 다음 시작 시 적용"
+            )
+        else:
+            self.statusbar.showMessage(
+                "Language: English — analysis output applies immediately, UI menus on next launch"
+            )
 
     def _load_settings(self) -> None:
         """저장된 설정 불러오기."""

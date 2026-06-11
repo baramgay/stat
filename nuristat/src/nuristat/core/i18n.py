@@ -1,8 +1,12 @@
-"""분석 결과 출력 언어 전환 (한국어/영어).
+"""Language management for NuriStat.
 
-비파괴 방식: 분석 결과의 내부 DataFrame(컬럼명·값)은 영어로 유지하고,
-표시·내보내기 단계(ResultTable.to_html 등)에서만 번역을 적용한다.
-기본 언어는 "en"이며 앱은 설정에 따라 "ko"를 사용한다.
+Two layers:
+- Analysis output layer: internal DataFrames stay in English; only the display/export
+  step (ResultTable.to_html etc.) translates when lang=="ko".
+- UI layer: t(en_text) returns the English string by default; when lang=="ko" it
+  returns the Korean equivalent from UI_KO if available.
+
+Default language: "en". The app loads the persisted setting on startup.
 """
 from __future__ import annotations
 
@@ -12,13 +16,200 @@ _lang: str = "en"
 
 
 def set_language(lang: str) -> None:
-    """출력 언어 설정 ("ko" | "en")."""
+    """Set the active language ("en" | "ko")."""
     global _lang
     _lang = "ko" if str(lang).lower().startswith("ko") else "en"
 
 
 def get_language() -> str:
     return _lang
+
+
+# ---------------------------------------------------------------------------
+# UI string translation — English is the canonical key.
+# t("File") → "File" (en) or "파일" (ko).
+# ---------------------------------------------------------------------------
+
+#: Korean translations for UI strings.  Key = English text, value = Korean.
+UI_KO: dict[str, str] = {
+    # ── File menu ──────────────────────────────────────────────────────────
+    "File(&F)": "파일(&F)",
+    "New Project": "새 프로젝트",
+    "🆕 New Project": "🆕 새 프로젝트",
+    "Open Project...": "프로젝트 열기...",
+    "📂 Open Project...": "📂 프로젝트 열기...",
+    "Save Project": "프로젝트 저장",
+    "💾 Save Project": "💾 프로젝트 저장",
+    "Save Project As...": "다른 이름으로 저장...",
+    "💾 Save Project As...": "💾 다른 이름으로 저장...",
+    "Import(&I)": "가져오기(&I)",
+    "📥 Import(&I)": "📥 가져오기(&I)",
+    "📄 CSV / Text...": "📄 CSV / 텍스트...",
+    "📊 Excel File...": "📊 Excel 파일...",
+    "📋 SPSS File (.sav)...": "📋 SPSS 파일 (.sav)...",
+    "📋 Clipboard...": "📋 클립보드...",
+    "Export(&X)": "내보내기(&X)",
+    "📤 Export(&X)": "📤 내보내기(&X)",
+    "📄 CSV File...": "📄 CSV 파일...",
+    "📊 Excel File (export)...": "📊 Excel 파일...",
+    "📋 SPSS File (.sav) export...": "📋 SPSS 파일 (.sav)...",
+    "🕘 Recent Files(&R)": "🕘 최근 파일(&R)",
+    "🚪 Exit": "🚪 끝내기",
+    # ── Edit menu ──────────────────────────────────────────────────────────
+    "✏️ Edit(&E)": "✏️ 편집(&E)",
+    "↩️ Undo": "↩️ 실행 취소",
+    "↪️ Redo": "↪️ 다시 실행",
+    "✂️ Cut": "✂️ 잘라내기",
+    "📋 Copy": "📋 복사",
+    "📋 Paste": "📋 붙여넣기",
+    "☑️ Select All": "☑️ 모두 선택",
+    "Find...": "찾기...",
+    # ── View menu ──────────────────────────────────────────────────────────
+    "👁️ View(&V)": "👁️ 보기(&V)",
+    "🌙 Dark Mode": "🌙 다크 모드",
+    "🌐 Output Language": "🌐 분석 결과 언어",
+    "🌐 UI Language": "🌐 UI 언어",
+    "🔢 Data View": "🔢 데이터 보기",
+    "📋 Variable View": "📋 변수 보기",
+    "📝 Syntax Editor": "📝 구문 편집기",
+    "🏷️ Show Value Labels": "🏷️ 값 라벨 표시",
+    "📊 Show Output Window": "📊 결과 창 보기",
+    # ── Data menu ──────────────────────────────────────────────────────────
+    "Data(&D)": "데이터(&D)",
+    "🔍 Select Cases...": "🔍 케이스 선택...",
+    "⚖️ Weight Cases...": "⚖️ 케이스 가중치...",
+    "🔀 Sort Cases...": "🔀 케이스 정렬...",
+    "↔️ Transpose...": "↔️ 행렬 전치...",
+    "🔗 Merge Files...": "🔗 파일 병합...",
+    "📊 Pivot Table...": "📊 피벗 테이블...",
+    # ── Transform menu ─────────────────────────────────────────────────────
+    "Transform(&T)": "변환(&T)",
+    "🔢 Compute Variable...": "🔢 변수 계산...",
+    "🔄 Recode Variable...": "🔄 변수 재코딩...",
+    "📊 Visual Binning...": "📊 시각적 구간화...",
+    "🏆 Rank Cases...": "🏆 순위 계산...",
+    # ── Analyze menu ───────────────────────────────────────────────────────
+    "📊 Analyze(&A)": "📊 분석(&A)",
+    "🔧 Run Script...": "🔧 스크립트 실행...",
+    "📈 Descriptive Statistics(&R)": "📈 기술통계(&R)",
+    "📊 Frequencies...": "📊 빈도...",
+    "📈 Descriptives...": "📈 기술통계량...",
+    "🔍 Explore...": "🔍 탐색...",
+    "📊 Crosstabulation...": "📊 교차분석...",
+    "📐 Normality Test (Shapiro-Wilk)...": "📐 정규성 검정(Shapiro-Wilk)...",
+    "🔄 Compare Means(&M)": "🔄 평균 비교(&M)",
+    "1️⃣ One-Sample T Test...": "1️⃣ 단일표본 T 검정...",
+    "2️⃣ Independent-Samples T Test...": "2️⃣ 독립표본 T 검정...",
+    "🔗 Paired-Samples T Test...": "🔗 대응표본 T 검정...",
+    "📊 One-Way ANOVA...": "📊 일원분산분석...",
+    "📊 General Linear Model(&G)": "📊 일반선형모형(&G)",
+    "📊 Two-Way ANOVA (Univariate)...": "📊 이원분산분석(Univariate)...",
+    "🔄 Repeated Measures...": "🔄 반복측정...",
+    "📊 ANCOVA...": "📊 ANCOVA(공분산분석)...",
+    "🔀 Mixed ANOVA...": "🔀 혼합 분산분석(Mixed ANOVA)...",
+    "📊 MANOVA...": "📊 MANOVA(다변량 분산분석)...",
+    "🔗 Correlate(&C)": "🔗 상관(&C)",
+    "🔗 Bivariate Correlation...": "🔗 상관분석...",
+    "🔗 Partial Correlation...": "🔗 편상관...",
+    "📈 Regression(&R)": "📈 회귀(&R)",
+    "📈 Linear...": "📈 선형...",
+    "📊 Logistic...": "📊 로지스틱...",
+    "📊 Multinomial Logistic...": "📊 다항 로지스틱...",
+    "📉 Dimension Reduction(&D)": "📉 차원 축소(&D)",
+    "📉 Factor Analysis...": "📉 요인분석...",
+    "📉 Principal Component Analysis (PCA)...": "📉 주성분분석 (PCA)...",
+    "🔵 Cluster(&K)": "🔵 군집(&K)",
+    "🔵 K-Means Cluster...": "🔵 K-평균 군집...",
+    "🔵 Hierarchical Cluster...": "🔵 계층적 군집...",
+    "Survival Analysis(&S)": "생존분석(&S)",
+    "📉 Cox Proportional Hazards Regression...": "📉 Cox 비례위험 회귀...",
+    "🔷 Discriminant Analysis(&I)": "🔷 판별분석(&I)",
+    "🔷 Discriminant Analysis...": "🔷 판별분석...",
+    "🧪 Nonparametric Tests(&N)": "🧪 비모수 검정(&N)",
+    "🧪 Nonparametric Tests...": "🧪 비모수 검정...",
+    "🧮 Chi-Square Goodness-of-Fit...": "🧮 카이제곱 적합도...",
+    "🔬 Diagnostic Tests(&T)": "🔬 진단 검정(&T)",
+    "📈 ROC Analysis...": "📈 ROC 분석...",
+    "✅ Agreement Analysis(&G)": "✅ 일치도 분석(&G)",
+    "📊 ICC (Intraclass Correlation)...": "📊 급내 상관계수(ICC)...",
+    "📐 Scale Analysis(&S)": "📐 척도 분석(&S)",
+    "🔁 Reliability Analysis (Cronbach α)...": "🔁 신뢰도 분석(Cronbach α)...",
+    "📝 Text Mining(&X)": "📝 텍스트 마이닝(&X)",
+    "📝 Text Mining (Word Cloud)...": "📝 텍스트 마이닝(워드클라우드)...",
+    "🤖 Machine Learning...": "🤖 기계학습...",
+    # ── Graphs menu ────────────────────────────────────────────────────────
+    "Graphs(&G)": "차트(&G)",
+    "📊 Advanced Visualization...": "📊 고급 시각화...",
+    "Chart Builder...": "차트 빌더...",
+    "Legacy Dialogs(&L)": "기존 대화상자(&L)",
+    "Bar...": "막대...",
+    "Line...": "선...",
+    "Scatter...": "산점도...",
+    "Histogram...": "히스토그램...",
+    "Box Plot...": "상자 그림...",
+    # ── Utilities menu ─────────────────────────────────────────────────────
+    "Utilities(&U)": "유틸리티(&U)",
+    "🔍 Data Quality Diagnosis...": "🔍 데이터 품질 진단...",
+    "📄 Report Generator...": "📄 보고서 생성...",
+    "📋 Variable Information...": "📋 변수 정보...",
+    "📁 File Information...": "📁 파일 정보...",
+    # ── Window / Help menu ─────────────────────────────────────────────────
+    "Window(&W)": "창(&W)",
+    "Help(&H)": "도움말(&H)",
+    "About NuriStat": "프로그램 정보",
+    "User Manual": "사용자 매뉴얼",
+    # ── Toolbar ────────────────────────────────────────────────────────────
+    "Main Toolbar": "메인 도구 모음",
+    "🆕 New": "🆕 새 파일",
+    "📂 Open": "📂 열기",
+    "💾 Save": "💾 저장",
+    "📥 Import": "📥 가져오기",
+    "🔢 Data": "🔢 데이터",
+    "📋 Variables": "📋 변수",
+    "📊 Frequencies": "📊 빈도",
+    "📈 Descriptives": "📈 기술통계",
+    "📉 T Test": "📉 T 검정",
+    "📉 Regression": "📉 회귀",
+    # ── Status bar / tabs ──────────────────────────────────────────────────
+    "Data View": "데이터 보기",
+    "Variable View": "변수 보기",
+    "Syntax Editor": "구문 편집기",
+    "Variables": "변수",
+    "Ready": "준비",
+    "No dataset loaded": "데이터 없음",
+    # ── Common dialog messages ─────────────────────────────────────────────
+    "Warning": "경고",
+    "Error": "오류",
+    "Information": "정보",
+    "OK": "확인",
+    "Cancel": "취소",
+    "Yes": "예",
+    "No": "아니오",
+    "Close": "닫기",
+    "Apply": "적용",
+    "Run": "실행",
+    "Please load a dataset first.": "먼저 데이터를 불러오세요.",
+    "No data loaded": "데이터가 없습니다",
+    # ── Settings dialog ────────────────────────────────────────────────────
+    "Settings": "설정",
+    "Language": "언어",
+    "UI Language:": "UI 언어:",
+    "Output Language:": "분석 결과 언어:",
+    "Theme": "테마",
+    "Dark mode": "다크 모드",
+}
+
+
+def t(en_text: str) -> str:
+    """Translate a UI string.
+
+    Returns *en_text* unchanged when the active language is "en".
+    Returns the Korean equivalent from UI_KO when lang=="ko", falling back to
+    *en_text* if no translation exists yet.
+    """
+    if _lang != "ko":
+        return en_text
+    return UI_KO.get(en_text, en_text)
 
 
 # 분석 테이블 제목 (영어 → 한국어)
