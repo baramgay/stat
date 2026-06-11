@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# PyPI Trusted Publishing(OIDC) 사용 — API 토큰 시크릿 불필요.
+# 사전 설정(1회): PyPI 프로젝트 → Publishing → Add a new pending publisher
+#   Owner=baramgay, Repository=stat, Workflow=release.yml, Environment=pypi
+# 게시 활성화: 위 설정 후 저장소 Variables에 PYPI_PUBLISH=true 추가.
+#   미설정 시 빌드만 수행하고 게시는 건너뛴다(릴리스 워크플로 정상 통과).
+jobs:
+  build-and-publish:
+    name: Build & Publish to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read   # checkout에 필요 (permissions 선언 시 미명시 권한은 none이 됨)
+      id-token: write  # OIDC 신뢰 게시에 필요
+    defaults:
+      run:
+        working-directory: nuristat
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Build distributions
+        run: |
+          pip install --upgrade pip build
+          python -m build
+
+      - name: Publish to PyPI (Trusted Publishing)
+        if: ${{ vars.PYPI_PUBLISH == 'true' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: nuristat/dist/
+
