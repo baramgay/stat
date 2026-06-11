@@ -1211,7 +1211,7 @@ class MainWindow(QMainWindow):
         )
         if path:
             try:
-                self.current_dataset.data.to_csv(path, index=False)
+                self.current_dataset.data.to_csv(path, index=False, encoding="utf-8-sig")
                 self.statusbar.showMessage(f"CSV 저장 완료: {path}")
             except Exception as exc:
                 QMessageBox.critical(self, "오류", f"CSV 저장 실패:\n{exc}")
