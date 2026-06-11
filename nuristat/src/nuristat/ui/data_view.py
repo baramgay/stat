@@ -752,6 +752,16 @@ class DataView(QWidget):
                 Qt.Orientation.Horizontal, 0, self._model.columnCount() - 1
             )
 
+    def reload_data(self) -> None:
+        """모델 내부 DataFrame을 dataset.data로 전면 교체합니다.
+
+        COMPUTE·SELECT IF 등 구조 변경(열 추가·행 삭제) 후 호출해야
+        beginResetModel/endResetModel로 모델 복사본이 실제로 갱신됩니다.
+        refresh()는 기존 셀 재그리기만 하므로 구조 변경에 충분하지 않습니다.
+        """
+        if self._model is not None and self._dataset is not None:
+            self._model.set_dataframe(self._dataset.data, self._dataset.variables)
+
     def get_dataset(self) -> Dataset | None:
         """현재 데이터셋을 반환합니다."""
         return self._dataset

@@ -1118,9 +1118,21 @@ class MainWindow(QMainWindow):
         self._update_statusbar()
 
     def _on_syntax_executed(self, code: str) -> None:
-        """구문 실행 완료 시 — 데이터 변경 가능성 있으므로 뷰 갱신."""
+        """구문 실행 완료 시 — 데이터 구조 변경(열 추가·행 삭제) 가능성 있으므로 전면 재로드."""
         self.statusbar.showMessage("구문이 실행되었습니다.")
-        self._on_dataset_changed(self.current_dataset)
+        if self.current_dataset is None:
+            return
+        # refresh()만으로는 모델 내부 복사본(stale copy)에 새 열·행이 반영되지 않음.
+        # reload_data()는 set_dataframe() → beginResetModel/endResetModel로 전면 교체.
+        if hasattr(self, 'data_view') and self.data_view:
+            self.data_view.reload_data()
+        if hasattr(self, 'variable_view') and self.variable_view:
+            self.variable_view.set_dataset(self.current_dataset)
+        if hasattr(self, 'syntax_editor') and self.syntax_editor:
+            self.syntax_editor.set_dataset(self.current_dataset)
+        if self.project is not None:
+            self.project.mark_dirty()
+        self._update_statusbar()
 
     # ── 파일 가져오기/내보내기 ────────────────────────────────────────────────
 

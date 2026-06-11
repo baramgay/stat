@@ -111,3 +111,30 @@ def test_compute_scalar_constant(editor):
     editor._parse_and_execute("COMPUTE const_var = 99.")
     assert "const_var" in editor._dataset.data.columns
     assert (editor._dataset.data["const_var"] == 99).all()
+
+
+# SE-09 심층 회귀 테스트: DataView 모델 내부 복사본 갱신 여부
+def test_data_view_reload_data_reflects_compute_column(qapp, dataset):
+    """DataView.reload_data() — COMPUTE 추가 열이 모델 내부 DataFrame에 실제로 반영된다.
+
+    SPSSGridModel은 set_dataset 시 DataFrame 복사본(_dataframe)을 저장한다.
+    refresh()는 기존 셀 재그리기만 해서 새 열이 복사본에 없고,
+    reload_data() → set_dataframe() → beginResetModel 후에야 반영된다.
+    """
+    from nuristat.ui.data_view import DataView
+
+    view = DataView()
+    view.set_dataset(dataset)
+
+    # COMPUTE처럼 dataset.data에 새 열 직접 추가
+    dataset.data["computed"] = dataset.data["score"] + dataset.data["age"]
+
+    # refresh()는 기존 셀 재그리기만 → 모델 내부 _dataframe에는 새 열 없음 (stale copy)
+    view.refresh()
+    assert "computed" not in view._model._dataframe.columns, \
+        "refresh() 후에는 모델 복사본에 새 열이 없어야 한다"
+
+    # reload_data() → set_dataframe() → beginResetModel/endResetModel → 전면 교체
+    view.reload_data()
+    assert "computed" in view._model._dataframe.columns, \
+        "reload_data() 후 COMPUTE 열이 모델에 반영되어야 한다"
