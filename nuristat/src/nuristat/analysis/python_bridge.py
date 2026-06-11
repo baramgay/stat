@@ -36,10 +36,10 @@ class PythonBridge:
         "abs", "all", "any", "bin", "bool", "bytearray", "bytes",
         "chr", "complex", "dict", "divmod", "enumerate", "filter",
         "float", "format", "frozenset", "hasattr", "hash", "hex",
-        "int", "isinstance", "issubclass", "iter", "len", "list",
-        "map", "max", "min", "next", "oct", "ord", "pow", "range",
+        "input", "int", "isinstance", "issubclass", "iter", "len", "list",
+        "map", "max", "min", "next", "oct", "ord", "pow", "print", "range",
         "repr", "reversed", "round", "set", "slice", "sorted", "str",
-        "sum", "tuple", "type", "zip",
+        "sum", "tuple", "type", "vars", "zip",
         # pandas/numpy
         "pd", "np",
     }
@@ -110,6 +110,7 @@ class PythonBridge:
             }
 
             # 주요 변수 수집
+            import numpy as np
             for key, value in exec_locals.items():
                 if key.startswith("_"):
                     continue
@@ -120,10 +121,27 @@ class PythonBridge:
                             "shape": value.shape,
                             "preview": value.head(5).to_dict(),
                         }
+                    elif isinstance(value, pd.Series):
+                        output["variables"][key] = {
+                            "type": "Series",
+                            "shape": (len(value),),
+                            "preview": value.head(5).to_dict(),
+                        }
                     elif isinstance(value, (int, float, str, bool, list, dict)):
                         output["variables"][key] = {
                             "type": type(value).__name__,
                             "value": value,
+                        }
+                    elif isinstance(value, (np.integer, np.floating)):
+                        output["variables"][key] = {
+                            "type": type(value).__name__,
+                            "value": value.item(),
+                        }
+                    elif isinstance(value, np.ndarray):
+                        output["variables"][key] = {
+                            "type": "ndarray",
+                            "shape": value.shape,
+                            "preview": value.tolist()[:5],
                         }
                 except Exception:
                     pass

@@ -176,11 +176,12 @@ class RBridge:
             '',
         ]
 
-        # 데이터 로드
+        # 데이터 로드 (Windows 경로 → R 호환 슬래시)
         if data_path:
+            r_data_path = data_path.replace("\\", "/")
             lines.extend([
                 '# 데이터 로드',
-                f'df <- read.csv("{data_path}", stringsAsFactors = FALSE, encoding = "UTF-8")',
+                f'df <- read.csv("{r_data_path}", stringsAsFactors = FALSE, encoding = "UTF-8")',
                 'cat("데이터 로드 완료:", nrow(df), "행 x", ncol(df), "열\\n")',
                 '',
             ])
@@ -193,8 +194,9 @@ class RBridge:
             '',
         ])
 
-        # 결과 저장
+        # 결과 저장 (Windows 경로 → R 호환 슬래시)
         if output_format == "json":
+            r_output_path = output_path.replace("\\", "/")
             lines.extend([
                 '# 결과를 JSON으로 저장',
                 'result <- list(',
@@ -202,7 +204,7 @@ class RBridge:
                 '  message = "R 스크립트 실행 완료",',
                 '  timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S")',
                 ')',
-                f'write_json(result, "{output_path}", auto_unbox = TRUE, pretty = TRUE)',
+                f'write_json(result, "{r_output_path}", auto_unbox = TRUE, pretty = TRUE)',
             ])
 
         return "\n".join(lines)
