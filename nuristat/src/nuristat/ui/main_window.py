@@ -1745,7 +1745,7 @@ class MainWindow(QMainWindow):
 
         from nuristat.ui.dialogs.regression_dialog import RegressionDialog
         dialog = RegressionDialog(self.current_dataset, self)
-        dialog.analysis_run.connect(self._on_ttest_result)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _run_nonparametric(self) -> None:
