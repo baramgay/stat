@@ -166,8 +166,6 @@ class ManualDataDialog(QDialog):
         current_col = self.table.currentColumn()
         if current_col >= 0:
             self.table.removeColumn(current_col)
-        else:
-            QMessageBox.information(self, "Info", "Please select a column to remove.")
 
     def _add_rows(self) -> None:
         """Add 10 more rows."""

@@ -196,7 +196,6 @@ class ReportDialog(QDialog):
             self.status_label.setText(f"✅ 저장 완료: {message}")
             self.status_label.setStyleSheet("color: #2ca02c;")
             self.report_generated.emit(message)
-            QMessageBox.information(self, "완료", f"보고서가 저장되었습니다.\n{message}")
         else:
             self.status_label.setText(f"❌ 오류: {message}")
             self.status_label.setStyleSheet("color: #d62728;")

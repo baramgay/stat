@@ -126,7 +126,6 @@ class WeightCasesDialog(QDialog):
         """가중치 적용."""
         if self.no_weight_radio.isChecked():
             self.weight_cleared.emit()
-            QMessageBox.information(self, "완료", "가중치가 해제되었습니다.")
             self.accept()
         else:
             weight_var = self.weight_combo.currentText()
@@ -148,8 +147,4 @@ class WeightCasesDialog(QDialog):
                     return
 
             self.weight_applied.emit(weight_var)
-            QMessageBox.information(
-                self, "완료",
-                f"가중치가 적용되었습니다.\n가중치 변수: {weight_var}"
-            )
             self.accept()

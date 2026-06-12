@@ -260,8 +260,6 @@ class BinningDialog(QDialog):
 
             # 시그널 발생
             self.binning_applied.emit(source_var, target_var, cut_points, labels)
-
-            QMessageBox.information(self, "완료", f"구간화가 적용되었습니다.\n{target_var} 변수가 생성되었습니다.")
             self.accept()
 
         except Exception as exc:

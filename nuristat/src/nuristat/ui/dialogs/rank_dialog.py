@@ -172,8 +172,5 @@ class RankDialog(QDialog):
         else:
             method = "average"
 
-        # 시그널 발생
         self.rank_applied.emit(source_var, target_var, method)
-
-        QMessageBox.information(self, "완료", f"순위가 부여되었습니다.\n{target_var} 변수가 생성되었습니다.")
         self.accept()

@@ -248,6 +248,4 @@ class RecodeDialog(QDialog):
 
         # 시그널 발생
         self.recode_applied.emit(source_var, target_var, rules)
-
-        QMessageBox.information(self, "완료", f"재코딩이 적용되었습니다.\n{target_var} 변수가 생성/변경되었습니다.")
         self.accept()

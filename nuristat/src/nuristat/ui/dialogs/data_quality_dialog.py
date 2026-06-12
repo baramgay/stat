@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QGroupBox,
     QHBoxLayout,
-    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -216,4 +215,3 @@ class DataQualityDialog(QDialog):
             html = self.engine.generate_data_quality_report(self.dataset)
             self.engine.save_html(html, path)
             self.quality_report_generated.emit(path)
-            QMessageBox.information(self, "완료", f"보고서가 저장되었습니다.\n{path}")

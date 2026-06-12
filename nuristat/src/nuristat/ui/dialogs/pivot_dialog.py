@@ -225,4 +225,3 @@ class PivotDialog(QDialog):
         )
         if path:
             self._current_pivot.to_csv(path)
-            QMessageBox.information(self, "완료", f"저장되었습니다:\n{path}")
