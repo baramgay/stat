@@ -221,7 +221,7 @@ class SPSSGridModel(QAbstractTableModel):
     def _apply_cell_delta(self, item: tuple, *, to_new: bool) -> None:
         """셀 델타를 적용(undo=old_value, redo=new_value)하고 해당 셀만 갱신."""
         _, row, col, old_value, new_value = item
-        self._dataframe.iloc[row, col] = new_value if to_new else old_value
+        self._dataframe.iat[row, col] = new_value if to_new else old_value
         self._invalidate_df_cache()
         idx = self.index(row, col)
         self.dataChanged.emit(
@@ -435,7 +435,7 @@ class SPSSGridModel(QAbstractTableModel):
                 return QBrush(_COLOR_TEXT)
             return None
 
-        value = self._dataframe.iloc[row, col]
+        value = self._dataframe.iat[row, col]
         is_missing = value is None or value is pd.NA
         if not is_missing:
             if isinstance(value, float):
@@ -568,7 +568,7 @@ class SPSSGridModel(QAbstractTableModel):
             self._extend_rows(row + 1)
 
         col_name = self._dataframe.columns[col]
-        old_value = self._dataframe.iloc[row, col]
+        old_value = self._dataframe.iat[row, col]
 
         try:
             if value == "" or value is None:
@@ -576,7 +576,7 @@ class SPSSGridModel(QAbstractTableModel):
             else:
                 new_value = self._parse_value(value, old_value)
 
-            self._dataframe.iloc[row, col] = new_value
+            self._dataframe.iat[row, col] = new_value
             self._last_data_row = max(self._last_data_row, row)
             self._update_variable_metadata(col_name, new_value=new_value)
 

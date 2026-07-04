@@ -86,6 +86,20 @@ class TestAddOutput:
         win.add_output("라인2", "text")
         assert len(win._log_lines) == 2
 
+    def test_log_append_does_not_rerender_full_html(self, qtbot, monkeypatch):
+        """P4-1: 로그 누적이 setHtml 전체 재렌더가 아닌 append 방식이어야 한다(O(N^2) 방지)."""
+        win = OutputWindow()
+        qtbot.addWidget(win)
+        calls = []
+        monkeypatch.setattr(
+            type(win._log_browser), "setHtml",
+            lambda self, html: calls.append(html),
+        )
+        win.add_output("라인1", "text")
+        win.add_output("라인2", "text")
+        win.add_output("라인3", "text")
+        assert calls == []
+
 
 # -------------------------------------------------------------------------
 # 탭 닫기

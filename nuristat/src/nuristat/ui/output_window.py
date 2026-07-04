@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -202,8 +202,9 @@ class OutputWindow(QMainWindow):
             f'</div>'
         )
         self._log_lines.append(line)
-        log_html = "<html><body>" + "".join(self._log_lines) + "</body></html>"
-        self._log_browser.setHtml(log_html)
+        cursor = self._log_browser.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.insertHtml(line)
         sb = self._log_browser.verticalScrollBar()
         sb.setValue(sb.maximum())
         self.statusbar.showMessage(f"로그: {len(self._log_lines)}건")
