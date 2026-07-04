@@ -5,12 +5,6 @@ result formatting, assumption checking, and implementations of standard
 statistical procedures.
 """
 
-from nuristat.analysis.assumptions import (
-    check_homogeneity_of_variance,
-    check_normality,
-    get_case_processing_summary,
-    prepare_analysis_frame,
-)
 from nuristat.analysis.base import AnalysisPlugin
 from nuristat.analysis.formatting import (
     add_significance_stars,
@@ -40,3 +34,21 @@ __all__ = [
     "CommonSpec",
     "parse_common_spec",
 ]
+
+# assumptions.py는 scipy.stats를 임포트하므로(무거운 임포트 체인) 지연 로딩한다.
+# PEP 562 모듈 __getattr__ — nuristat.analysis.assumptions 자체를 직접 임포트하는
+# 코드에는 영향 없음, 이 패키지의 재노출 심볼에만 적용.
+_LAZY_ASSUMPTIONS = {
+    "check_homogeneity_of_variance",
+    "check_normality",
+    "get_case_processing_summary",
+    "prepare_analysis_frame",
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_ASSUMPTIONS:
+        from nuristat.analysis import assumptions
+
+        return getattr(assumptions, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

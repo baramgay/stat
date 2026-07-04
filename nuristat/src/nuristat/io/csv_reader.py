@@ -11,7 +11,6 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
-import chardet
 import pandas as pd
 
 from nuristat.core.dataset import Dataset
@@ -45,20 +44,21 @@ def _detect_encoding(filepath: str, sample_size: int = 65536) -> str:
     EncodingDetectionError
         If encoding cannot be detected.
     """
+    import chardet
+
     path = Path(filepath)
     if not path.exists():
         raise FileReadError(filepath, "파일이 존재하지 않습니다")
 
     try:
-        raw = path.read_bytes()
+        with open(path, "rb") as f:
+            sample = f.read(sample_size)
     except OSError as exc:
         raise FileReadError(filepath, str(exc)) from exc
 
-    if not raw:
+    if not sample:
         return "utf-8"
 
-    # Use at most sample_size bytes for detection
-    sample = raw[:sample_size]
     result = chardet.detect(sample)
     encoding = result.get("encoding")
 

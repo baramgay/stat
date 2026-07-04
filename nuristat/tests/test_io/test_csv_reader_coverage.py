@@ -1,7 +1,7 @@
 """csv_reader.py 커버리지 보강 테스트.
 
 미커버 라인:
-  54-55  : path.read_bytes() OSError → FileReadError
+  53-57  : open(path, "rb") OSError → FileReadError
   79     : encoding alias "iso-8859-1" → "latin-1"
   81     : encoding alias "euc-kr" → "cp949"
   235-236: pd.read_csv OSError → FileReadError
@@ -32,14 +32,14 @@ def csv_file(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Lines 54-55: read_bytes() OSError → FileReadError
+# Lines 53-57: open(path, "rb") OSError → FileReadError
 # ---------------------------------------------------------------------------
 
 class TestReadBytesOSError:
 
     def test_read_bytes_oserror_raises_file_read_error(self, csv_file):
-        """Path.read_bytes() OSError → FileReadError."""
-        with patch.object(Path, "read_bytes", side_effect=OSError("disk error")):
+        """open(path, "rb") OSError → FileReadError."""
+        with patch("builtins.open", side_effect=OSError("disk error")):
             with pytest.raises(FileReadError):
                 _detect_encoding(csv_file)
 

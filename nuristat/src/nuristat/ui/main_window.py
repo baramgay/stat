@@ -31,10 +31,6 @@ from nuristat.core.dataset import Dataset
 from nuristat.core.i18n import t
 from nuristat.core.project import Project
 from nuristat.core.settings import SettingsManager
-from nuristat.io.csv_reader import read_csv
-from nuristat.io.excel_reader import read_excel
-from nuristat.io.project_store import load_project, save_project
-from nuristat.io.spss_reader import read_sav
 from nuristat.ui.data_view import DataView
 from nuristat.ui.output_window import OutputWindow
 from nuristat.ui.syntax_editor import SyntaxEditor
@@ -972,15 +968,23 @@ class MainWindow(QMainWindow):
         ext = os.path.splitext(path)[1].lower()
         try:
             if ext == ".swb":
+                from nuristat.io.project_store import load_project
+
                 self.project = load_project(path)
                 if self.project.datasets:
                     self.current_dataset = self.project.datasets[0]
                     self._on_dataset_changed(self.current_dataset)
             elif ext == ".csv":
+                from nuristat.io.csv_reader import read_csv
+
                 self._load_dataset(read_csv(path))
             elif ext in (".xlsx", ".xls"):
+                from nuristat.io.excel_reader import read_excel
+
                 self._load_dataset(read_excel(path))
             elif ext == ".sav":
+                from nuristat.io.spss_reader import read_sav
+
                 self._load_dataset(read_sav(path))
             else:
                 QMessageBox.warning(self, "지원하지 않음", f"지원하지 않는 형식입니다: {ext}")
@@ -1005,6 +1009,8 @@ class MainWindow(QMainWindow):
         )
         if path:
             try:
+                from nuristat.io.project_store import load_project
+
                 self.project = load_project(path)
                 if self.project.datasets:
                     self.current_dataset = self.project.datasets[0]
@@ -1024,6 +1030,8 @@ class MainWindow(QMainWindow):
 
         if self.project.file_path:
             try:
+                from nuristat.io.project_store import save_project
+
                 save_project(self.project, self.project.file_path)
                 self.project.clear_dirty()
                 self.statusbar.showMessage(f"저장되었습니다: {self.project.file_path}")
@@ -1044,6 +1052,8 @@ class MainWindow(QMainWindow):
             if not path.endswith(".swb"):
                 path += ".swb"
             try:
+                from nuristat.io.project_store import save_project
+
                 save_project(self.project, path)
                 self.project.file_path = path
                 self.project.clear_dirty()
@@ -1108,6 +1118,8 @@ class MainWindow(QMainWindow):
         )
         if path:
             try:
+                from nuristat.io.csv_reader import read_csv
+
                 dataset = read_csv(path)
                 self._load_dataset(dataset)
                 self._remember_recent(path)
@@ -1122,6 +1134,8 @@ class MainWindow(QMainWindow):
         )
         if path:
             try:
+                from nuristat.io.excel_reader import read_excel
+
                 dataset = read_excel(path)
                 self._load_dataset(dataset)
                 self._remember_recent(path)
@@ -1136,6 +1150,8 @@ class MainWindow(QMainWindow):
         )
         if path:
             try:
+                from nuristat.io.spss_reader import read_sav
+
                 dataset = read_sav(path)
                 self._load_dataset(dataset)
                 self._remember_recent(path)
