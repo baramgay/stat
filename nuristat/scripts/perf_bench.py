@@ -111,6 +111,52 @@ def dataview_edit_sync_ms(n_rows: int = 100_000, n_cols: int = 50) -> dict[str, 
     return {"deferred_ms": deferred_ms, "eager_sync_ms": eager_sync_ms}
 
 
+def dataset_setter_meta_resync_ms(
+    n_cols: int = 5_000, n_rows: int = 100, repeats: int = 50
+) -> dict[str, float]:
+    """컬럼 집합이 그대로일 때 Dataset.data setter 비용(ms, P1-4, repeats회 평균).
+
+    fast_path_ms: 현재 구현(컬럼 동일 시 meta 재동기화 루프 스킵).
+    old_loop_ms: P1-4 이전 방식(항상 O(cols) 추가/삭제 diff 루프 실행)을 그대로 재현.
+    """
+    import numpy as np
+    import pandas as pd
+
+    from nuristat.core.dataset import Dataset, _infer_variable_meta
+
+    rng = np.random.default_rng(5)
+    df = pd.DataFrame(
+        rng.standard_normal((n_rows, n_cols)),
+        columns=[f"var{i}" for i in range(n_cols)],
+    )
+    dataset = Dataset(data=df.copy())
+    new_df = df.copy()
+    new_df.iloc[0, 0] = 3.14  # 값만 변경, 컬럼 동일
+
+    fast_path_total = 0.0
+    for _ in range(repeats):
+        start = time.perf_counter()
+        dataset.data = new_df
+        fast_path_total += time.perf_counter() - start
+
+    variables = dict(dataset.variables)
+    old_loop_total = 0.0
+    for _ in range(repeats):
+        start = time.perf_counter()
+        for col in new_df.columns:
+            if col not in variables:
+                variables[col] = _infer_variable_meta(col, new_df[col])
+        for col in list(variables.keys()):
+            if col not in new_df.columns:
+                del variables[col]
+        old_loop_total += time.perf_counter() - start
+
+    return {
+        "fast_path_ms": (fast_path_total / repeats) * 1000,
+        "old_loop_ms": (old_loop_total / repeats) * 1000,
+    }
+
+
 def undo_memory_mb() -> float:
     """100회 편집 후 undo 스택이 차지하는 DataFrame 메모리(MB)."""
     _ensure_qapp()
@@ -226,6 +272,9 @@ def run_all() -> dict:
     print("dataview_edit_sync_ms ...")
     dataview_edit_sync = dataview_edit_sync_ms()
 
+    print("dataset_setter_meta_resync_ms ...")
+    dataset_setter_meta_resync = dataset_setter_meta_resync_ms()
+
     print("undo_memory_mb ...")
     undo_memory = undo_memory_mb()
 
@@ -242,6 +291,7 @@ def run_all() -> dict:
         "startup_import_s": startup,
         "edit_latency_ms": edit_latency,
         "dataview_edit_sync_ms": dataview_edit_sync,
+        "dataset_setter_meta_resync_ms": dataset_setter_meta_resync,
         "undo_memory_mb": undo_memory,
         "get_dataframe_ms": get_df,
         "csv_load_s": csv_load,

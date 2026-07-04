@@ -206,6 +206,41 @@ class TestDataProperty:
         with pytest.raises(DatasetError):
             ds.data = "not a dataframe"
 
+    def test_set_data_same_columns_skips_meta_resync_loop(self) -> None:
+        """컬럼 집합이 그대로면 변수 meta 재동기화 루프(O(cols) 순회) 자체를 건너뛴다(P1-4)."""
+        ds = _sample_dataset()
+
+        class CountingDict(dict):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.contains_calls = 0
+
+            def __contains__(self, key) -> bool:
+                self.contains_calls += 1
+                return super().__contains__(key)
+
+        counting_vars = CountingDict(ds._variables)
+        ds._variables = counting_vars
+
+        new_df = _sample_df().copy()
+        new_df["age"] = new_df["age"] + 1   # 값만 변경, 컬럼 동일
+        ds.data = new_df
+
+        assert counting_vars.contains_calls == 0
+        assert ds.n_cols == 3
+        assert ds.is_dirty
+
+    def test_set_data_different_columns_still_resyncs(self) -> None:
+        """컬럼 집합이 다르면 기존처럼 추가/삭제 diff를 반영한다(P1-4 회귀 방지)."""
+        ds = _sample_dataset()
+        new_df = _sample_df().copy()
+        del new_df["age"]
+        new_df["new_col"] = [1, 2, 3, 4, 5]
+        ds.data = new_df
+        assert "age" not in ds.variables
+        assert "new_col" in ds.variables
+        assert ds.n_cols == 3
+
 
 # ---------------------------------------------------------------------------
 # Add / remove variables

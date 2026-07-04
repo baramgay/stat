@@ -51,14 +51,16 @@ class Dataset:
     def data(self, value: pd.DataFrame) -> None:
         if not isinstance(value, pd.DataFrame):
             raise DatasetError("Data must be a pandas DataFrame.")
-        # Sync variables for new columns
-        for col in value.columns:
-            if col not in self._variables:
-                self._variables[col] = _infer_variable_meta(col, value[col])
-        # Remove variables for dropped columns
-        for col in list(self._variables.keys()):
-            if col not in value.columns:
-                del self._variables[col]
+        # P1-4: 컬럼 집합이 그대로면 변수 meta 재동기화 루프(O(cols)) 자체를 건너뛴다.
+        if not value.columns.equals(self._data.columns):
+            # Sync variables for new columns
+            for col in value.columns:
+                if col not in self._variables:
+                    self._variables[col] = _infer_variable_meta(col, value[col])
+            # Remove variables for dropped columns
+            for col in list(self._variables.keys()):
+                if col not in value.columns:
+                    del self._variables[col]
         self._data = value
         self._dirty = True
 
