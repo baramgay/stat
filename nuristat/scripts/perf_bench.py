@@ -77,6 +77,40 @@ def edit_latency_ms() -> float:
     return elapsed * 1000
 
 
+def dataview_edit_sync_ms(n_rows: int = 100_000, n_cols: int = 50) -> dict[str, float]:
+    """DataView 경유 셀 1개 편집 시 Dataset.data 동기화 비용(ms, P1-2).
+
+    deferred_ms: 편집 직후 실제 소요(지연 동기화 — sync_dataset 미호출).
+    eager_sync_ms: 같은 편집을 P1-2 이전처럼 즉시 Dataset.data에 반영할 때의 비용
+                   (dataset.data = model.get_dataframe(), 매 편집마다 강제되던 경로).
+    """
+    import numpy as np
+    import pandas as pd
+
+    from nuristat.core.dataset import Dataset
+    from nuristat.ui.data_view import DataView
+
+    _ensure_qapp()
+    rng = np.random.default_rng(3)
+    df = pd.DataFrame(
+        rng.standard_normal((n_rows, n_cols)),
+        columns=[f"var{i}" for i in range(n_cols)],
+    )
+    dataset = Dataset(data=df.copy())
+    view = DataView()
+    view.set_dataset(dataset)
+
+    start = time.perf_counter()
+    view._model.setData(view._model.index(n_rows // 2, 25), 3.14)
+    deferred_ms = (time.perf_counter() - start) * 1000
+
+    start = time.perf_counter()
+    dataset.data = view._model.get_dataframe()
+    eager_sync_ms = (time.perf_counter() - start) * 1000
+
+    return {"deferred_ms": deferred_ms, "eager_sync_ms": eager_sync_ms}
+
+
 def undo_memory_mb() -> float:
     """100회 편집 후 undo 스택이 차지하는 DataFrame 메모리(MB)."""
     _ensure_qapp()
@@ -189,6 +223,9 @@ def run_all() -> dict:
     print("edit_latency_ms ...")
     edit_latency = edit_latency_ms()
 
+    print("dataview_edit_sync_ms ...")
+    dataview_edit_sync = dataview_edit_sync_ms()
+
     print("undo_memory_mb ...")
     undo_memory = undo_memory_mb()
 
@@ -204,6 +241,7 @@ def run_all() -> dict:
     return {
         "startup_import_s": startup,
         "edit_latency_ms": edit_latency,
+        "dataview_edit_sync_ms": dataview_edit_sync,
         "undo_memory_mb": undo_memory,
         "get_dataframe_ms": get_df,
         "csv_load_s": csv_load,

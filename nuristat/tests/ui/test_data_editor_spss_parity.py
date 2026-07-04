@@ -270,3 +270,38 @@ class TestDataViewIntegration:
         v._insert_row()
         assert len(v._model._dataframe) == 4
         assert pd.isna(v._model._dataframe.iloc[1, 0])
+
+
+class TestDataViewLazySync:
+    """P1-2: 셀 편집마다 Dataset.data를 즉시 갱신하지 않고 stale 표시만 남긴다."""
+
+    def _make_view(self):
+        from nuristat.ui.data_view import DataView
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [10, 20, 30]})
+        variables = {
+            "a": VariableMeta(name="a", storage_type=StorageType.INTEGER, measure=MeasureType.SCALE),
+            "b": VariableMeta(name="b", storage_type=StorageType.INTEGER, measure=MeasureType.SCALE),
+        }
+        ds = Dataset(df, "t", variables)
+        v = DataView()
+        v.set_dataset(ds)
+        return v
+
+    def test_edit_does_not_sync_dataset_immediately(self):
+        v = self._make_view()
+        v._model.setData(v._model.index(0, 0), "99", Qt.ItemDataRole.EditRole)
+        assert v._dataset.data.iloc[0, 0] == 1
+        assert v._dataset_stale is True
+
+    def test_sync_dataset_applies_pending_change(self):
+        v = self._make_view()
+        v._model.setData(v._model.index(0, 0), "99", Qt.ItemDataRole.EditRole)
+        v.sync_dataset()
+        assert v._dataset.data.iloc[0, 0] == 99
+        assert v._dataset_stale is False
+
+    def test_sync_dataset_noop_when_not_stale(self):
+        v = self._make_view()
+        assert v._dataset_stale is False
+        v.sync_dataset()
+        assert v._dataset_stale is False

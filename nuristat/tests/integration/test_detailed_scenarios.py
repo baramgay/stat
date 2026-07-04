@@ -446,10 +446,11 @@ class TestVariableMetadataSync:
         assert ds.variables[var_name].storage_type in (StorageType.INTEGER, StorageType.FLOAT)
 
     def test_dataset_data_columns_match_after_entry(self, view):
-        """데이터 입력 후 dataset.data.columns == variables.keys()."""
+        """데이터 입력 후 dataset.data.columns == variables.keys()(sync_dataset 경유)."""
         _enter_value(view, 0, 0, "10")
         _enter_value(view, 0, 1, "20")
 
+        view.sync_dataset()   # P1-2: 지연 동기화 — 실제 소비 시점에 명시적으로 확정
         ds = view._dataset
         data_cols = set(ds.data.columns)
         var_cols = set(ds.variables.keys())
@@ -840,9 +841,10 @@ class TestDatasetSyncScenarios:
     """DataView ↔ Dataset 동기화 종합 확인."""
 
     def test_data_in_sync_after_first_entry(self, view):
-        """첫 번째 입력 후 dataset.data 동기화."""
+        """첫 번째 입력 후 dataset.data 동기화(sync_dataset 경유)."""
         _enter_value(view, 0, 0, "42")
 
+        view.sync_dataset()   # P1-2: 지연 동기화 — 실제 소비 시점에 명시적으로 확정
         ds = view._dataset
         assert len(ds.data.columns) > 0, "dataset.data should have columns after entry"
         col = ds.data.columns[0]
@@ -877,11 +879,12 @@ class TestDatasetSyncScenarios:
         assert result is not None
 
     def test_multiple_columns_sync(self, view):
-        """다중 컬럼 입력 후 dataset.data 컬럼 수 일치."""
+        """다중 컬럼 입력 후 dataset.data 컬럼 수 일치(sync_dataset 경유)."""
         _enter_value(view, 0, 0, "A")
         _enter_value(view, 0, 1, "10")
         _enter_value(view, 0, 2, "5.5")
 
+        view.sync_dataset()   # P1-2: 지연 동기화 — 실제 소비 시점에 명시적으로 확정
         ds = view._dataset
         assert len(ds.data.columns) == 3, \
             f"Expected 3 columns, got {len(ds.data.columns)}: {list(ds.data.columns)}"

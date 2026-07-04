@@ -42,6 +42,7 @@ class DataView(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._dataset: Dataset | None = None
+        self._dataset_stale: bool = False
         self._model: SPSSGridModel | None = None
         self._cell_change_connected = False
         self._setup_ui()
@@ -711,6 +712,7 @@ class DataView(QWidget):
     def set_dataset(self, dataset: Dataset) -> None:
         """데이터셋을 설정합니다."""
         self._dataset = dataset
+        self._dataset_stale = False
         self._model = SPSSGridModel(dataset.data, dataset.variables)
         self._model.data_changed.connect(self._on_data_changed)
         self._model.variable_added.connect(self._on_variable_added)
@@ -763,8 +765,19 @@ class DataView(QWidget):
             self._model.set_dataframe(self._dataset.data, self._dataset.variables)
 
     def get_dataset(self) -> Dataset | None:
-        """현재 데이터셋을 반환합니다."""
+        """현재 데이터셋을 반환합니다(지연 동기화 확정 후)."""
+        self.sync_dataset()
         return self._dataset
+
+    def sync_dataset(self) -> None:
+        """지연된 dataset.data 동기화를 실제로 수행합니다(P1-2).
+
+        매 셀 편집마다 즉시 실행하기엔 무거운 Dataset.data setter(컬럼 메타
+        재동기화 포함)를, 실제로 dataset을 소비하는 시점까지 미룬다.
+        """
+        if self._dataset_stale and self._dataset is not None and self._model is not None:
+            self._dataset.data = self._model.get_dataframe()
+            self._dataset_stale = False
 
     def toggle_value_labels(self) -> bool:
         """값 라벨 표시 모드를 토글합니다. 현재 상태를 반환합니다."""
@@ -776,7 +789,7 @@ class DataView(QWidget):
 
     def _on_data_changed(self) -> None:
         if self._dataset is not None and self._model is not None:
-            self._dataset.data = self._model.get_dataframe()
+            self._dataset_stale = True
             for var_name, var_meta in self._model.get_variables().items():
                 self._dataset.variables[var_name] = var_meta
             current = self.table.currentIndex()

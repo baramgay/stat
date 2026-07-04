@@ -49,7 +49,7 @@ class MainWindow(QMainWindow):
 
         # 프로젝트 상태
         self.project: Project | None = None
-        self.current_dataset: Dataset | None = None
+        self._current_dataset: Dataset | None = None
 
         # 테마 설정
         self._theme_manager = ThemeManager()
@@ -77,6 +77,18 @@ class MainWindow(QMainWindow):
 
         # 빈 프로젝트로 시작
         self._new_project()
+
+    @property
+    def current_dataset(self) -> Dataset | None:
+        """현재 데이터셋을 반환합니다(지연 동기화 확정 후, P1-2)."""
+        data_view = getattr(self, "data_view", None)
+        if data_view is not None and self._current_dataset is not None:
+            data_view.sync_dataset()
+        return self._current_dataset
+
+    @current_dataset.setter
+    def current_dataset(self, value: Dataset | None) -> None:
+        self._current_dataset = value
 
     def _setup_ui(self) -> None:
         """UI 구성.
@@ -688,9 +700,12 @@ class MainWindow(QMainWindow):
 
     def _update_statusbar(self) -> None:
         """Update status bar."""
-        if self.current_dataset and self.current_dataset.data is not None:
-            rows = len(self.current_dataset.data)
-            cols = len(self.current_dataset.data.columns)
+        # P1-2: 행/열 개수는 셀 편집만으로 바뀌지 않으므로 지연 동기화 강제 없이
+        # self._current_dataset을 직접 참조한다.
+        dataset = self._current_dataset
+        if dataset and dataset.data is not None:
+            rows = len(dataset.data)
+            cols = len(dataset.data.columns)
             self.dataset_info_label.setText(f"N={rows:,}  {t('Variables')}={cols}")
         else:
             self.dataset_info_label.setText(f"N=0  {t('Variables')}=0")
@@ -1070,16 +1085,18 @@ class MainWindow(QMainWindow):
         """
         if dataset is not None:
             self.current_dataset = dataset
-        if self.current_dataset is not None:
+        # P1-2: 변수명·개수는 셀 편집으로 바뀌지 않으므로 여기선 지연 동기화를
+        # 강제하는 self.current_dataset 대신 self._current_dataset을 직접 참조한다.
+        if self._current_dataset is not None:
             # Variable View: 변수 메타데이터 변경(값 라벨 등) → 데이터 보기에 즉시 반영
             if hasattr(self, 'variable_view') and self.variable_view:
-                self.variable_view.set_dataset(self.current_dataset)
+                self.variable_view.set_dataset(self._current_dataset)
             # Data View: 메타데이터 변경(decimals, 측정 척도 등) → 셀 표시 갱신
             if hasattr(self, 'data_view') and self.data_view:
                 self.data_view.refresh()
             # 구문 편집기 동기화
             if hasattr(self, 'syntax_editor') and self.syntax_editor:
-                self.syntax_editor.set_dataset(self.current_dataset)
+                self.syntax_editor.set_dataset(self._current_dataset)
             # 프로젝트를 더티 상태로 표시
             if self.project is not None:
                 self.project.mark_dirty()
