@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>누리스탯 성능 대폭 개선 계획 (2026-07)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:"Pretendard","Pretendard Variable",-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+    background:#fafafa; color:#1f2937; line-height:1.65; font-size:15px;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:48px 32px 96px; }
+  h1 { font-size:26px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px; }
+  .sub { color:#6b7280; font-size:14px; margin-bottom:32px; }
+  h2 { font-size:19px; font-weight:700; margin:48px 0 16px; padding-bottom:8px; border-bottom:2px solid #111827; letter-spacing:-0.01em; }
+  h3 { font-size:16px; font-weight:600; margin:28px 0 10px; }
+  p { margin:8px 0; }
+  code { font-family:"JetBrains Mono","D2Coding",Consolas,monospace; font-size:13px; background:#f3f4f6; padding:1px 5px; border-radius:3px; color:#374151; }
+  pre { font-family:"JetBrains Mono","D2Coding",Consolas,monospace; font-size:12.5px; background:#1f2937; color:#e5e7eb; padding:14px 16px; border-radius:6px; overflow-x:auto; margin:10px 0 16px; line-height:1.55; }
+  pre code { background:none; color:inherit; padding:0; }
+  table { width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:13.5px; background:#fff; }
+  th { background:#111827; color:#fff; padding:8px 12px; text-align:left; font-weight:600; }
+  td { padding:8px 12px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
+  tr:last-child td { border-bottom:2px solid #d1d5db; }
+  .kpi { display:flex; gap:12px; flex-wrap:wrap; margin:20px 0; }
+  .kpi > div { flex:1; min-width:200px; background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:16px 18px; }
+  .kpi .n { font-size:24px; font-weight:700; color:#111827; }
+  .kpi .n em { font-style:normal; color:#2563eb; }
+  .kpi .l { font-size:12.5px; color:#6b7280; margin-top:2px; }
+  .tag { display:inline-block; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:4px; margin-right:6px; vertical-align:middle; }
+  .p0 { background:#111827; color:#fff; }
+  .p1 { background:#374151; color:#fff; }
+  .p2 { background:#6b7280; color:#fff; }
+  .p3 { background:#d1d5db; color:#374151; }
+  .box { background:#fff; border:1px solid #e5e7eb; border-left:4px solid #2563eb; border-radius:6px; padding:14px 18px; margin:14px 0; }
+  .warn { border-left-color:#b45309; }
+  .box b.t { display:block; font-size:13px; color:#2563eb; margin-bottom:4px; }
+  .warn b.t { color:#b45309; }
+  .file { font-family:"JetBrains Mono",Consolas,monospace; font-size:12.5px; color:#2563eb; }
+  ul, ol { margin:8px 0 12px 22px; }
+  li { margin:4px 0; }
+  .step { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:18px 22px; margin:16px 0; }
+  .step h4 { font-size:15px; font-weight:700; margin-bottom:8px; }
+  .step h4 .id { color:#2563eb; margin-right:8px; }
+  .meta { font-size:12.5px; color:#6b7280; margin-top:10px; padding-top:10px; border-top:1px dashed #e5e7eb; }
+  .meta b { color:#374151; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>누리스탯 성능 대폭 개선 계획</h1>
+<p class="sub">2026-07-04 · 실측 프로파일링 기반 · 실행 모델: Sonnet · 대상: <code>C:\업무\통계패키지\nuristat</code> (v3.6.0, 테스트 4,740개)</p>
+
+<div class="kpi">
+  <div><div class="n">6.65s → <em>≤1.8s</em></div><div class="l">콜드 시작 임포트 시간 (실측, Python 3.14)</div></div>
+  <div><div class="n">O(N×cols) → <em>O(1)</em></div><div class="l">셀 1개 편집 비용 (현재: 딥카피 3중 발생)</div></div>
+  <div><div class="n">1/54 → <em>54/54</em></div><div class="l">비동기 실행 분석 다이얼로그 비율</div></div>
+  <div><div class="n">2회 → <em>1회</em></div><div class="l">대용량 CSV 파일 디스크 읽기 횟수</div></div>
+</div>
+
+<h2>0. 실측 프로파일 (근거 데이터)</h2>
+<p><code>python -X importtime -c "from nuristat.app import NuriStatApp"</code> 실측 결과 (2026-07-04, 콜드 캐시):</p>
+<table>
+<tr><th>구간</th><th>시간</th><th>원인 (파일:줄)</th></tr>
+<tr><td><code>chardet</code> (mypyc 오케스트레이터)</td><td><b>2.53s</b></td><td><span class="file">src/nuristat/io/csv_reader.py:14</span> 최상위 <code>import chardet</code> → <span class="file">ui/main_window.py:34</span>가 시작 시 eager 로드</td></tr>
+<tr><td><code>scipy.stats</code> 체인</td><td><b>2.21s</b></td><td><span class="file">analysis/__init__.py:8</span>이 <code>assumptions</code>를 eager import → 다이얼로그들의 <code>from nuristat.analysis.result import ...</code>가 패키지 <code>__init__</code> 전체를 유발</td></tr>
+<tr><td><code>pandas</code></td><td>1.03s</td><td><span class="file">core/dataset.py</span> — 필수, 지연 불가</td></tr>
+<tr><td><code>PySide6.QtWidgets</code></td><td>0.54s</td><td>필수, 지연 불가</td></tr>
+<tr><td>기타 (ui.dialogs 체인 등)</td><td>~0.3s</td><td><span class="file">ui/output_window.py</span> → <code>chart_editor_dialog</code> → <code>analysis_dialog</code> 체인</td></tr>
+<tr><td><b>합계</b></td><td><b>6.65s</b></td><td>chardet + scipy 제거 시 <b>약 1.8s</b> 도달 가능</td></tr>
+</table>
+
+<p>런타임 핫패스 실코드 확인 결과:</p>
+<table>
+<tr><th>#</th><th>문제</th><th>위치</th><th>비용</th></tr>
+<tr><td>R1</td><td>편집 1회마다 undo 스냅샷 = DataFrame <b>전체 deep copy</b></td><td><span class="file">ui/models/spss_grid_model.py:179-194</span> (<code>_snapshot</code>, <code>_push_undo</code>)</td><td>100k행×50열 기준 편집당 수십 MB 복사 × undo_limit 배 메모리</td></tr>
+<tr><td>R2</td><td>편집 1회마다 <code>data_changed</code> → <code>get_dataframe()</code> 전체 dtype 재변환 + copy → <code>Dataset.data</code> setter 전 컬럼 meta 재동기화</td><td><span class="file">ui/data_view.py:777-779</span> → <span class="file">spss_grid_model.py:757-785</span> → <span class="file">core/dataset.py:51-62</span></td><td>키 입력 1회 = O(N×cols) 3중 체인</td></tr>
+<tr><td>R3</td><td><code>get_dataframe()</code> 캐시 적중 시에도 <code>.copy()</code> 반환</td><td><span class="file">spss_grid_model.py:764-765</span></td><td>호출마다 전체 복사</td></tr>
+<tr><td>R4</td><td><code>data()</code>가 셀마다 <code>self._dataframe.iloc[row, col]</code> — pandas 스칼라 접근은 느림</td><td><span class="file">spss_grid_model.py:405</span></td><td>화면 리페인트마다 가시 셀 수 × µs 단위</td></tr>
+<tr><td>R5</td><td>54개 분석 다이얼로그 중 <b>1개만</b> <code>AnalysisWorker</code>(QThread) 사용 — 나머지는 UI 스레드에서 동기 실행</td><td><span class="file">ui/dialogs/*.py</span> vs <span class="file">ui/analysis_worker.py</span></td><td>대용량 분석 시 UI 프리즈</td></tr>
+<tr><td>R6</td><td>인코딩 감지가 <code>path.read_bytes()</code>로 <b>파일 전체</b>를 읽고 앞 64KB만 사용 → pandas가 다시 전체 읽음</td><td><span class="file">io/csv_reader.py:53</span> (<code>_detect_encoding</code>)</td><td>대용량 CSV 디스크 I/O 2배</td></tr>
+<tr><td>R7</td><td>파일 열기/저장이 UI 스레드 동기 실행</td><td><span class="file">ui/main_window.py:980-984, 1111-1139</span></td><td>큰 파일 로드 중 앱 무응답</td></tr>
+<tr><td>R8</td><td>첫 ANOVA/T-TEST 시 statsmodels 강제 로드 2~3초 (위키 기록)</td><td>분석 모듈 lazy import 시점</td><td>첫 분석 체감 지연</td></tr>
+</table>
+
+<h2>1. Phase P0 — 시작 시간 (예상 절감 4.7s, 난이도 하, 리스크 하)</h2>
+
+<div class="step">
+<h4><span class="id">P0-1</span><span class="tag p0">P0</span>chardet 지연 임포트 — 2.53s 절감</h4>
+<p><span class="file">src/nuristat/io/csv_reader.py</span></p>
+<ul>
+<li>14행 <code>import chardet</code> 삭제</li>
+<li><code>_detect_encoding()</code> 함수 본문 첫 줄에 <code>import chardet</code> 이동</li>
+</ul>
+<div class="meta"><b>검증:</b> P0-5 회귀 가드 + <code>pytest tests/ -k csv</code> 그린. <b>리스크:</b> 없음 (감지 함수 호출 시점만 지연).</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P0-2</span><span class="tag p0">P0</span>analysis/__init__.py lazy화 (PEP 562) — 2.21s 절감</h4>
+<p><span class="file">src/nuristat/analysis/__init__.py</span> — eager import 8~24행 전부 제거, 모듈 수준 <code>__getattr__</code>로 대체:</p>
+<pre><code>_LAZY = {
+    "AnalysisPlugin": "nuristat.analysis.base",
+    "AnalysisRegistry": "nuristat.analysis.registry",
+    "AnalysisResult": "nuristat.analysis.result",
+    "ResultTable": "nuristat.analysis.result",
+    "check_homogeneity_of_variance": "nuristat.analysis.assumptions",
+    "check_normality": "nuristat.analysis.assumptions",
+    "get_case_processing_summary": "nuristat.analysis.assumptions",
+    "prepare_analysis_frame": "nuristat.analysis.assumptions",
+    "add_significance_stars": "nuristat.analysis.formatting",
+    # formatting·spec_utils 나머지 심볼 동일 방식
+}
+
+def __getattr__(name):
+    if name in _LAZY:
+        import importlib
+        mod = importlib.import_module(_LAZY[name])
+        return getattr(mod, name)
+    raise AttributeError(f"module 'nuristat.analysis' has no attribute {name!r}")</code></pre>
+<ul>
+<li>핵심: 다이얼로그들의 <code>from nuristat.analysis.result import AnalysisResult</code>는 이제 <code>analysis/__init__</code>이 비어 있으므로 <code>result.py</code>(pandas·pydantic만 사용)만 로드 → scipy 체인이 끊김</li>
+<li><span class="file">analysis/result.py</span>·<span class="file">analysis/formatting.py</span>에 scipy/statsmodels 최상위 import가 없는지 확인 (있으면 함수 내부로 이동)</li>
+<li><code>__all__</code>은 유지 (문자열 리스트라 무해)</li>
+</ul>
+<div class="meta"><b>검증:</b> <code>pytest tests/ --tb=no -q</code> 전체 그린 (4,740개). <b>리스크:</b> 하 — <code>from nuristat.analysis import X</code> 사용처는 <code>__getattr__</code>가 그대로 지원. 단 <code>dir()</code>·자동완성 의존 코드가 있다면 <code>__dir__</code>도 추가.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P0-3</span><span class="tag p0">P0</span>main_window의 IO 리더 지연 임포트</h4>
+<p><span class="file">src/nuristat/ui/main_window.py:34-37</span></p>
+<ul>
+<li><code>read_csv</code>·<code>read_excel</code>·<code>read_sav</code>·<code>load_project</code>/<code>save_project</code> 최상위 import 제거 → 사용 메서드(980, 1111행 부근) 내부로 이동</li>
+<li>excel_reader(openpyxl)·spss_reader(pyreadstat)도 같이 지연되는지 <code>-X importtime</code>으로 확인</li>
+</ul>
+<div class="meta"><b>검증:</b> 파일 열기 3종(CSV/XLSX/SAV) 수동 스모크 + 기존 테스트. <b>리스크:</b> 없음.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P0-4</span><span class="tag p1">P1</span>ui.dialogs eager 체인 차단</h4>
+<p><span class="file">src/nuristat/ui/output_window.py</span>가 <code>chart_editor_dialog</code> → <code>analysis_dialog</code>를 시작 시 로드하는 체인 확인. P0-2 적용 후 <code>-X importtime</code> 재측정에서 0.3s 이상 남는 하위 체인이 있으면 해당 import를 메서드 내부로 이동.</p>
+<div class="meta"><b>검증:</b> 재측정으로 잔여 구간 확인. <b>리스크:</b> 하.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P0-5</span><span class="tag p0">P0</span>회귀 가드 테스트 (필수 — 재발 방지 장치)</h4>
+<p>신규 <span class="file">tests/test_startup_imports.py</span>:</p>
+<pre><code>import subprocess, sys
+
+FORBIDDEN = ["chardet", "scipy", "matplotlib", "seaborn",
+             "statsmodels", "openpyxl", "pyreadstat", "sklearn", "lifelines"]
+
+def test_app_import_does_not_pull_heavy_modules():
+    code = (
+        "import sys; from nuristat.app import NuriStatApp; "
+        "loaded=[m for m in %r if m in sys.modules]; "
+        "assert not loaded, f'startup pulled: {loaded}'" % FORBIDDEN
+    )
+    r = subprocess.run([sys.executable, "-c", code],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr</code></pre>
+<p>subprocess 격리 실행이라 테스트 순서·타 테스트의 import 오염과 무관하게 판정된다.</p>
+<div class="meta"><b>효과:</b> 향후 누군가 최상위 import를 되돌리면 CI에서 즉시 실패 — 이 장치가 P0 전체의 지속성을 보장한다.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P0-6</span><span class="tag p2">P2</span>무거운 라이브러리 idle 프리워밍 — 첫 분석 2~3s 체감 제거</h4>
+<p><span class="file">src/nuristat/ui/main_window.py</span> <code>__init__</code> 말미:</p>
+<pre><code>from PySide6.QtCore import QTimer
+QTimer.singleShot(3000, self._prewarm_heavy_modules)
+
+def _prewarm_heavy_modules(self) -> None:
+    """시작 3초 후 백그라운드 스레드에서 무거운 모듈 워밍업 (UI 무영향)."""
+    import threading
+    def _warm():
+        try:
+            import scipy.stats      # noqa: F401
+            import statsmodels.api  # noqa: F401
+            import matplotlib
+            matplotlib.use("Agg")   # GUI 스레드 밖이므로 Agg 고정
+        except ImportError:
+            pass
+    threading.Thread(target=_warm, daemon=True, name="prewarm").start()</code></pre>
+<ul>
+<li>Python import는 GIL 하에서 스레드 안전 (모듈 락) — 백그라운드 워밍업은 정석 패턴</li>
+<li>순서 중요: P0-1·P0-2로 시작 경로에서 <b>제거</b>부터 하고, 프리워밍으로 첫 사용 지연을 흡수하는 2단 구조</li>
+</ul>
+<div class="meta"><b>검증:</b> 시작 직후 3초 내 T-TEST 실행해도 정상 동작(락 대기만 발생) 확인. <b>리스크:</b> 하.</div>
+</div>
+
+<h2>2. Phase P1 — 편집 핫패스: 키 입력당 O(N) 3중 체인 제거 (난이도 중, 효과 대)</h2>
+
+<div class="box warn"><b class="t">가장 중요한 구조 문제</b>
+현재 셀 1개 편집 시: ① <code>_push_undo()</code>가 DataFrame 전체 deep copy → ② <code>data_changed</code> 시그널 → <code>DataView._on_data_changed</code>가 <code>get_dataframe()</code> 호출 (dirty이므로 전 컬럼 <code>pd.to_numeric</code> 재변환 + copy) → ③ <code>Dataset.data</code> setter가 전 컬럼 변수 meta 재동기화. 10만 행 데이터면 <b>키 입력 1번에 전체 데이터 3회 순회 + 2회 복사</b>.</div>
+
+<div class="step">
+<h4><span class="id">P1-1</span><span class="tag p0">P0</span>Undo를 델타 방식으로 전환</h4>
+<p><span class="file">src/nuristat/ui/models/spss_grid_model.py</span></p>
+<ul>
+<li>undo 항목을 <code>("cell", row, col, old_value, new_value)</code> 델타 튜플과 <code>("full", snapshot)</code> 2종으로 이원화</li>
+<li><code>setData</code>(단일 셀)는 델타만 push — deep copy 완전 제거</li>
+<li>구조 변경(<code>add_column</code>·<code>remove_row</code>·<code>sort_by_column</code>·<code>set_dataframe</code>·붙여넣기 batch 등)은 기존 full 스냅샷 유지 — 안전성 우선</li>
+<li><code>undo()</code>/<code>redo()</code>에서 항목 타입 분기: 델타면 해당 셀만 되돌리고 그 셀 범위만 <code>dataChanged.emit</code>, full이면 기존 <code>_restore</code></li>
+<li>델타 undo 시에도 <code>_invalidate_df_cache()</code> 호출 유지 (위키 <b>project-nuristat-optimization</b> 규칙: 변이 지점 = 무효화 필수)</li>
+</ul>
+<div class="meta"><b>효과:</b> 편집당 수십 MB 복사 → 튜플 1개. undo 스택 메모리 사용량 수백 분의 1. <b>검증:</b> 기존 undo/redo 테스트 전체 그린 + 신규 테스트(델타·full 혼합 시퀀스: 셀편집→열추가→셀편집→undo×3→redo×3 왕복 동등성). <b>리스크:</b> 중 — undo 순서 섞임 버그 가능성. 혼합 시퀀스 테스트를 먼저 작성(TDD)하고 구현.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P1-2</span><span class="tag p0">P0</span>Dataset 동기화를 지연(lazy sync) 방식으로</h4>
+<p><span class="file">src/nuristat/ui/data_view.py:777-779</span></p>
+<ul>
+<li>현재: 편집마다 <code>self._dataset.data = self._model.get_dataframe()</code> 즉시 실행</li>
+<li>변경: <code>_on_data_changed</code>는 <code>self._dataset_stale = True</code> 플래그만 세움</li>
+<li><code>DataView.sync_dataset()</code> 공개 메서드 신설 — stale일 때만 실제 동기화</li>
+<li>동기화가 실제로 필요한 소비 시점 전부에서 <code>sync_dataset()</code> 호출: 분석 다이얼로그 열기 직전(<span class="file">main_window.py</span>의 다이얼로그 팩토리 1곳), 저장(<code>save_project</code>·내보내기), 구문 실행, 변수 보기 전환</li>
+<li>소비 지점이 흩어져 있으므로 <b>main_window에 게이트 헬퍼 1개</b>(<code>_current_dataset_synced()</code>)를 만들어 전 소비처가 이것만 거치게 일원화</li>
+</ul>
+<div class="meta"><b>효과:</b> 타이핑 중 O(N) 체인 완전 제거 — 편집 반응성이 데이터 크기와 무관해짐. <b>검증:</b> "셀 편집 → 즉시 분석 실행" 시나리오 테스트로 stale 데이터 미반영 버그 차단. <b>리스크:</b> 중 — 동기화 누락 경로가 있으면 분석이 옛 데이터로 실행됨. 게이트 일원화 + 시나리오 테스트가 방어선.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P1-3</span><span class="tag p1">P1</span>get_dataframe() 캐시 적중 시 copy 제거</h4>
+<p><span class="file">spss_grid_model.py:764-765</span> — 캐시 적중 시 <code>self._typed_df_cache.copy()</code> 대신 그대로 반환하되, 함수 docstring에 "반환 DataFrame은 읽기 전용 — 수정 금지" 계약 명시. 호출처 전수 감사(grep <code>get_dataframe()</code>)로 반환값을 in-place 수정하는 곳이 있으면 그 호출처에서만 <code>.copy()</code>.</p>
+<ul>
+<li>더 안전한 대안: <code>pd.set_option("mode.copy_on_write", True)</code>를 앱 시작 시 전역 활성화 — pandas 2.x CoW로 복사 비용이 실수정 시점으로 이연되고 3.0 대비도 됨. <b>단, 전체 테스트 스위트로 chained-assignment 패턴 회귀를 반드시 확인.</b></li>
+</ul>
+<div class="meta"><b>효과:</b> 분석·저장 때마다의 전체 복사 제거. <b>리스크:</b> 중 — CoW 전역 전환은 별도 커밋으로 분리해 문제 시 단독 롤백 가능하게.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P1-4</span><span class="tag p1">P1</span>Dataset.data setter의 meta 동기화 범위 축소</h4>
+<p><span class="file">src/nuristat/core/dataset.py:51-62</span> — 컬럼 집합이 동일하면(<code>value.columns.equals(self._data.columns)</code>) 변수 meta 재동기화 루프 전체 스킵. 컬럼이 달라진 경우만 추가/삭제 diff 처리.</p>
+<div class="meta"><b>효과:</b> P1-2 적용 후에도 남는 동기화 시점 비용 절감. <b>리스크:</b> 하.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P1-5</span><span class="tag p2">P2</span>data() 셀 렌더 경로 미세 최적화</h4>
+<p><span class="file">spss_grid_model.py:405</span></p>
+<ul>
+<li><code>self._dataframe.iloc[row, col]</code> → <code>self._dataframe.iat[row, col]</code> (스칼라 전용, 2~3배 빠름) — <code>data()</code>·<code>_format_display</code> 등 스칼라 접근 전수 치환</li>
+<li>측정 후 여전히 스크롤 버벅임이 있으면: 컬럼별 numpy 배열 캐시(<code>self._col_arrays: list[np.ndarray]</code>, df 캐시 무효화와 동일 시점에 무효화) 도입 — 단, 측정으로 정당화될 때만 (과설계 금지)</li>
+</ul>
+<div class="meta"><b>검증:</b> 10만 행 로드 후 PageDown 연타 스크롤 체감 + 벤치(P5-1). <b>리스크:</b> 하 (iat 치환은 기계적).</div>
+</div>
+
+<h2>3. Phase P2 — 분석 실행: 전 다이얼로그 비동기화 (난이도 중, UX 효과 대)</h2>
+
+<div class="step">
+<h4><span class="id">P2-1</span><span class="tag p0">P0</span>analysis_dialog_base에 공통 비동기 실행 경로 — 1곳 수정으로 54개 적용</h4>
+<p><span class="file">src/nuristat/ui/dialogs/analysis_dialog_base.py</span> (451줄)</p>
+<ul>
+<li>베이스 클래스의 "확인 → 분석 함수 실행 → 결과 emit" 공통 경로를 찾아 <code>run_analysis_async()</code>(<span class="file">ui/analysis_worker.py</span>, 이미 존재) 경유로 전환</li>
+<li>실행 중 상태: 확인 버튼 비활성 + <code>QProgressDialog</code>(1초 이상 걸릴 때만 표시, <code>setMinimumDuration(1000)</code>) + 취소 시 결과 무시(스레드 강제종료 금지 — 플래그로 결과 폐기)</li>
+<li>베이스를 안 거치는 다이얼로그가 있는지 전수 확인: <code>grep -L "AnalysisDialogBase" src/nuristat/ui/dialogs/*.py</code> — 이탈 다이얼로그는 개별 전환하거나 베이스 상속으로 리팩터</li>
+<li>주의: 분석 함수 내부에서 Qt 위젯 접근하는 코드가 있으면 스레드 위반 — 분석 함수는 <code>(dataset, spec) → AnalysisResult</code> 순수 함수여야 함. 위반 발견 시 spec 수집을 워커 시작 전으로 이동</li>
+<li>결과 수신 후 output_window 갱신은 시그널 슬롯(메인 스레드)에서 — 기존 <code>result_ready</code> 연결 패턴 그대로</li>
+</ul>
+<div class="meta"><b>효과:</b> 대용량 회귀·혼합 ANOVA·생존분석 실행 중 UI 프리즈 제거. <b>검증:</b> 기존 다이얼로그 테스트 전체 그린 + 대표 5종(ttest·anova·regression·survival·mixed_anova) 실행 스모크. <b>리스크:</b> 중 — Qt 스레드 위반은 크래시로 나타남. 대표 5종을 실제 GUI로 확인.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P2-2</span><span class="tag p2">P2</span>분석용 데이터 복사 감사</h4>
+<p><code>Dataset.__init__</code>(<span class="file">core/dataset.py:26</span>)의 <code>data.copy()</code>, 각 분석 모듈의 <code>prepare_analysis_frame</code> 경로에서 불필요한 중간 복사 횟수를 세고(대상 grep: <code>.copy()</code>), 분석 1회당 전체 복사 2회 이하로 축소. P1-3의 CoW 전역화가 되면 대부분 자동 해소 — 그 경우 이 항목은 검증만.</p>
+<div class="meta"><b>리스크:</b> 하.</div>
+</div>
+
+<h2>4. Phase P3 — 파일 I/O (난이도 하~중)</h2>
+
+<div class="step">
+<h4><span class="id">P3-1</span><span class="tag p0">P0</span>인코딩 감지: 전체 읽기 → 64KB 부분 읽기</h4>
+<p><span class="file">src/nuristat/io/csv_reader.py:53</span></p>
+<pre><code># 현재: raw = path.read_bytes()          ← 1GB 파일이면 1GB 로드
+# 변경:
+with open(path, "rb") as f:
+    sample = f.read(sample_size)          # 64KB만
+if not sample:
+    return "utf-8"</code></pre>
+<div class="meta"><b>효과:</b> 대용량 CSV 열기 시 디스크 읽기 절반. <b>검증:</b> 기존 인코딩 감지 테스트(utf-8·cp949·저신뢰 폴백) 그린. <b>리스크:</b> 없음 — 어차피 <code>raw[:sample_size]</code>만 쓰고 있었음.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P3-2</span><span class="tag p1">P1</span>파일 열기/저장 백그라운드화</h4>
+<p><span class="file">ui/main_window.py:980-984, 1111-1139</span> — <code>read_csv</code>/<code>read_excel</code>/<code>read_sav</code>/<code>load_project</code>/<code>save_project</code>를 <code>AnalysisWorker</code>(범용이므로 그대로 재사용) 경유로 전환. 로드 중 <code>QProgressDialog</code>(불확정 모드) 표시, 완료 시그널에서 <code>_load_dataset()</code>(메인 스레드) 호출. Dataset 생성까지 워커에서, 위젯 바인딩만 메인 스레드에서.</p>
+<div class="meta"><b>효과:</b> 수백 MB 파일 로드 중 무응답 제거. <b>리스크:</b> 중 — 로드 중 사용자 재조작(중복 열기) 방지 가드 필요.</div>
+</div>
+
+<div class="step">
+<h4><span class="id">P3-3</span><span class="tag p3">P3</span>read_csv pyarrow 엔진 검토 (측정 후 결정)</h4>
+<p>utf-8 파일 한정 <code>engine="pyarrow"</code>는 멀티스레드 파싱으로 수 배 빠르나 cp949 미지원·의존성 추가. <b>선행 조건:</b> P5-1 벤치에서 100MB CSV 로드가 P3-1·P3-2 이후에도 병목으로 남을 때만 진행. cp949는 기존 경로 폴백 유지. 의존성 추가는 <b>feedback-ci-dependency-version-safety</b> 규칙에 따라 pyproject 선언 + CI 확인 필수.</p>
+</div>
+
+<h2>5. Phase P4 — 렌더링·기타 (측정 후 선별)</h2>
+
+<div class="step">
+<h4><span class="id">P4-1</span><span class="tag p2">P2</span>출력 창 HTML 누적 방식 점검</h4>
+<p><span class="file">ui/output_window.py:167-174</span> — 결과 추가가 브라우저별 <code>setHtml</code>(개별)인지, 누적 문서 전체 재<code>setHtml</code>인지 확인. 전체 재렌더면 결과 100개 누적 시 O(N²) — <code>QTextCursor.insertHtml</code> append 방식으로 전환. 개별 브라우저 방식이면 조치 불필요(확인만 기록).</p>
+</div>
+
+<div class="step">
+<h4><span class="id">P4-2</span><span class="tag p3">P3</span>차트 PNG 파이프라인</h4>
+<p><span class="file">analysis/visualization.py</span> — Figure→PNG 저장 시 dpi 확인(화면용은 100~120으로 충분, 300은 내보내기 전용으로 분리), base64 인라인 이미지 크기 상한. <b>project-nuristat-viz-labels</b>의 DPI300 순백테마 방침과 충돌하지 않게: 논문용 내보내기 300 유지, 출력 창 미리보기만 저해상도.</p>
+</div>
+
+<div class="step">
+<h4><span class="id">P4-3</span><span class="tag p3">P3</span>PyInstaller 시작 시간</h4>
+<p><span class="file">NuriStat.spec:82,96</span> — <code>upx=True</code>가 onedir에서 DLL 압축해제로 시작을 늦출 수 있음. UPX on/off 빌드 2회 콜드 시작 비교 측정 후 느린 쪽 폐기. 부수 효과로 백신 오탐도 감소.</p>
+</div>
+
+<h2>6. Phase P5 — 측정 하네스 (P1 착수 전 먼저 구축)</h2>
+
+<div class="step">
+<h4><span class="id">P5-1</span><span class="tag p0">P0</span>벤치 스크립트 — 개선 전후 수치 증빙</h4>
+<p>신규 <span class="file">scripts/perf_bench.py</span> (results를 JSON으로 <span class="file">docs/perf_baseline.json</span>에 저장):</p>
+<pre><code># 측정 항목 (각 3회 중앙값)
+# 1. startup_import_s : subprocess로 python -X importtime 파싱, nuristat.app 누적
+# 2. edit_latency_ms  : 100,000행 × 50열 로드 → setData 1회 벽시계 시간
+# 3. undo_memory_mb   : 편집 100회 후 undo 스택 메모리 (sys.getsizeof 재귀 or tracemalloc)
+# 4. get_dataframe_ms : dirty 상태 / 캐시 상태 각각
+# 5. csv_load_s       : 100MB 합성 CSV read_csv (utf-8, cp949 각 1회)
+# 6. analysis_s       : ttest·anova·regression 각 10만 행 실행 시간</code></pre>
+<p>실행 순서 규율: <b>P5-1을 가장 먼저 구현 → baseline 기록 → 각 Phase 완료 시 재실행해 diff를 커밋 메시지에 남김.</b> "빨라졌다"는 주장은 전부 이 수치로만 한다.</p>
+</div>
+
+<h2>7. 실행 순서·커밋 전략 (Sonnet 작업 지시)</h2>
+
+<table>
+<tr><th>순서</th><th>커밋 단위</th><th>포함 항목</th><th>완료 기준</th></tr>
+<tr><td>1</td><td>perf: 벤치 하네스 + baseline</td><td>P5-1</td><td>baseline JSON 커밋됨</td></tr>
+<tr><td>2</td><td>perf: 시작 임포트 지연화</td><td>P0-1 → P0-2 → P0-3 → P0-5 → P0-4</td><td>startup ≤ 2.0s 실측 + 회귀가드 테스트 그린 + 전체 4,740 테스트 그린</td></tr>
+<tr><td>3</td><td>perf: 무거운 모듈 프리워밍</td><td>P0-6</td><td>첫 분석 지연 체감 제거 (analysis_s 첫 회 측정)</td></tr>
+<tr><td>4</td><td>perf: undo 델타화</td><td>P1-1 (테스트 먼저 작성)</td><td>edit_latency 벤치 개선 + undo/redo 혼합 시퀀스 테스트 그린</td></tr>
+<tr><td>5</td><td>perf: dataset lazy sync</td><td>P1-2 → P1-4</td><td>편집 중 <code>Dataset.data</code> setter 미호출 확인(카운터 테스트) + stale 시나리오 테스트 그린</td></tr>
+<tr><td>6</td><td>perf: CoW/copy 축소 (단독 커밋 — 롤백 대비)</td><td>P1-3 → P2-2</td><td>전체 테스트 그린 (경고 0)</td></tr>
+<tr><td>7</td><td>perf: 전 다이얼로그 비동기</td><td>P2-1</td><td>대표 5종 GUI 스모크 + 전체 테스트 그린</td></tr>
+<tr><td>8</td><td>perf: 파일 I/O</td><td>P3-1 → P3-2</td><td>csv_load 벤치 개선 + 로드 중 UI 응답 확인</td></tr>
+<tr><td>9</td><td>perf: 렌더·빌드 선별</td><td>P4-1~3, P1-5, P3-3 (벤치가 정당화하는 것만)</td><td>각 항목 측정 diff 기록</td></tr>
+</table>
+
+<div class="box"><b class="t">Sonnet 실행 시 준수 사항</b>
+<ul>
+<li>커밋 1건 = 위 표의 1행. 각 커밋 전 <code>python -m pytest tests/ --tb=no -q</code> 전체 그린 필수 (4,740개 기준)</li>
+<li>변이 메서드를 추가·수정하면 반드시 <code>_invalidate_df_cache()</code> 호출 여부 확인 (기존 13개 지점 규칙)</li>
+<li>수치 없는 "개선했습니다" 금지 — perf_bench.py 전후 diff를 커밋 메시지에 포함</li>
+<li>P1-1·P1-2·P2-1은 테스트 선작성(TDD) 후 구현</li>
+<li>새 의존성(pyarrow 등)은 pyproject.toml 선언 + 사용자 사전 승인</li>
+<li>측정이 정당화하지 않는 최적화(P1-5 배열 캐시, P3-3, P4-2)는 착수하지 않는다</li>
+</ul>
+</div>
+
+<h2>8. 예상 종합 효과</h2>
+<table>
+<tr><th>지표</th><th>현재 (실측/추정)</th><th>목표</th><th>근거</th></tr>
+<tr><td>콜드 시작 (임포트)</td><td>6.65s 실측</td><td><b>≤1.8s</b></td><td>chardet 2.53 + scipy 2.21 제거 = 산술적으로 1.9s, 여유분 P0-4</td></tr>
+<tr><td>첫 분석 실행 지연</td><td>+2~3s (statsmodels)</td><td><b>체감 0</b></td><td>P0-6 프리워밍</td></tr>
+<tr><td>셀 편집 반응 (10만행×50열)</td><td>편집당 전체 3회 순회+2회 복사</td><td><b>O(1) — 데이터 크기 무관</b></td><td>P1-1+P1-2 구조 제거</td></tr>
+<tr><td>undo 스택 메모리</td><td>편집 50회 ≈ df 50벌</td><td><b>~1/100</b></td><td>델타 튜플</td></tr>
+<tr><td>분석 중 UI</td><td>53/54 다이얼로그 프리즈</td><td><b>전체 응답 유지</b></td><td>P2-1 베이스 1곳 수정</td></tr>
+<tr><td>대용량 CSV 열기</td><td>디스크 2회 읽기 + UI 블록</td><td><b>1회 + 백그라운드</b></td><td>P3-1+P3-2</td></tr>
+</table>
+
+<p class="sub" style="margin-top:40px">근거 실측: 2026-07-04 <code>python -X importtime</code> (Python 3.14.5) · 코드 확인 위치는 본문 각 항목의 파일:줄 참조 · 위키 정본: [[project-nuristat-optimization]]</p>
+
+</div>
+</body>
+</html>
