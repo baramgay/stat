@@ -29,6 +29,7 @@ from nuristat.analysis.ml_engine import (
     linear_regression_ml,
 )
 from nuristat.core.dataset import Dataset
+from nuristat.ui.analysis_worker import run_analysis_async
 
 
 class MLDialog(QDialog):
@@ -39,6 +40,7 @@ class MLDialog(QDialog):
     def __init__(self, dataset: Dataset, parent=None) -> None:
         super().__init__(parent)
         self.dataset = dataset
+        self._analysis_worker = None
 
         self.setWindowTitle("🤖 기계학습")
         self.setMinimumSize(700, 600)
@@ -178,7 +180,7 @@ class MLDialog(QDialog):
             self.target_combo.setEnabled(True)
 
     def _run_analysis(self) -> None:
-        """분석 실행."""
+        """분석 실행 (P2-1: 백그라운드 스레드에서 실행, GUI 스레드 블로킹 없음)."""
         algo = self.algo_combo.currentData()
 
         # 특성 변수 선택
@@ -189,43 +191,48 @@ class MLDialog(QDialog):
 
         target = self.target_combo.currentText()
 
-        try:
-            if algo == "kmeans":
-                result = kmeans_clustering(
-                    self.dataset.data,
-                    features,
-                    n_clusters=self.k_spin.value(),
-                )
-                self._display_kmeans_result(result)
+        if algo in ("decision_tree", "linear_regression") and target == "(없음)":
+            QMessageBox.warning(self, "경고", "목표 변수를 선택하세요")
+            return
 
-            elif algo == "decision_tree":
-                if target == "(없음)":
-                    QMessageBox.warning(self, "경고", "목표 변수를 선택하세요")
-                    return
-                result = decision_tree_classifier(
-                    self.dataset.data,
-                    features,
-                    target,
-                    test_size=self.test_ratio_spin.value(),
-                )
-                self._display_tree_result(result)
+        spec = {
+            "algo": algo,
+            "features": features,
+            "target": target,
+            "n_clusters": self.k_spin.value(),
+            "test_size": self.test_ratio_spin.value(),
+        }
 
-            elif algo == "linear_regression":
-                if target == "(없음)":
-                    QMessageBox.warning(self, "경고", "목표 변수를 선택하세요")
-                    return
-                result = linear_regression_ml(
-                    self.dataset.data,
-                    features,
-                    target,
-                    test_size=self.test_ratio_spin.value(),
-                )
-                self._display_regression_result(result)
+        self.run_btn.setEnabled(False)
+        self.run_btn.setText("실행 중...")
 
-            self.analysis_complete.emit(f"ML 분석 완료: {algo}")
+        run_analysis_async(
+            owner=self,
+            run_fn=_compute_ml_result,
+            dataset=self.dataset,
+            spec=spec,
+            on_result=self._on_analysis_result,
+            on_error=self._on_analysis_error,
+        )
 
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실패:\n{exc}")
+    def _on_analysis_result(self, result: dict) -> None:
+        algo = result["algo"]
+        if algo == "kmeans":
+            self._display_kmeans_result(result["data"])
+        elif algo == "decision_tree":
+            self._display_tree_result(result["data"])
+        elif algo == "linear_regression":
+            self._display_regression_result(result["data"])
+
+        self.run_btn.setEnabled(True)
+        self.run_btn.setText("▶️ 실행")
+
+        self.analysis_complete.emit(f"ML 분석 완료: {algo}")
+
+    def _on_analysis_error(self, message: str) -> None:
+        QMessageBox.critical(self, "오류", f"분석 실패:\n{message}")
+        self.run_btn.setEnabled(True)
+        self.run_btn.setText("▶️ 실행")
 
     def _display_kmeans_result(self, result: dict) -> None:
         """K-Means 결과 표시."""
@@ -309,3 +316,35 @@ class MLDialog(QDialog):
         from collections import Counter
         sizes = Counter(labels)
         return ", ".join([f"군집 {k}: {v}개" for k, v in sorted(sizes.items())])
+
+
+def _compute_ml_result(dataset: Dataset, spec: dict) -> dict:
+    """ML 분석 계산 (백그라운드 스레드에서 실행, GUI 위젯 접근 없음)."""
+    algo = spec["algo"]
+    features = spec["features"]
+    target = spec["target"]
+
+    if algo == "kmeans":
+        data = kmeans_clustering(
+            dataset.data,
+            features,
+            n_clusters=spec["n_clusters"],
+        )
+    elif algo == "decision_tree":
+        data = decision_tree_classifier(
+            dataset.data,
+            features,
+            target,
+            test_size=spec["test_size"],
+        )
+    elif algo == "linear_regression":
+        data = linear_regression_ml(
+            dataset.data,
+            features,
+            target,
+            test_size=spec["test_size"],
+        )
+    else:
+        raise ValueError(f"알 수 없는 알고리즘: {algo}")
+
+    return {"algo": algo, "data": data}

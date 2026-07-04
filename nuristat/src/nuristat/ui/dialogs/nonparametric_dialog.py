@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from scipy import stats
 
 from nuristat.core.dataset import Dataset
+from nuristat.ui.analysis_worker import run_analysis_async
 
 
 class NonparametricDialog(QDialog):
@@ -31,6 +32,7 @@ class NonparametricDialog(QDialog):
     def __init__(self, dataset: Dataset, parent=None) -> None:
         super().__init__(parent)
         self.dataset = dataset
+        self._analysis_worker = None
 
         self.setWindowTitle("🧪 비모수 검정")
         self.setMinimumSize(500, 450)
@@ -127,103 +129,132 @@ class NonparametricDialog(QDialog):
         action_layout.addStretch()
         layout.addLayout(action_layout)
 
+    def _current_test_type(self) -> str:
+        if self.mannwhitney_radio.isChecked():
+            return "mannwhitney"
+        if self.wilcoxon_radio.isChecked():
+            return "wilcoxon"
+        if self.kruskal_radio.isChecked():
+            return "kruskal"
+        return "chisquare"
+
     def _run_analysis(self) -> None:
-        """비모수 검정 실행."""
+        """비모수 검정 실행 (P2-1: 백그라운드 스레드에서 실행, GUI 스레드 블로킹 없음)."""
         test_var = self.test_combo.currentText()
         group_var = self.group_combo.currentText()
         if group_var == "(없음)":
             group_var = None
 
-        df = self.dataset.data.dropna(subset=[test_var])
+        test_type = self._current_test_type()
 
-        try:
-            result_lines = []
-            result_lines.append("=" * 60)
+        if test_type in ("mannwhitney", "kruskal") and group_var is None:
+            QMessageBox.warning(self, "경고", "그룹 변수를 선택하세요")
+            return
 
-            if self.mannwhitney_radio.isChecked():
-                result_lines.append("Mann-Whitney U 검정")
-                result_lines.append("=" * 60)
+        if test_type == "mannwhitney":
+            df = self.dataset.data.dropna(subset=[test_var])
+            groups = df[group_var].unique()
+            if len(groups) != 2:
+                QMessageBox.warning(self, "경고", "그룹 변수는 2개의 범주를 가져야 합니다")
+                return
 
-                if group_var is None:
-                    QMessageBox.warning(self, "경고", "그룹 변수를 선택하세요")
-                    return
+        spec = {"test_type": test_type, "test_var": test_var, "group_var": group_var}
 
-                groups = df[group_var].unique()
-                if len(groups) != 2:
-                    QMessageBox.warning(self, "경고", "그룹 변수는 2개의 범주를 가져야 합니다")
-                    return
+        self.btn_run.setEnabled(False)
+        self.btn_run.setText("실행 중...")
 
-                group1 = df[df[group_var] == groups[0]][test_var]
-                group2 = df[df[group_var] == groups[1]][test_var]
+        run_analysis_async(
+            owner=self,
+            run_fn=_compute_nonparametric_result,
+            dataset=self.dataset,
+            spec=spec,
+            on_result=self._on_analysis_result,
+            on_error=self._on_analysis_error,
+        )
 
-                statistic, p_value = stats.mannwhitneyu(group1, group2, alternative='two-sided')
+    def _on_analysis_result(self, result_text: str) -> None:
+        self.result_text.setText(result_text)
+        self.btn_run.setEnabled(True)
+        self.btn_run.setText("▶ 검정 실행")
 
-                result_lines.append(f"그룹 1 ({groups[0]}): N={len(group1)}, 중위수={group1.median():.2f}")
-                result_lines.append(f"그룹 2 ({groups[1]}): N={len(group2)}, 중위수={group2.median():.2f}")
-                result_lines.append("")
-                result_lines.append(f"U 통계량: {statistic:.4f}")
-                result_lines.append(f"p-value: {p_value:.4f}")
-                result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
+        self.analysis_completed.emit({
+            "type": "nonparametric",
+            "test": self.type_group.checkedButton().text(),
+            "result": result_text,
+        })
 
-            elif self.wilcoxon_radio.isChecked():
-                result_lines.append("Wilcoxon 부호순위 검정")
-                result_lines.append("=" * 60)
+    def _on_analysis_error(self, message: str) -> None:
+        self.result_text.setText(f"[오류]\n{message}")
+        self.btn_run.setEnabled(True)
+        self.btn_run.setText("▶ 검정 실행")
 
-                # 대응표본은 2개 변수 필요 - 간단한 구현
-                result_lines.append("(대응표본: 2개 변수 선택 필요)")
 
-            elif self.kruskal_radio.isChecked():
-                result_lines.append("Kruskal-Wallis H 검정")
-                result_lines.append("=" * 60)
+def _compute_nonparametric_result(dataset: Dataset, spec: dict) -> str:
+    """비모수 검정 계산 (백그라운드 스레드에서 실행, GUI 위젯 접근 없음)."""
+    test_var = spec["test_var"]
+    group_var = spec["group_var"]
+    test_type = spec["test_type"]
 
-                if group_var is None:
-                    QMessageBox.warning(self, "경고", "그룹 변수를 선택하세요")
-                    return
+    df = dataset.data.dropna(subset=[test_var])
+    result_lines = ["=" * 60]
 
-                groups = [group[test_var].values for name, group in df.groupby(group_var)]
-                statistic, p_value = stats.kruskal(*groups)
+    if test_type == "mannwhitney":
+        result_lines.append("Mann-Whitney U 검정")
+        result_lines.append("=" * 60)
 
-                result_lines.append(f"그룹 수: {len(groups)}")
-                result_lines.append(f"H 통계량: {statistic:.4f}")
-                result_lines.append(f"p-value: {p_value:.4f}")
-                result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
+        groups = df[group_var].unique()
+        group1 = df[df[group_var] == groups[0]][test_var]
+        group2 = df[df[group_var] == groups[1]][test_var]
 
-            elif self.chisquare_radio.isChecked():
-                result_lines.append("Chi-square 검정")
-                result_lines.append("=" * 60)
+        statistic, p_value = stats.mannwhitneyu(group1, group2, alternative='two-sided')
 
-                if group_var:
-                    # 독립성 검정
-                    contingency = pd.crosstab(df[test_var], df[group_var])
-                    chi2, p_value, dof, expected = stats.chi2_contingency(contingency)
+        result_lines.append(f"그룹 1 ({groups[0]}): N={len(group1)}, 중위수={group1.median():.2f}")
+        result_lines.append(f"그룹 2 ({groups[1]}): N={len(group2)}, 중위수={group2.median():.2f}")
+        result_lines.append("")
+        result_lines.append(f"U 통계량: {statistic:.4f}")
+        result_lines.append(f"p-value: {p_value:.4f}")
+        result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
 
-                    result_lines.append("[독립성 검정]")
-                    result_lines.append(f"카이제곱: {chi2:.4f}")
-                    result_lines.append(f"자유도: {dof}")
-                    result_lines.append(f"p-value: {p_value:.4f}")
-                else:
-                    # 적합도 검정
-                    observed = df[test_var].value_counts()
-                    chi2, p_value = stats.chisquare(observed)
+    elif test_type == "wilcoxon":
+        result_lines.append("Wilcoxon 부호순위 검정")
+        result_lines.append("=" * 60)
+        result_lines.append("(대응표본: 2개 변수 선택 필요)")
 
-                    result_lines.append("[적합도 검정]")
-                    result_lines.append(f"카이제곱: {chi2:.4f}")
-                    result_lines.append(f"p-value: {p_value:.4f}")
+    elif test_type == "kruskal":
+        result_lines.append("Kruskal-Wallis H 검정")
+        result_lines.append("=" * 60)
 
-                result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
+        groups = [group[test_var].values for name, group in df.groupby(group_var)]
+        statistic, p_value = stats.kruskal(*groups)
 
-            result_lines.append("")
-            result_lines.append(f"유효 케이스: {len(df)}")
+        result_lines.append(f"그룹 수: {len(groups)}")
+        result_lines.append(f"H 통계량: {statistic:.4f}")
+        result_lines.append(f"p-value: {p_value:.4f}")
+        result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
 
-            result_text = "\n".join(result_lines)
-            self.result_text.setText(result_text)
+    elif test_type == "chisquare":
+        result_lines.append("Chi-square 검정")
+        result_lines.append("=" * 60)
 
-            # 시그널 발생
-            self.analysis_completed.emit({
-                "type": "nonparametric",
-                "test": self.type_group.checkedButton().text(),
-                "result": result_text,
-            })
+        if group_var:
+            contingency = pd.crosstab(df[test_var], df[group_var])
+            chi2, p_value, dof, expected = stats.chi2_contingency(contingency)
 
-        except Exception as exc:
-            self.result_text.setText(f"[오류]\n{exc}")
+            result_lines.append("[독립성 검정]")
+            result_lines.append(f"카이제곱: {chi2:.4f}")
+            result_lines.append(f"자유도: {dof}")
+            result_lines.append(f"p-value: {p_value:.4f}")
+        else:
+            observed = df[test_var].value_counts()
+            chi2, p_value = stats.chisquare(observed)
+
+            result_lines.append("[적합도 검정]")
+            result_lines.append(f"카이제곱: {chi2:.4f}")
+            result_lines.append(f"p-value: {p_value:.4f}")
+
+        result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
+
+    result_lines.append("")
+    result_lines.append(f"유효 케이스: {len(df)}")
+
+    return "\n".join(result_lines)
