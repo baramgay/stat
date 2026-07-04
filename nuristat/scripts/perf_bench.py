@@ -86,8 +86,12 @@ def undo_memory_mb() -> float:
         index = model.index(i, i % 50)
         model.setData(index, float(i))
 
+    # P1-1: undo 항목은 ("cell", row, col, old, new) 델타 또는
+    # ("full", snapshot) 전체 스냅샷 — full 항목의 DataFrame만 집계한다.
     total_bytes = sum(
-        snap[0].memory_usage(deep=True).sum() for snap in model._undo_stack
+        item[1][0].memory_usage(deep=True).sum()
+        for item in model._undo_stack
+        if item[0] == "full"
     )
     return total_bytes / (1024 * 1024)
 

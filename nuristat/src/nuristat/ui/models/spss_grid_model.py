@@ -187,8 +187,19 @@ class SPSSGridModel(QAbstractTableModel):
         )
 
     def _push_undo(self) -> None:
-        """변경 직전 상태를 undo 스택에 적재하고 redo 스택을 비운다."""
-        self._undo_stack.append(self._snapshot())
+        """변경 직전 전체 상태를 undo 스택에 적재하고 redo 스택을 비운다.
+
+        구조 변경(열/행 추가·삭제·정렬·이름변경 등)에 사용 — 안전성 우선.
+        단일 셀 편집은 훨씬 가벼운 ``_push_cell_undo``를 사용한다.
+        """
+        self._undo_stack.append(("full", self._snapshot()))
+        if len(self._undo_stack) > self._undo_limit:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+
+    def _push_cell_undo(self, row: int, col: int, old_value: Any, new_value: Any) -> None:
+        """단일 셀 값 변경을 델타(튜플)로 push — deep copy 없이 O(1)."""
+        self._undo_stack.append(("cell", row, col, old_value, new_value))
         if len(self._undo_stack) > self._undo_limit:
             self._undo_stack.pop(0)
         self._redo_stack.clear()
@@ -207,6 +218,18 @@ class SPSSGridModel(QAbstractTableModel):
         self.endResetModel()
         self.data_changed.emit()
 
+    def _apply_cell_delta(self, item: tuple, *, to_new: bool) -> None:
+        """셀 델타를 적용(undo=old_value, redo=new_value)하고 해당 셀만 갱신."""
+        _, row, col, old_value, new_value = item
+        self._dataframe.iloc[row, col] = new_value if to_new else old_value
+        self._invalidate_df_cache()
+        idx = self.index(row, col)
+        self.dataChanged.emit(
+            idx, idx,
+            [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.BackgroundRole],
+        )
+        self.data_changed.emit()
+
     def can_undo(self) -> bool:
         return bool(self._undo_stack)
 
@@ -217,16 +240,26 @@ class SPSSGridModel(QAbstractTableModel):
         """마지막 사용자 액션을 취소한다."""
         if not self._undo_stack:
             return False
-        self._redo_stack.append(self._snapshot())
-        self._restore(self._undo_stack.pop())
+        item = self._undo_stack.pop()
+        if item[0] == "full":
+            self._redo_stack.append(("full", self._snapshot()))
+            self._restore(item[1])
+        else:
+            self._redo_stack.append(item)
+            self._apply_cell_delta(item, to_new=False)
         return True
 
     def redo(self) -> bool:
         """취소한 액션을 다시 실행한다."""
         if not self._redo_stack:
             return False
-        self._undo_stack.append(self._snapshot())
-        self._restore(self._redo_stack.pop())
+        item = self._redo_stack.pop()
+        if item[0] == "full":
+            self._undo_stack.append(("full", self._snapshot()))
+            self._restore(item[1])
+        else:
+            self._undo_stack.append(item)
+            self._apply_cell_delta(item, to_new=True)
         return True
 
     @contextmanager
@@ -518,8 +551,14 @@ class SPSSGridModel(QAbstractTableModel):
                     )
                     return False
 
-        # 단일 셀 편집을 실행 취소 단위로 기록 (배치 모드는 진입 시 이미 push됨)
-        if self._batch_depth == 0:
+        # 기존 범위를 넘어서는 편집은 열/행 신설 등 구조 변경을 수반하므로
+        # 안전한 full 스냅샷 유지. 범위 내 편집만 가벼운 셀 델타 대상.
+        needs_growth = (
+            col >= len(self._dataframe.columns) or row >= len(self._dataframe)
+        )
+
+        # 구조 변경(배치 모드는 진입 시 이미 push됨) — 변이 전에 push
+        if self._batch_depth == 0 and needs_growth:
             self._push_undo()
 
         if col >= len(self._dataframe.columns):
@@ -540,6 +579,10 @@ class SPSSGridModel(QAbstractTableModel):
             self._dataframe.iloc[row, col] = new_value
             self._last_data_row = max(self._last_data_row, row)
             self._update_variable_metadata(col_name, new_value=new_value)
+
+            # 범위 내 단일 셀 편집은 성공 후 델타만 push — deep copy 없음
+            if self._batch_depth == 0 and not needs_growth:
+                self._push_cell_undo(row, col, old_value, new_value)
 
             # 배치 모드면 영역만 추적하고 신호는 종료 시 1회 방출
             if self._batch_depth > 0:

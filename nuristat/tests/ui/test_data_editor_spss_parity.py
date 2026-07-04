@@ -114,6 +114,67 @@ class TestUndoRedo:
         assert len(m._undo_stack) == 5
 
 
+class TestUndoDelta:
+    """P1-1: 단일 셀 편집은 델타(튜플)만 push — 구조 변경은 full 스냅샷 유지."""
+
+    def test_setdata_pushes_cell_delta_not_full_snapshot(self):
+        m = _make_model()
+        m.setData(m.index(0, 0), "99", Qt.ItemDataRole.EditRole)
+        assert m._undo_stack[-1][0] == "cell"
+
+    def test_structural_change_pushes_full_snapshot(self):
+        m = _make_model()
+        m.remove_row(1)
+        assert m._undo_stack[-1][0] == "full"
+
+    def test_growing_setdata_pushes_full_snapshot(self):
+        """기존 범위를 넘어 새 열/행을 만드는 편집은 구조 변경이므로 full 유지."""
+        m = _make_model()
+        m.setData(m.index(0, 2), "5", Qt.ItemDataRole.EditRole)   # 열 c 신설
+        assert m._undo_stack[-1][0] == "full"
+
+    def test_cell_undo_does_not_reset_model(self):
+        """델타 undo는 모델 리셋 없이 셀 단위로만 복원 — 뷰 상태(선택 등) 보존."""
+        m = _make_model()
+        m.setData(m.index(0, 0), "99", Qt.ItemDataRole.EditRole)
+        reset_calls = []
+        m.modelAboutToBeReset.connect(lambda: reset_calls.append(1))
+        m.undo()
+        assert reset_calls == []
+        assert m._dataframe.iloc[0, 0] == 1
+
+    def test_cell_redo_does_not_reset_model(self):
+        m = _make_model()
+        m.setData(m.index(0, 0), "99", Qt.ItemDataRole.EditRole)
+        m.undo()
+        reset_calls = []
+        m.modelAboutToBeReset.connect(lambda: reset_calls.append(1))
+        m.redo()
+        assert reset_calls == []
+        assert m._dataframe.iloc[0, 0] == 99
+
+    def test_mixed_delta_full_undo_redo_roundtrip(self):
+        """셀편집 → 열추가 → 셀편집 → undo x3 → redo x3 왕복 동등성."""
+        m = _make_model()
+        m.setData(m.index(0, 0), "99", Qt.ItemDataRole.EditRole)
+        m.insert_column_at(2)
+        m.setData(m.index(1, 0), "88", Qt.ItemDataRole.EditRole)
+
+        cols_after = list(m._dataframe.columns)
+        snapshot_after = m._dataframe.copy(deep=True)
+
+        for _ in range(3):
+            assert m.undo() is True
+        assert list(m._dataframe.columns) == ["a", "b"]
+        assert m._dataframe.iloc[0, 0] == 1
+        assert m._dataframe.iloc[1, 0] == 2
+
+        for _ in range(3):
+            assert m.redo() is True
+        assert list(m._dataframe.columns) == cols_after
+        pd.testing.assert_frame_equal(m._dataframe, snapshot_after)
+
+
 # ── 위치 삽입 (SPSS 케이스/변수 삽입) ──────────────────────────────────────
 
 class TestInsert:
