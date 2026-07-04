@@ -1,26 +1,26 @@
 {
-  "startup_import_s": 0.683153,
-  "edit_latency_ms": 0.38910000876057893,
+  "startup_import_s": 0.660347,
+  "edit_latency_ms": 0.3282999969087541,
   "dataview_edit_sync_ms": {
-    "deferred_ms": 0.5952000065008178,
-    "eager_sync_ms": 71.75899999856483
+    "deferred_ms": 0.3173000004608184,
+    "eager_sync_ms": 25.51399999356363
   },
   "dataset_setter_meta_resync_ms": {
-    "fast_path_ms": 0.05973599967546761,
-    "old_loop_ms": 3.303932000999339
+    "fast_path_ms": 0.03144200018141419,
+    "old_loop_ms": 1.7320820011082105
   },
   "undo_memory_mb": 0.0,
   "get_dataframe_ms": {
-    "dirty_ms": 20.620600000256673,
-    "cached_ms": 10.523600009037182
+    "dirty_ms": 7.975899992743507,
+    "cached_ms": 0.006400005077011883
   },
   "csv_load_s": {
-    "utf-8": 1.3807630000083009,
-    "cp949": 1.4064084999990882
+    "utf-8": 1.1922227000031853,
+    "cp949": 1.1815668999915943
   },
   "analysis_s": {
-    "ttest": 0.025190000000293367,
-    "anova": 0.22517099999822676,
-    "regression": 0.1255424000119092
+    "ttest": 0.03643569999258034,
+    "anova": 0.24798340001143515,
+    "regression": 0.14354409999214113
   }
 }

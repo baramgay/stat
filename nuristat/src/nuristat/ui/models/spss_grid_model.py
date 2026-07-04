@@ -803,9 +803,13 @@ class SPSSGridModel(QAbstractTableModel):
         dtype은 variables 메타데이터 기준으로 변환 — object 컬럼에 숫자가 담긴
         경우 is_numeric_dtype 체크가 False가 되는 문제를 방지한다.
         캐시 유효 시(_cache_dirty=False) dtype 변환 없이 즉시 반환 — O(N×cols) 회피.
+
+        읽기전용 계약(P1-3): 반환된 DataFrame은 내부 캐시와 동일 객체이므로
+        호출부에서 in-place 변경 금지. 값을 바꾸려면 복사 후 변경하거나
+        Dataset.data setter로 재할당할 것.
         """
         if not self._cache_dirty and self._typed_df_cache is not None:
-            return self._typed_df_cache.copy()
+            return self._typed_df_cache
 
         if self._dataframe.empty:
             return self._dataframe.copy()
@@ -827,7 +831,7 @@ class SPSSGridModel(QAbstractTableModel):
 
         self._typed_df_cache = df
         self._cache_dirty = False
-        return df.copy()
+        return df
 
     def get_full_dataframe(self) -> pd.DataFrame:
         """Return full DataFrame."""

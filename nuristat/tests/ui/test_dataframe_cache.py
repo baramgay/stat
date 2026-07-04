@@ -83,3 +83,15 @@ def test_undo_invalidates_cache(qapp):
     _ = model.get_dataframe()
     model.undo()
     assert model._cache_dirty is True
+
+
+def test_get_dataframe_cache_hit_returns_same_object(qapp):
+    """캐시 유효 시 copy() 없이 캐시 객체 자체를 반환해야 한다(P1-3, 읽기전용 계약).
+
+    호출부(data_view.py:779)가 read-only 사용만 하므로 copy 비용을 없앤다.
+    """
+    model = _make_model()
+    df1 = model.get_dataframe()
+    assert model._cache_dirty is False
+    df2 = model.get_dataframe()
+    assert df1 is df2
