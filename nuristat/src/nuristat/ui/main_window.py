@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QProgressDialog,
     QSplitter,
     QStatusBar,
     QTabWidget,
@@ -50,6 +51,7 @@ class MainWindow(QMainWindow):
         # 프로젝트 상태
         self.project: Project | None = None
         self._current_dataset: Dataset | None = None
+        self._file_task_worker = None
 
         # 테마 설정
         self._theme_manager = ThemeManager()
@@ -974,40 +976,80 @@ class MainWindow(QMainWindow):
         self._settings.clear_recent_files()
         self._rebuild_recent_menu()
 
+    def _run_file_task(self, task_fn, on_success, label: str) -> None:
+        """파일 입출력을 백그라운드 스레드에서 실행 (P3-2).
+
+        로드/저장 중 재요청은 무시해 중복 실행을 막는다(_file_task_worker 가드).
+        task_fn은 인자 없이 호출되며 위젯에 접근하지 않는다. on_success(result)는
+        완료 신호 수신 후 메인 스레드에서 실행되어 뷰 바인딩을 수행한다.
+        """
+        if self._file_task_worker is not None:
+            return
+
+        from nuristat.ui.analysis_worker import AnalysisWorker
+
+        progress = QProgressDialog(f"{label}...", None, 0, 0, self)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.show()
+
+        worker = AnalysisWorker(task_fn, parent=self)
+        self._file_task_worker = worker
+
+        def _finish() -> None:
+            self._file_task_worker = None
+            progress.close()
+
+        def _on_result(result) -> None:
+            _finish()
+            on_success(result)
+
+        def _on_error(message: str) -> None:
+            _finish()
+            QMessageBox.critical(self, "오류", f"{label} 실패:\n{message}")
+
+        worker.result_ready.connect(_on_result)
+        worker.error_occurred.connect(_on_error)
+        worker.start()
+
     def _open_recent(self, path: str) -> None:
-        """최근 파일을 확장자에 따라 적절한 로더로 다시 연다."""
+        """최근 파일을 확장자에 따라 적절한 로더로 다시 연다(백그라운드 실행)."""
         import os
         if not os.path.exists(path):
             QMessageBox.warning(self, "파일 없음", f"파일을 찾을 수 없습니다:\n{path}")
             return
         ext = os.path.splitext(path)[1].lower()
-        try:
+        if ext not in (".swb", ".csv", ".xlsx", ".xls", ".sav"):
+            QMessageBox.warning(self, "지원하지 않음", f"지원하지 않는 형식입니다: {ext}")
+            return
+
+        def _load():
             if ext == ".swb":
                 from nuristat.io.project_store import load_project
+                return load_project(path)
+            elif ext == ".csv":
+                from nuristat.io.csv_reader import read_csv
+                return read_csv(path)
+            elif ext in (".xlsx", ".xls"):
+                from nuristat.io.excel_reader import read_excel
+                return read_excel(path)
+            else:
+                from nuristat.io.spss_reader import read_sav
+                return read_sav(path)
 
-                self.project = load_project(path)
+        def _on_success(result) -> None:
+            if ext == ".swb":
+                self.project = result
                 if self.project.datasets:
                     self.current_dataset = self.project.datasets[0]
                     self._on_dataset_changed(self.current_dataset)
-            elif ext == ".csv":
-                from nuristat.io.csv_reader import read_csv
-
-                self._load_dataset(read_csv(path))
-            elif ext in (".xlsx", ".xls"):
-                from nuristat.io.excel_reader import read_excel
-
-                self._load_dataset(read_excel(path))
-            elif ext == ".sav":
-                from nuristat.io.spss_reader import read_sav
-
-                self._load_dataset(read_sav(path))
             else:
-                QMessageBox.warning(self, "지원하지 않음", f"지원하지 않는 형식입니다: {ext}")
-                return
+                self._load_dataset(result)
             self._remember_recent(path)
             self.statusbar.showMessage(f"열었습니다: {path}")
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"파일 열기 실패:\n{exc}")
+
+        self._run_file_task(_load, _on_success, "파일 열기")
 
     def _load_dataset(self, dataset) -> None:
         """가져온 데이터셋을 모든 뷰에 반영하는 공통 처리."""
@@ -1018,64 +1060,75 @@ class MainWindow(QMainWindow):
         self._update_statusbar()
 
     def _open_project(self) -> None:
-        """프로젝트 열기."""
+        """프로젝트 열기(백그라운드 실행)."""
         path, _ = QFileDialog.getOpenFileName(
             self, "프로젝트 열기", "", "누리스탯 프로젝트 (*.swb);;모든 파일 (*.*)"
         )
-        if path:
-            try:
-                from nuristat.io.project_store import load_project
+        if not path:
+            return
 
-                self.project = load_project(path)
-                if self.project.datasets:
-                    self.current_dataset = self.project.datasets[0]
-                    self.data_view.set_dataset(self.current_dataset)
-                    self.variable_view.set_dataset(self.current_dataset)
-                    self.syntax_editor.set_dataset(self.current_dataset)
-                self._update_statusbar()
-                self._remember_recent(path)
-                self.statusbar.showMessage(f"프로젝트를 열었습니다: {path}")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"프로젝트 열기 실패:\n{exc}")
+        def _load():
+            from nuristat.io.project_store import load_project
+            return load_project(path)
+
+        def _on_success(project) -> None:
+            self.project = project
+            if self.project.datasets:
+                self.current_dataset = self.project.datasets[0]
+                self.data_view.set_dataset(self.current_dataset)
+                self.variable_view.set_dataset(self.current_dataset)
+                self.syntax_editor.set_dataset(self.current_dataset)
+            self._update_statusbar()
+            self._remember_recent(path)
+            self.statusbar.showMessage(f"프로젝트를 열었습니다: {path}")
+
+        self._run_file_task(_load, _on_success, "프로젝트 열기")
 
     def _save_project(self) -> None:
-        """프로젝트 저장."""
+        """프로젝트 저장(백그라운드 실행)."""
         if self.project is None:
             return
 
-        if self.project.file_path:
-            try:
-                from nuristat.io.project_store import save_project
-
-                save_project(self.project, self.project.file_path)
-                self.project.clear_dirty()
-                self.statusbar.showMessage(f"저장되었습니다: {self.project.file_path}")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
-        else:
+        if not self.project.file_path:
             self._save_project_as()
+            return
+
+        path = self.project.file_path
+
+        def _do_save():
+            from nuristat.io.project_store import save_project
+            save_project(self.project, path)
+
+        def _on_success(_result) -> None:
+            self.project.clear_dirty()
+            self.statusbar.showMessage(f"저장되었습니다: {path}")
+
+        self._run_file_task(_do_save, _on_success, "프로젝트 저장")
 
     def _save_project_as(self) -> None:
-        """다른 이름으로 저장."""
+        """다른 이름으로 저장(백그라운드 실행)."""
         if self.project is None:
             return
 
         path, _ = QFileDialog.getSaveFileName(
             self, "프로젝트 저장", "", "누리스탯 프로젝트 (*.swb)"
         )
-        if path:
-            if not path.endswith(".swb"):
-                path += ".swb"
-            try:
-                from nuristat.io.project_store import save_project
+        if not path:
+            return
+        if not path.endswith(".swb"):
+            path += ".swb"
 
-                save_project(self.project, path)
-                self.project.file_path = path
-                self.project.clear_dirty()
-                self._remember_recent(path)
-                self.statusbar.showMessage(f"저장되었습니다: {path}")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"저장 실패:\n{exc}")
+        def _do_save():
+            from nuristat.io.project_store import save_project
+            save_project(self.project, path)
+
+        def _on_success(_result) -> None:
+            self.project.file_path = path
+            self.project.clear_dirty()
+            self._remember_recent(path)
+            self.statusbar.showMessage(f"저장되었습니다: {path}")
+
+        self._run_file_task(_do_save, _on_success, "프로젝트 저장")
 
     def _on_dataset_changed(self, dataset=None) -> None:
         """데이터셋 변경 시 호출됩니다.
@@ -1129,52 +1182,61 @@ class MainWindow(QMainWindow):
     # ── 파일 가져오기/내보내기 ────────────────────────────────────────────────
 
     def _import_csv(self) -> None:
-        """CSV 가져오기."""
+        """CSV 가져오기(백그라운드 실행)."""
         path, _ = QFileDialog.getOpenFileName(
             self, "CSV 파일 열기", "", "CSV 파일 (*.csv)"
         )
-        if path:
-            try:
-                from nuristat.io.csv_reader import read_csv
+        if not path:
+            return
 
-                dataset = read_csv(path)
-                self._load_dataset(dataset)
-                self._remember_recent(path)
-                self.statusbar.showMessage(f"CSV 가져오기 완료: {path}")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"CSV 가져오기 실패:\n{exc}")
+        def _load():
+            from nuristat.io.csv_reader import read_csv
+            return read_csv(path)
+
+        def _on_success(dataset) -> None:
+            self._load_dataset(dataset)
+            self._remember_recent(path)
+            self.statusbar.showMessage(f"CSV 가져오기 완료: {path}")
+
+        self._run_file_task(_load, _on_success, "CSV 가져오기")
 
     def _import_excel(self) -> None:
-        """Excel 가져오기."""
+        """Excel 가져오기(백그라운드 실행)."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Excel 파일 열기", "", "Excel 파일 (*.xlsx *.xls)"
         )
-        if path:
-            try:
-                from nuristat.io.excel_reader import read_excel
+        if not path:
+            return
 
-                dataset = read_excel(path)
-                self._load_dataset(dataset)
-                self._remember_recent(path)
-                self.statusbar.showMessage(f"Excel 가져오기 완료: {path}")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"Excel 가져오기 실패:\n{exc}")
+        def _load():
+            from nuristat.io.excel_reader import read_excel
+            return read_excel(path)
+
+        def _on_success(dataset) -> None:
+            self._load_dataset(dataset)
+            self._remember_recent(path)
+            self.statusbar.showMessage(f"Excel 가져오기 완료: {path}")
+
+        self._run_file_task(_load, _on_success, "Excel 가져오기")
 
     def _import_sav(self) -> None:
-        """SPSS .sav 가져오기."""
+        """SPSS .sav 가져오기(백그라운드 실행)."""
         path, _ = QFileDialog.getOpenFileName(
             self, "SPSS 파일 열기", "", "SPSS 파일 (*.sav)"
         )
-        if path:
-            try:
-                from nuristat.io.spss_reader import read_sav
+        if not path:
+            return
 
-                dataset = read_sav(path)
-                self._load_dataset(dataset)
-                self._remember_recent(path)
-                self.statusbar.showMessage(f"SPSS 가져오기 완료: {path}")
-            except Exception as exc:
-                QMessageBox.critical(self, "오류", f"SPSS 가져오기 실패:\n{exc}")
+        def _load():
+            from nuristat.io.spss_reader import read_sav
+            return read_sav(path)
+
+        def _on_success(dataset) -> None:
+            self._load_dataset(dataset)
+            self._remember_recent(path)
+            self.statusbar.showMessage(f"SPSS 가져오기 완료: {path}")
+
+        self._run_file_task(_load, _on_success, "SPSS 가져오기")
 
     def _import_clipboard(self) -> None:
         """클립보드 가져오기."""

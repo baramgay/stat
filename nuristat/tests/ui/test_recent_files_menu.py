@@ -76,11 +76,18 @@ class TestRecentMenu:
         window._open_recent("C:/no/such/file.csv")
         assert warned.get("hit") is True
 
-    def test_open_recent_csv_roundtrip(self, window, tmp_path):
-        """실제 CSV를 최근 파일로 다시 열면 데이터가 로드된다."""
+    def test_open_recent_csv_roundtrip(self, window, app, tmp_path):
+        """실제 CSV를 최근 파일로 다시 열면 데이터가 로드된다(백그라운드 완료 대기)."""
         p = tmp_path / "rt.csv"
         pd.DataFrame({"a": [1, 2], "b": [3, 4]}).to_csv(p, index=False)
         window._open_recent(str(p))
+
+        worker = window._file_task_worker
+        if worker is not None:
+            worker.wait(3000)
+        for _ in range(20):
+            app.processEvents()
+
         assert window.current_dataset is not None
         assert list(window.current_dataset.data.columns) == ["a", "b"]
         # 재열기 후 최근 목록에 기록됨
