@@ -367,9 +367,15 @@ class OutputWindow(QMainWindow):
             heading = doc.add_heading("누리스탯 분석 결과", 0)
             heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-            # 현재 탭이 분석 결과 탭이면 그 결과만, 아니면 전체
+            # 현재 탭이 분석 결과 탭이면 그 결과만 내보낸다 (로그 탭은 HTML 저장과 동일하게 대상 아님)
             cur_idx = self.tab_widget.currentIndex()
-            if cur_idx > 0 and cur_idx - 1 < len(self._results):
+            if cur_idx == 0:
+                QMessageBox.information(
+                    self, "안내",
+                    "로그 탭은 Word로 저장할 수 없습니다.\n저장할 분석 결과 탭을 선택하세요.",
+                )
+                return
+            if cur_idx - 1 < len(self._results):
                 results_to_export = [self._results[cur_idx - 1]]
             else:
                 results_to_export = list(self._results)

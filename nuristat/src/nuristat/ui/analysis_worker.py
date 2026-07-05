@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback
 from collections.abc import Callable
 from typing import Any
 
@@ -22,8 +23,8 @@ class AnalysisWorker(QThread):
         try:
             result = self._run_fn()
             self.result_ready.emit(result)
-        except Exception as exc:
-            self.error_occurred.emit(str(exc))
+        except Exception:
+            self.error_occurred.emit(traceback.format_exc())
 
 
 def run_analysis_async(

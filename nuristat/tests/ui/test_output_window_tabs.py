@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
@@ -104,6 +106,24 @@ class TestAddOutput:
 # -------------------------------------------------------------------------
 # 탭 닫기
 # -------------------------------------------------------------------------
+
+class TestSaveWord:
+    def test_log_tab_active_shows_guidance_not_full_dump(self, qtbot, monkeypatch):
+        """C5: 로그 탭 활성 시 Word 저장은 HTML 저장과 동일하게 대상 아님을 안내해야 한다."""
+        win = OutputWindow()
+        qtbot.addWidget(win)
+        win.add_analysis_result(_make_result("분석1"))
+        win.tab_widget.setCurrentIndex(0)  # 로그 탭으로 이동
+
+        monkeypatch.setattr(
+            "nuristat.ui.output_window.QFileDialog.getSaveFileName",
+            lambda *a, **k: ("dummy.docx", ""),
+        )
+        with patch("nuristat.ui.output_window.QMessageBox.information") as info:
+            win._save_word()
+        assert info.called
+        assert "로그 탭" in info.call_args[0][2]
+
 
 class TestTabClose:
     def test_close_removes_result(self, qtbot):
