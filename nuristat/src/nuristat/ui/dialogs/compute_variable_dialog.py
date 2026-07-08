@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from nuristat.core.dataset import Dataset
+from nuristat.core.safe_eval import validate_expression
 
 
 class ComputeVariableDialog(QDialog):
@@ -203,6 +204,7 @@ class ComputeVariableDialog(QDialog):
             for col in df.columns:
                 safe_dict[col] = df[col]
 
+            validate_expression(formula)
             result = eval(formula, {"__builtins__": {}}, safe_dict)
 
             if isinstance(result, pd.Series):

@@ -70,6 +70,14 @@ class ValidationError(NuriStatError):
     """
 
 
+class UnsafeExpressionError(NuriStatError):
+    """Raised when a user-supplied formula/condition contains a forbidden pattern.
+
+    Examples include dunder attribute access (``__class__``, ``__subclasses__``)
+    used to escape a restricted ``eval``/``df.eval`` sandbox.
+    """
+
+
 class ProjectError(NuriStatError):
     """Exception raised for errors related to project save/load operations.
 

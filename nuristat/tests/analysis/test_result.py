@@ -61,7 +61,7 @@ class TestResultTable:
             footnotes=["p < .05 is significant."],
         )
         html = rt.to_html()
-        assert "p < .05 is significant." in html
+        assert "p &lt; .05 is significant." in html
 
     def test_to_markdown(self) -> None:
         df = pd.DataFrame({"A": [1, 2]})

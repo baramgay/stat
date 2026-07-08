@@ -180,6 +180,9 @@ class PythonBridge:
                 node_type = type(node).__name__
                 return {"safe": False, "reason": f"금지된 구문: {node_type}"}
 
+            if isinstance(node, ast.Attribute) and node.attr.startswith("__") and node.attr.endswith("__"):
+                return {"safe": False, "reason": f"허용되지 않는 속성 접근: {node.attr}"}
+
             if isinstance(node, ast.Call):
                 # 위험한 함수 호출 검사
                 if isinstance(node.func, ast.Name):

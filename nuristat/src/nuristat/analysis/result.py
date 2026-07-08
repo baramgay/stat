@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import html as html_mod
 import io
 from datetime import datetime
 from typing import Any
@@ -55,14 +56,14 @@ class ResultTable(BaseModel):
         if img_type in ("profile_plot", "wordcloud_image"):
             try:
                 if self.dataframe.empty or "image_bytes" not in self.dataframe.columns:
-                    return f'<p><em>[이미지 없음: {self.title}]</em></p>'
+                    return f'<p><em>[이미지 없음: {html_mod.escape(self.title)}]</em></p>'
                 img_bytes = self.dataframe.iloc[0]["image_bytes"]
                 if not isinstance(img_bytes, (bytes, bytearray)) or len(img_bytes) == 0:
-                    return f'<p><em>[이미지 없음: {self.title}]</em></p>'
+                    return f'<p><em>[이미지 없음: {html_mod.escape(self.title)}]</em></p>'
                 b64 = base64.b64encode(img_bytes).decode("utf-8")
                 return (
                     f'<div style="margin:8px 0;">'
-                    f'<h4 style="margin:4px 0;font-size:13px;">{i18n.tr_title(self.title)}</h4>'
+                    f'<h4 style="margin:4px 0;font-size:13px;">{html_mod.escape(i18n.tr_title(self.title))}</h4>'
                     f'<img src="data:image/png;base64,{b64}" '
                     f'style="max-width:100%;border:1px solid #ddd;border-radius:4px;"/>'
                     f'</div>'
@@ -74,13 +75,13 @@ class ResultTable(BaseModel):
         # 출력 언어에 따라 제목·컬럼·라벨 번역 (내부 데이터는 불변, 표시용 사본만)
         disp = i18n.tr_frame(self.dataframe)
         html = '<table class="result-table">\n'
-        html += f"<caption>{i18n.tr_title(self.title)}</caption>\n"
+        html += f"<caption>{html_mod.escape(i18n.tr_title(self.title))}</caption>\n"
         html += disp.to_html(index=True, border=0) or ""
         if self.footnotes:
             html += '<tfoot>\n'
             for note in self.footnotes:
                 html += f"<tr><td colspan='{len(disp.columns)}'>"
-                html += f"<small>{note}</small></td></tr>\n"
+                html += f"<small>{html_mod.escape(note)}</small></td></tr>\n"
             html += '</tfoot>\n'
         html += '</table>'
         return html
@@ -204,12 +205,12 @@ class AnalysisResult(BaseModel):
                 pass
         if self.text_blocks:
             for block in self.text_blocks:
-                parts.append(f"<pre style='margin:4px 0'>{block}</pre>")
+                parts.append(f"<pre style='margin:4px 0'>{html_mod.escape(block)}</pre>")
         if self.notes:
-            note_html = "<ul>" + "".join(f"<li>{n}</li>" for n in self.notes) + "</ul>"
+            note_html = "<ul>" + "".join(f"<li>{html_mod.escape(n)}</li>" for n in self.notes) + "</ul>"
             parts.append(f"<div class='notes' style='color:#2874a6'>{note_html}</div>")
         if self.warnings:
-            warn_html = "<ul>" + "".join(f"<li>{w}</li>" for w in self.warnings) + "</ul>"
+            warn_html = "<ul>" + "".join(f"<li>{html_mod.escape(w)}</li>" for w in self.warnings) + "</ul>"
             parts.append(f"<div class='warnings' style='color:#d62728'>{warn_html}</div>")
         return "\n".join(parts)
 

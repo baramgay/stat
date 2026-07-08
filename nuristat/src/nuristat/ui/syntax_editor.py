@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from nuristat.core.dataset import Dataset
+from nuristat.core.safe_eval import validate_expression
 
 # SPSS Syntax 키워드
 SPSS_COMMANDS = [
@@ -446,6 +447,7 @@ class SyntaxEditor(QWidget):
             for col in df.columns:
                 safe_dict[col] = df[col]
 
+            validate_expression(expression)
             result = eval(expression, {"__builtins__": {}}, safe_dict)
             if isinstance(result, pd.Series):
                 self._dataset.data[var_name] = result
@@ -500,6 +502,7 @@ class SyntaxEditor(QWidget):
         condition = m.group(1).strip()
         df = self._dataset.data
         try:
+            validate_expression(condition)
             mask = df.eval(condition)
             before = len(df)
             self._dataset.data = df[mask].reset_index(drop=True)

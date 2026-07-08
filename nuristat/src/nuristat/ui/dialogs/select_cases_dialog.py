@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from nuristat.core.dataset import Dataset
+from nuristat.core.safe_eval import validate_expression
 
 
 class SelectCasesDialog(QDialog):
@@ -196,6 +197,7 @@ class SelectCasesDialog(QDialog):
                     return
 
                 # 조건 평가
+                validate_expression(condition)
                 df[filter_var] = 0
                 mask = df.eval(condition)
                 df.loc[mask, filter_var] = 1
