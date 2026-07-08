@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 from scipy import stats
 
+from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
 from nuristat.ui.analysis_worker import run_analysis_async
 
@@ -27,7 +28,7 @@ from nuristat.ui.analysis_worker import run_analysis_async
 class NonparametricDialog(QDialog):
     """비모수 검정 다이얼로그."""
 
-    analysis_completed = Signal(dict)
+    analysis_run = Signal(AnalysisResult)
 
     def __init__(self, dataset: Dataset, parent=None) -> None:
         super().__init__(parent)
@@ -177,11 +178,13 @@ class NonparametricDialog(QDialog):
         self.btn_run.setEnabled(True)
         self.btn_run.setText("▶ 검정 실행")
 
-        self.analysis_completed.emit({
-            "type": "nonparametric",
-            "test": self.type_group.checkedButton().text(),
-            "result": result_text,
-        })
+        test_name = self.type_group.checkedButton().text()
+        result = AnalysisResult(
+            id="nonparametric_test",
+            title=f"비모수 검정: {test_name}",
+            text_blocks=[result_text],
+        )
+        self.analysis_run.emit(result)
 
     def _on_analysis_error(self, message: str) -> None:
         self.result_text.setText(f"[오류]\n{message}")

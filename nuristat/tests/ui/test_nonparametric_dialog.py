@@ -39,19 +39,20 @@ def test_run_analysis_disables_button_and_uses_background_worker(qapp, dataset):
     assert "Mann-Whitney" in dialog.result_text.toPlainText()
 
 
-def test_run_analysis_emits_analysis_completed_after_worker_finishes(qapp, dataset):
+def test_run_analysis_emits_analysis_run_after_worker_finishes(qapp, dataset):
     dialog = NonparametricDialog(dataset)
     dialog.test_combo.setCurrentText("value")
     dialog.group_combo.setCurrentText("group")
 
     received = []
-    dialog.analysis_completed.connect(received.append)
+    dialog.analysis_run.connect(received.append)
 
     dialog._run_analysis()
     _wait_for_worker(qapp, dialog._analysis_worker)
 
     assert len(received) == 1
-    assert received[0]["type"] == "nonparametric"
+    assert "Mann-Whitney" in received[0].title
+    assert "Mann-Whitney" in received[0].text_blocks[0]
 
 
 def test_missing_group_var_warns_without_starting_worker(qapp, dataset, monkeypatch):

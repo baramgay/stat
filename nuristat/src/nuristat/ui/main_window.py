@@ -1654,20 +1654,6 @@ class MainWindow(QMainWindow):
             self._last_analysis_label.setText(f"최근 분석: {analysis_name}")
         self.statusbar.showMessage("분석 완료")
 
-    def _on_legacy_analysis_completed(self, spec: dict) -> None:
-        """분석 완료(dict) 시그널 처리 — 다이얼로그 내부에서 이미 계산된 결과 표시."""
-        self._ensure_output_window()
-        analysis_type = spec.get("type", "분석")
-        result_text = spec.get("result", "")
-        if result_text:
-            self._output_window.add_output(f"<pre>{result_text}</pre>", "analysis")
-        else:
-            import json
-            displayable = {k: v for k, v in spec.items() if k not in ("correlation_matrix",)}
-            self._output_window.add_output(f"<pre>{json.dumps(displayable, ensure_ascii=False, indent=2)}</pre>", "analysis")
-        self._last_analysis_label.setText(f"최근 분석: {analysis_type}")
-        self.statusbar.showMessage(f"분석 완료: {analysis_type}")
-
     def _on_crosstab_completed(self, spec: dict) -> None:
         """교차분석 다이얼로그 완료 — spec을 받아 crosstab.run_analysis로 실행."""
         ds = self.current_dataset
@@ -1810,7 +1796,7 @@ class MainWindow(QMainWindow):
 
         from nuristat.ui.dialogs.nonparametric_dialog import NonparametricDialog
         dialog = NonparametricDialog(self.current_dataset, self)
-        dialog.analysis_completed.connect(self._on_legacy_analysis_completed)
+        dialog.analysis_run.connect(self._on_analysis_result)
         dialog.exec()
 
     def _ensure_output_window(self) -> None:
