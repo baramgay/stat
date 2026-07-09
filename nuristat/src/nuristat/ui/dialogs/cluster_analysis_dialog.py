@@ -3,7 +3,6 @@
 K-평균 군집과 계층적 군집을 탭으로 구분하여 제공합니다.
 """
 
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -39,8 +38,6 @@ class ClusterAnalysisDialog(QDialog):
     - K-평균 군집: 군집 수, 반복 횟수, 초기값 방법
     - 계층적 군집: 연결 방법, 거리 척도
     """
-
-    analysis_requested = Signal(str, dict)
 
     def __init__(self, dataset: Dataset, parent=None):
         super().__init__(parent)
@@ -279,7 +276,4 @@ class ClusterAnalysisDialog(QDialog):
             QMessageBox.warning(self, "경고", "분석 변수를 2개 이상 선택하세요.")
             return
 
-        spec = self.get_spec()
-        analysis_id = spec["analysis_id"]
-        self.analysis_requested.emit(analysis_id, spec)
         self.accept()

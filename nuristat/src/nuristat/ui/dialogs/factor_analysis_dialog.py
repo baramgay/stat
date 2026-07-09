@@ -1,6 +1,5 @@
 """Factor Analysis Dialog — SPSS 스타일 요인분석 다이얼로그."""
 
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -36,8 +35,6 @@ class FactorAnalysisDialog(QDialog):
     회전 방법: 없음, 베리맥스, 직접 오블리민
     추출 기준: 고유값 > 1 또는 요인수 직접 지정
     """
-
-    analysis_requested = Signal(str, dict)
 
     def __init__(self, dataset: Dataset, parent=None):
         super().__init__(parent)
@@ -242,6 +239,4 @@ class FactorAnalysisDialog(QDialog):
             QMessageBox.warning(self, "경고", "분석 변수를 2개 이상 선택하세요.")
             return
 
-        spec = self.get_spec()
-        self.analysis_requested.emit("factor_analysis", spec)
         self.accept()

@@ -1,6 +1,5 @@
 """Logistic Regression Dialog — SPSS 스타일 로지스틱 회귀 다이얼로그."""
 
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -35,8 +34,6 @@ class LogisticRegressionDialog(QDialog):
     이항 또는 다항 로지스틱 회귀를 지원합니다.
     종속 변수의 고유값 수에 따라 자동으로 이항/다항을 감지합니다.
     """
-
-    analysis_requested = Signal(str, dict)
 
     def __init__(self, dataset: Dataset, parent=None):
         super().__init__(parent)
@@ -222,6 +219,4 @@ class LogisticRegressionDialog(QDialog):
             QMessageBox.warning(self, "경고", "독립 변수를 하나 이상 선택하세요.")
             return
 
-        spec = self.get_spec()
-        self.analysis_requested.emit("logistic_regression", spec)
         self.accept()

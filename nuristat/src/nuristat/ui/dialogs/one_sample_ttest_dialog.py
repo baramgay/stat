@@ -1,6 +1,5 @@
 """One Sample T-Test Dialog — 단일표본 T 검정 다이얼로그."""
 
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -27,8 +26,6 @@ class OneSampleTTestDialog(QDialog):
 
     검정 변수와 검정값(귀무가설 평균)을 선택합니다.
     """
-
-    analysis_requested = Signal(str, dict)
 
     def __init__(self, dataset: Dataset, parent=None):
         super().__init__(parent)

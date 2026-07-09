@@ -1949,22 +1949,6 @@ class MainWindow(QMainWindow):
 
             self._run_async(_run, "판별분석")
 
-    def _on_analysis_requested(self, analysis_type: str, params: dict) -> None:
-        """분석 요청 처리."""
-        from nuristat.analysis.registry import AnalysisRegistry
-
-        try:
-            registry = AnalysisRegistry()
-            result = registry.execute(analysis_type, self.current_dataset, params)
-
-            output = self._get_output()
-            output.add_analysis_result(result)
-
-            self._last_analysis_label.setText(f"최근 분석: {analysis_type}")
-            self.statusbar.showMessage(f"분석 완료: {analysis_type}")
-        except Exception as exc:
-            QMessageBox.critical(self, "오류", f"분석 실행 실패:\n{exc}")
-
     # ── 차트 메뉴 ──────────────────────────────────────────────────────────
 
     def _open_visualization(self) -> None:
