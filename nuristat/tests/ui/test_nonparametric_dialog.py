@@ -16,6 +16,14 @@ def dataset():
     }))
 
 
+@pytest.fixture
+def paired_dataset():
+    return Dataset(pd.DataFrame({
+        "before": [10.0, 12.0, 9.0, 15.0, 11.0, 13.0],
+        "after": [12.0, 15.0, 11.0, 16.0, 14.0, 18.0],
+    }))
+
+
 def _wait_for_worker(qapp, worker, timeout_ms: int = 3000) -> None:
     worker.wait(timeout_ms)
     for _ in range(20):
@@ -53,6 +61,43 @@ def test_run_analysis_emits_analysis_run_after_worker_finishes(qapp, dataset):
     assert len(received) == 1
     assert "Mann-Whitney" in received[0].title
     assert "Mann-Whitney" in received[0].text_blocks[0]
+
+
+def test_wilcoxon_emits_analysis_run_with_real_result(qapp, paired_dataset):
+    dialog = NonparametricDialog(paired_dataset)
+    dialog.wilcoxon_radio.setChecked(True)
+    dialog.test_combo.setCurrentText("before")
+    dialog.paired_combo.setCurrentText("after")
+
+    received = []
+    dialog.analysis_run.connect(received.append)
+
+    dialog._run_analysis()
+    _wait_for_worker(qapp, dialog._analysis_worker)
+
+    assert len(received) == 1
+    result = received[0]
+    assert not result.warnings
+    html = result.to_html()
+    assert "Wilcoxon W" in html
+    assert "p-value" in html
+
+
+def test_wilcoxon_same_variable_warns_without_starting_worker(qapp, paired_dataset, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: warnings.append(a))
+
+    dialog = NonparametricDialog(paired_dataset)
+    dialog.wilcoxon_radio.setChecked(True)
+    dialog.test_combo.setCurrentText("before")
+    dialog.paired_combo.setCurrentText("before")
+
+    dialog._run_analysis()
+
+    assert len(warnings) == 1
+    assert dialog._analysis_worker is None
 
 
 def test_missing_group_var_warns_without_starting_worker(qapp, dataset, monkeypatch):

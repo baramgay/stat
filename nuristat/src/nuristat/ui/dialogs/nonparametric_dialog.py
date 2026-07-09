@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 from scipy import stats
 
+from nuristat.analysis.nonparametric import run_analysis as _run_wilcoxon_analysis
 from nuristat.analysis.result import AnalysisResult
 from nuristat.core.dataset import Dataset
 from nuristat.ui.analysis_worker import run_analysis_async
@@ -96,6 +97,14 @@ class NonparametricDialog(QDialog):
         group_layout.addWidget(self.group_combo)
         vars_layout.addLayout(group_layout)
 
+        # 짝지어진 변수 (Wilcoxon 전용)
+        paired_layout = QHBoxLayout()
+        paired_layout.addWidget(QLabel("짝지어진 변수(Wilcoxon):"))
+        self.paired_combo = QComboBox()
+        self.paired_combo.addItems(all_vars)
+        paired_layout.addWidget(self.paired_combo)
+        vars_layout.addLayout(paired_layout)
+
         layout.addWidget(vars_group)
 
         # 결과
@@ -148,6 +157,28 @@ class NonparametricDialog(QDialog):
 
         test_type = self._current_test_type()
 
+        if test_type == "wilcoxon":
+            paired_var = self.paired_combo.currentText()
+            if not paired_var or paired_var == test_var:
+                QMessageBox.warning(self, "경고", "서로 다른 두 변수를 선택하세요")
+                return
+
+            self.btn_run.setEnabled(False)
+            self.btn_run.setText("실행 중...")
+
+            run_analysis_async(
+                owner=self,
+                run_fn=_run_wilcoxon_analysis,
+                dataset=self.dataset,
+                spec={
+                    "variables": {"paired": [test_var, paired_var]},
+                    "options": {"test": "wilcoxon"},
+                },
+                on_result=self._on_wilcoxon_result,
+                on_error=self._on_analysis_error,
+            )
+            return
+
         if test_type in ("mannwhitney", "kruskal") and group_var is None:
             QMessageBox.warning(self, "경고", "그룹 변수를 선택하세요")
             return
@@ -186,6 +217,12 @@ class NonparametricDialog(QDialog):
         )
         self.analysis_run.emit(result)
 
+    def _on_wilcoxon_result(self, result: AnalysisResult) -> None:
+        self.result_text.setHtml(result.to_html())
+        self.btn_run.setEnabled(True)
+        self.btn_run.setText("▶ 검정 실행")
+        self.analysis_run.emit(result)
+
     def _on_analysis_error(self, message: str) -> None:
         self.result_text.setText(f"[오류]\n{message}")
         self.btn_run.setEnabled(True)
@@ -217,11 +254,6 @@ def _compute_nonparametric_result(dataset: Dataset, spec: dict) -> str:
         result_lines.append(f"U 통계량: {statistic:.4f}")
         result_lines.append(f"p-value: {p_value:.4f}")
         result_lines.append(f"결과: {'유의함 (p < 0.05)' if p_value < 0.05 else '유의하지 않음 (p >= 0.05)'}")
-
-    elif test_type == "wilcoxon":
-        result_lines.append("Wilcoxon 부호순위 검정")
-        result_lines.append("=" * 60)
-        result_lines.append("(대응표본: 2개 변수 선택 필요)")
 
     elif test_type == "kruskal":
         result_lines.append("Kruskal-Wallis H 검정")
